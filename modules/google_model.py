@@ -1,7 +1,6 @@
 import os
-from modules.base_model import BaseModel
 
-class GoogleModel(BaseModel):
+class GoogleModel:
     def __init__(self, api_key=None):
         self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
         if not self.api_key:

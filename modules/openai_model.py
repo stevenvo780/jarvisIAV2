@@ -1,8 +1,7 @@
 import time
 import os
-from modules.base_model import BaseModel
 
-class OpenAIModel(BaseModel):
+class OpenAIModel:
     def __init__(self, openai_api_key=None):
         self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
         if not self.openai_api_key:
