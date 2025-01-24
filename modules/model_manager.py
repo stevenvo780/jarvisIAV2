@@ -1,32 +1,39 @@
 import logging
-import concurrent.futures
+from typing import Dict, List
+from modules.base_model import BaseModel
 from modules.local_model import LocalModel
 from modules.google_model import GoogleModel
 from modules.openai_model import OpenAIModel
 
 class ModelManager:
-    def __init__(self, priority=None, timeout_in_seconds=5):
+    def __init__(self, priority: List[str] = None, timeout_in_seconds: int = 5):
         self.priority = priority or ["local", "google", "openai"]
         self.timeout = timeout_in_seconds
-
+        
         logging.basicConfig(filename="logs/jarvis.log",
                           level=logging.INFO,
                           format="%(asctime)s %(levelname)s %(message)s")
+        
+        self.models: Dict[str, BaseModel] = {
+            "local": LocalModel(),
+            "google": GoogleModel(),
+            "openai": OpenAIModel()
+        }
 
-        self.local_model = LocalModel()
-        self.google_model = GoogleModel()
-        self.openai_model = OpenAIModel()
-
-    def get_response(self, query):
-        # Intentar con el modelo local, si falla pasar a Google, etc.
-        for model in self.priority:
+    def get_response(self, query: str) -> str:
+        for model_name in self.priority:
             try:
-                if model == "local":
-                    return self.local_model.get_response(query)
-                elif model == "google":
-                    return self.google_model.get_response(query)
-                elif model == "openai":
-                    return self.openai_model.get_response(query)
+                model = self.models.get(model_name)
+                if not model:
+                    logging.error(f"Modelo {model_name} no encontrado")
+                    continue
+                    
+                response = model.get_response(query)
+                logging.info(f"Respuesta exitosa de {model_name}")
+                return response
+                
             except Exception as e:
-                logging.error(f"Error with {model} model: {e}")
+                logging.error(f"Error con modelo {model_name}: {str(e)}")
+                continue
+                
         return "No response available"
