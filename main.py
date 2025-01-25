@@ -54,7 +54,7 @@ class Jarvis:
             self._setup_signal_handlers()
             self._initialize_system()
             # Start audio in background
-            self._start_audio_initialization()
+            # self._start_audio_initialization()
             self._initialize_text_mode()
         except Exception as e:
             self.terminal.print_error(f"Initialization error: {e}")
@@ -103,6 +103,7 @@ class Jarvis:
             self.state['audio_initialized'] = True
             self.state['voice_active'] = True
             self.terminal.print_success("Voice system initialized successfully")
+            return True
             
         except Exception as e:
             self.state['voice_active'] = False

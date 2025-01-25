@@ -65,6 +65,7 @@ class TextHandler:
 
     def _process_input(self, text: str):
         """Process user text commands or forward them to Jarvis."""
+        # Remove \r or \n to avoid extra carriage returns
         text = text.replace('\r', '').replace('\n', '').strip()
         if not text:
             return

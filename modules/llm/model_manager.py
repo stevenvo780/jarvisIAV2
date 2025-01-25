@@ -36,7 +36,6 @@ class ModelManager:
     def __init__(self, config_path: str = "config.json"):
         self.config = self._load_config(config_path)
         self._validate_config(self.config)
-        # Inicializa cada modelo con su configuración (si deseas, puedes pasar config específica)
         self.models = self._initialize_models()
         self._setup_logging()
         self._validate_system()
@@ -45,7 +44,7 @@ class ModelManager:
         logging.info("ModelManager inicializado")
 
     def _load_config(self, config_path: str) -> Dict:
-        """Carga o fusiona configuración desde archivo JSON, si existe."""
+        """Loads or merges JSON config if exists."""
         import json
         if not os.path.exists(config_path):
             return dict(self.CONFIG_DEFAULTS)
@@ -59,21 +58,21 @@ class ModelManager:
         return merged_conf
 
     def _validate_config(self, config: Dict) -> Dict:
-        """Valida campos esenciales en la configuración."""
-        # Asegurarnos de que todos los modelos de fallback_order estén en 'models'
+        """Validates essential config fields."""
+        # Ensure all fallback_order models are in 'models'
         if not all(m in config["models"] for m in config["fallback_order"]):
             raise ValueError("Configuración inválida: fallback_order contiene modelos no declarados")
-        # Validar seguridad
+        # Validate security
         if any(term.strip() == "" for term in config["security"]["blocked_terms"]):
             raise ValueError("Términos bloqueados inválidos en configuración")
-        # Validar tiempo de espera
+        # Validate timeouts
         for model in config["timeouts"]:
             if config["timeouts"][model] <= 0:
                 raise ValueError(f"Timeout inválido para modelo {model}")
         return config
 
     def _initialize_models(self) -> Dict[str, object]:
-        """Instancia los modelos según la lista 'models'."""
+        """Instantiates models defined in 'models' list."""
         instantiated = {}
         for model_name in self.config['models']:
             try:
@@ -92,7 +91,7 @@ class ModelManager:
         return instantiated
 
     def _setup_logging(self):
-        """Configura el logger."""
+        """Configures the logger."""
         logger = logging.getLogger('ModelManager')
         logger.setLevel(self.config.get('log_level', 'INFO'))
         if not logger.handlers:
@@ -102,21 +101,14 @@ class ModelManager:
             logger.addHandler(handler)
 
     def _validate_system(self):
-        """Verifica recursos del sistema, como memoria y CPU."""
+        """Checks system resources like memory and CPU usage."""
         if psutil.virtual_memory().percent > 90:
             logging.warning("Memoria del sistema alta (>90%)")
         if psutil.cpu_percent(interval=1) > 90:
             logging.warning("Uso de CPU alto (>90%)")
 
-    # Se deshabilitan las animaciones que generaban caracteres ^M
-    def _start_thinking_animation(self):
-        pass
-
-    def _stop_thinking_animation(self):
-        pass
-
     def _validate_query(self, query: str):
-        """Evita consultas excesivamente largas o con términos bloqueados."""
+        """Prevents excessively long queries or blocked terms."""
         if len(query) > self.config['security']['max_query_length']:
             raise SecurityError("Consulta demasiado larga")
         lower_query = query.lower()
@@ -124,7 +116,10 @@ class ModelManager:
             raise SecurityError("Consulta contiene términos potencialmente peligrosos")
 
     def _process_with_model(self, model_name: str, query: str) -> Optional[str]:
-        """Llama al modelo con ThreadPoolExecutor y maneja reintentos/backoff."""
+        """
+        Calls the model using ThreadPoolExecutor and handles retries/backoff.
+        Returns response or None if fails.
+        """
         retries = self.config['retry_policy']['max_retries']
         backoff_base = self.config['retry_policy']['backoff_base']
         max_delay = self.config['retry_policy']['max_delay']
@@ -144,26 +139,26 @@ class ModelManager:
 
     def get_response(self, query: str) -> str:
         """
-        Intenta obtener respuesta usando fallback_order (ej. Google -> OpenAI -> Local).
-        Retorna la primera respuesta válida que consiga.
+        Attempts to get a response using fallback_order (e.g. Google -> OpenAI -> Local).
+        Returns the first valid response found.
         """
-        # Validar seguridad
+        # Validate query
         try:
             self._validate_query(query)
         except SecurityError as e:
             logging.warning(f"Consulta bloqueada: {str(e)}")
             return "Consulta rechazada por motivos de seguridad."
 
-        self._start_thinking_animation()
+        # (Animaciones deshabilitadas, se removieron por completo)
         try:
             for model_name in self.config['fallback_order']:
-                # Saltar si el modelo no se inicializó
+                # Skip if model wasn't initialized
                 if model_name not in self.models:
                     continue
 
                 response = self._process_with_model(model_name, query)
                 if response:
-                    # Guardar en historial
+                    # Save to history
                     self.conversation_history.append({
                         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                         "model": model_name,
@@ -174,8 +169,9 @@ class ModelManager:
 
             return "Error: Ningún modelo pudo responder."
         finally:
-            self._stop_thinking_animation()
+            # No spinner/animation cleanup needed
+            pass
 
     def get_history(self) -> List[Dict]:
-        """Devuelve el historial de consultas/respuestas."""
+        """Returns conversation history."""
         return list(self.conversation_history)
