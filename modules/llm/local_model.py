@@ -3,11 +3,12 @@ import warnings
 from typing import Optional, Dict, Any
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-# Suprimir el warning específico de bitsandbytes
 warnings.filterwarnings('ignore', message='Input type into Linear4bit.*')
 
 class LocalModel:
     DEFAULT_MODEL_NAME = "meta-llama/Llama-2-7b-hf"
+    # DEFAULT_MODEL_NAME = "meta-llama/Llama-3.2-1B"
+    # DEFAULT_MODEL_NAME = "meta-llama/Llama-3.2-2B"
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
