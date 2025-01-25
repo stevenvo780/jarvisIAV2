@@ -8,8 +8,8 @@ from llama_cpp import Llama
 from pathlib import Path
 
 class LocalModel:
-    DEFAULT_MODEL_FILENAME = "llama-2-7B-chat.Q4_K_M.gguf"
-    DEFAULT_MODEL_URL = f"https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/{DEFAULT_MODEL_FILENAME}"
+    DEFAULT_MODEL_FILENAME = "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+    DEFAULT_MODEL_URL = f"https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/{DEFAULT_MODEL_FILENAME}"
     
     SIMPLE_RESPONSES = {
         "hola": "¡Hola! ¿En qué puedo ayudarte hoy?",
@@ -114,9 +114,9 @@ class LocalModel:
         try:
             return Llama(
                 model_path=self.model_path,
-                n_ctx=2048,
-                n_batch=512,
-                n_threads=self.config['n_threads'],
+                n_ctx=1024,  # Contexto más pequeño
+                n_batch=128,  # Batch size más pequeño
+                n_threads=min(4, os.cpu_count() or 2),  # Limitar threads
                 verbose=False
             )
         except Exception as e:
@@ -141,7 +141,7 @@ class LocalModel:
         try:
             response = self.model.create_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=self.config['max_length'],
+                max_tokens=256,  # Reducir tokens máximos
                 temperature=0.7,
                 top_p=0.9,
                 stop=["</s>", "[INST]"]

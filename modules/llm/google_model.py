@@ -1,6 +1,6 @@
 import os
 import logging
-import google.generativeai as palm
+import google.generativeai as genai
 import subprocess
 import time
 import re
@@ -19,14 +19,14 @@ class GoogleModel:
             'backoff_factor': 1,
             'quota_error_delay': 60,
             'max_response_length': 10000,
-            'model_name': "models/gemini-pro",
+            'model_name': "gemini-pro",  # Actualizado nombre del modelo
             'logging_level': logging.INFO
         }
         self.config = {**default_config, **(config or {})}
         self._validate_config()
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(self.config['logging_level'])
-        palm.configure(api_key=self.api_key)
+        genai.configure(api_key=self.api_key)  # Cambiado palm por genai
 
     def _validate_config(self):
         required_keys = ['timeout', 'max_retries', 'backoff_factor', 'quota_error_delay', 'model_name', 'max_response_length']
@@ -61,34 +61,25 @@ class GoogleModel:
         for attempt in range(1, self.config['max_retries'] + 1):
             try:
                 start_time = time.time()
-                response = palm.chat(
-                    model=self.config['model_name'],
-                    messages=[{"role": "user", "content": query}],
-                    temperature=0.7,
-                    top_p=0.9
-                )
+                
+                # Inicializar el modelo
+                model = genai.GenerativeModel(self.config['model_name'])
+                
+                # Generar respuesta
+                response = model.generate_content(query)
+                
                 processing_time = time.time() - start_time
                 self.logger.info(f"Tiempo respuesta: {processing_time:.2f}s")
 
-                if hasattr(response, 'last') and response.last:
-                    return self._validate_response(response.last)
+                if response.text:
+                    return self._validate_response(response.text)
                 raise ValueError("Respuesta vacía")
 
-            except palm.errors.QuotaError as e:
-                return self._handle_quota_error(e)
-            except palm.errors.ServiceUnavailableError as e:
-                return self._handle_api_error(e)
-            except palm.errors.BlockedError as e:
-                self.logger.warning(f"Contenido bloqueado: {e}")
-                return "Error: Respuesta bloqueada por políticas"
-            except (palm.errors.NetworkError, ConnectionError) as e:
-                if attempt == self.config['max_retries']:
-                    self.logger.error(f"Fallo red: {e}")
-                    return "Error de conexión"
-                self._handle_network_error(attempt)
             except Exception as e:
-                self.logger.error(f"Error inesperado: {e}")
-                return f"Error: {str(e)}"
+                self.logger.error(f"Error en Google API: {str(e)}")
+                if attempt == self.config['max_retries']:
+                    return "Error: No se pudo obtener respuesta de Google"
+                time.sleep(self.config['backoff_factor'] * attempt)
 
         return "Error: No se pudo obtener respuesta"
 

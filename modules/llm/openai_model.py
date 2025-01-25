@@ -2,7 +2,7 @@ import os
 import logging
 import time
 from typing import Optional, Dict, Any
-from openai import OpenAI, APIError, APIConnectionError, RateLimitError, AuthenticationError
+from openai import OpenAI, APIError, APIConnectionError, RateLimitError, AuthenticationError, OpenAIError
 
 class OpenAIModel:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
@@ -26,10 +26,11 @@ class OpenAIModel:
         return {**default_config, **(config or {})}
 
     def _validate_credentials(self) -> None:
+        """Validates API key format."""
         if not self._api_key.strip():
-            raise AuthenticationError("API key no proporcionada")
+            raise OpenAIError(message="API key no proporcionada")
         if len(self._api_key.strip()) != 51 or not self._api_key.startswith('sk-'):
-            raise AuthenticationError("Formato de API key inválido")
+            raise OpenAIError(message="Formato de API key inválido")
 
     def _initialize_client(self) -> OpenAI:
         return OpenAI(

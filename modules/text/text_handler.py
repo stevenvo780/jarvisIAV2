@@ -96,3 +96,8 @@ Available commands:
   - help              : Show this help
 """
         print(help_text)
+    
+    def stop(self):
+        """Stops the text handler gracefully."""
+        self.running = False
+        self.state['running'] = False
