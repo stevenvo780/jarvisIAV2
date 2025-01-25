@@ -23,9 +23,7 @@ from modules.llm.model_manager import ModelManager
 from modules.system_monitor import SystemMonitor
 from modules.text.text_handler import TextHandler
 
-from modules.voice.audio_config import AudioConfig
-from modules.voice.audio_handler import AudioEngine
-from modules.voice.speech_recognition import SpeechRecognition
+from modules.voice.audio_handler import SimplifiedAudioHandler  # Removemos AudioEngine
 from modules.voice.tts_manager import TTSManager
 
 setup_logging()
@@ -95,6 +93,8 @@ class Jarvis:
         self.terminal.print_header("Starting Jarvis System")
         load_dotenv()
         self.model = ModelManager()
+        self.tts = TTSManager()
+        self.model.set_tts_manager(self.tts)  # Establecer TTSManager después de inicialización
         self.terminal.print_success("Core system initialized")
 
     def _start_audio_initialization(self):
@@ -102,28 +102,23 @@ class Jarvis:
         t.start()
 
     def _async_audio_init(self):
+        """Inicializa el sistema de audio de forma asíncrona"""
         try:
-            self.audio_engine = AudioEngine.initialize_audio_system()
-            self.tts = TTSManager()
-            self.speech = SpeechRecognition(language="es")
+            self.audio = SimplifiedAudioHandler()  # Ya no necesita parámetros
             
-            def wake_word_callback(audio_segment):
-                text = self.speech.transcribe_audio(audio_segment)
-                if text and "jarvis" in text.lower():
-                    from modules.voice.audio_utils import beep
-                    beep()
-                    return True
-                return False
+            def audio_processor():
+                while self.state['running']:
+                    text = self.audio.listen()
+                    if text:
+                        self.input_queue.put(('voice', text))
+                    time.sleep(0.1)
             
-            def command_callback(audio_segment):
-                text = self.speech.transcribe_audio(audio_segment)
-                if text:
-                    self.input_queue.put(('voice', text))
-                    
-            self.audio_engine.start_listening(wake_word_callback, command_callback)
+            threading.Thread(target=audio_processor, daemon=True).start()
+            
             self.state['audio_initialized'] = True
             self.state['voice_active'] = True
             self.terminal.print_success("Voice system initialized")
+            
         except Exception as e:
             self.state['voice_active'] = False
             self.state['audio_initialized'] = False
@@ -184,10 +179,8 @@ class Jarvis:
                 self.text_handler.stop()
             if hasattr(self, 'tts'):
                 self.tts.cleanup()
-            if hasattr(self, 'speech'):
-                self.speech.cleanup()
-            if hasattr(self, 'audio_engine'):
-                self.audio_engine.cleanup()
+            if hasattr(self, 'audio'):
+                self.audio.cleanup()
             self.terminal.print_goodbye()
         except Exception as e:
             logging.error(f"Shutdown error: {str(e)}")

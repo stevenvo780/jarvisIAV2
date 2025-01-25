@@ -6,8 +6,6 @@ import json
 from pathlib import Path
 from typing import List, Dict, Optional, Deque
 from collections import deque
-from ..voice.tts_manager import TTSManager  # Añadir esta importación
-
 from .google_model import GoogleModel
 from .openai_model import OpenAIModel
 from .local_model import LocalModel
@@ -35,7 +33,7 @@ class ModelManager:
         self.conversation_history = deque(maxlen=self.config["max_history"])
         self.processing_lock = threading.Lock()
         self.difficulty_analyzer = self.models.get('google')
-        self.tts = TTSManager()  # Inicializar TTS
+        self.tts = None  # Se inicializará después
         logging.info("ModelManager inicializado")
 
     def _load_context(self) -> Dict:
@@ -170,17 +168,23 @@ class ModelManager:
         # Último recurso: usar cualquier modelo disponible
         return next(iter(available_models))
 
+    def set_tts_manager(self, tts_manager):
+        """Método para establecer el TTSManager después de la inicialización"""
+        self.tts = tts_manager
+
     def get_response(self, query: str) -> str:
         """Obtiene respuesta incluyendo el contexto."""
         try:
             # Verificar si es comando de stop
             if query.lower().strip() in ['stop', 'para', 'detente', 'silencio']:
-                self.tts.stop_speaking()
+                if self.tts:
+                    self.tts.stop_speaking()
                 return "He detenido la reproducción.", "system"
 
             if not self._validate_query(query):
                 response = "Lo siento, tu consulta no puede ser procesada por razones de seguridad."
-                self.tts.speak(response)
+                if self.tts:
+                    self.tts.speak(response)
                 return response, "error"
             
             # Analizar dificultad
@@ -208,7 +212,8 @@ class ModelManager:
             self._update_context(query, response)
             
             # Leer la respuesta en voz alta
-            self.tts.speak(response)
+            if self.tts:
+                self.tts.speak(response)
             
             # Guardar en historial
             self.conversation_history.append({
@@ -224,7 +229,8 @@ class ModelManager:
             
         except Exception as e:
             error_msg = "Lo siento, ha ocurrido un error procesando tu consulta."
-            self.tts.speak(error_msg)
+            if self.tts:
+                self.tts.speak(error_msg)
             logging.error(f"Error procesando consulta: {e}")
             return error_msg, "error"
 
