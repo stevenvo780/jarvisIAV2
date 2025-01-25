@@ -7,7 +7,7 @@ import time
 from typing import Optional, Dict, Any, Tuple
 from .audio_utils import AudioError
 import sounddevice as sd
-from utils.timeout import timeout
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 @dataclass
 class AudioProfile:
@@ -53,19 +53,19 @@ class AudioConfig:
         asound_conf = os.path.expanduser('~/.asoundrc')
         if not os.path.exists(asound_conf):
             config = """
-pcm.!default {
-    type pulse
-    fallback "sysdefault"
-    hint {
-        show on
-        description "Default ALSA Output (currently PulseAudio Sound Server)"
-    }
-}
-ctl.!default {
-    type pulse
-    fallback "sysdefault"
-}
-"""
+                    pcm.!default {
+                        type pulse
+                        fallback "sysdefault"
+                        hint {
+                            show on
+                            description "Default ALSA Output (currently PulseAudio Sound Server)"
+                        }
+                    }
+                    ctl.!default {
+                        type pulse
+                        fallback "sysdefault"
+                    }
+                    """
             try:
                 with open(asound_conf, 'w') as f:
                     f.write(config)
@@ -161,25 +161,20 @@ ctl.!default {
         })
 
     def test_audio_system(self) -> Tuple[bool, str]:
-        """Prueba el sistema de audio con timeout estricto"""
-        start_time = time.time()
-        
+        """Prueba el sistema de audio con timeout estricto utilizando ThreadPoolExecutor"""
         try:
-            # Verificar rápidamente si hay dispositivos
-            with timeout(self.timeout):
-                devices = sd.query_devices()
-                if not any(d['max_input_channels'] > 0 for d in devices):
-                    return False, "No se encontraron dispositivos de entrada"
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                # Verificar dispositivos
+                future_devices = executor.submit(self._check_devices)
+                devices_ok, msg_devices = future_devices.result(timeout=self.timeout)
+                if not devices_ok:
+                    return False, msg_devices
 
-            # Verificar PulseAudio con timeout
-            with timeout(2):
-                result = subprocess.run(
-                    ['pulseaudio', '--check'],
-                    capture_output=True,
-                    timeout=1
-                )
-                if result.returncode != 0:
-                    return False, "Servicio de audio no disponible"
+                # Verificar PulseAudio
+                future_pulseaudio = executor.submit(self._check_pulseaudio)
+                pulse_ok, msg_pulse = future_pulseaudio.result(timeout=2)
+                if not pulse_ok:
+                    return False, msg_pulse
 
             return True, "Sistema de audio OK"
 
@@ -187,6 +182,32 @@ ctl.!default {
             return False, "Timeout verificando sistema de audio"
         except Exception as e:
             return False, f"Error en sistema de audio: {str(e)}"
+
+    def _check_devices(self) -> Tuple[bool, str]:
+        """Verifica si hay dispositivos de entrada disponibles"""
+        try:
+            devices = sd.query_devices()
+            if not any(d['max_input_channels'] > 0 for d in devices):
+                return False, "No se encontraron dispositivos de entrada"
+            return True, "Dispositivos de audio OK"
+        except Exception as e:
+            return False, f"Error verificando dispositivos: {str(e)}"
+
+    def _check_pulseaudio(self) -> Tuple[bool, str]:
+        """Verifica el estado de PulseAudio"""
+        try:
+            result = subprocess.run(
+                ['pulseaudio', '--check'],
+                capture_output=True,
+                timeout=1
+            )
+            if result.returncode != 0:
+                return False, "Servicio de audio no disponible"
+            return True, "PulseAudio OK"
+        except subprocess.TimeoutExpired:
+            return False, "Timeout verificando PulseAudio"
+        except Exception as e:
+            return False, f"Error verificando PulseAudio: {str(e)}"
 
     def _load_config(self) -> None:
         try:

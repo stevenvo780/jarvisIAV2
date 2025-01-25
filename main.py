@@ -8,6 +8,7 @@ import signal
 from queue import Queue, Empty
 from dotenv import load_dotenv
 import torch
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 # Añadir el directorio raíz al path
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -54,7 +55,6 @@ class Jarvis:
             self._initialize_system()
             # Iniciar el audio en segundo plano
             self._start_audio_initialization()
-            # Iniciar en modo texto mientras se configura el audio
             self._initialize_text_mode()
         except Exception as e:
             self.terminal.print_error(f"Error en inicialización: {e}")

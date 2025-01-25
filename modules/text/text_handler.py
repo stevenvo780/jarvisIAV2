@@ -66,6 +66,9 @@ class TextHandler:
 
     def _process_input(self, text: str):
         """Procesa el texto ingresado con mejor manejo de comandos"""
+        # Eliminar caracteres ^M
+        text = text.replace('\r', '').replace('\n', '')
+        text = text.strip()
         if not text:
             return
 
