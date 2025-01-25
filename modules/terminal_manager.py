@@ -169,3 +169,11 @@ class TerminalManager:
     def get_prompt(self, prompt: str = "User: "):
         """Obtiene entrada del usuario."""
         return input(prompt)
+
+    def print_response(self, message: str):
+        """Muestra respuestas generales del sistema de manera formateada"""
+        self.clear_display()
+        lines = message.split('\n')
+        for line in lines:
+            sys.stdout.write(f"\r{self.COLORS['CYAN']}│{self.COLORS['RESET']} {line}\n")
+        sys.stdout.flush()

@@ -7,6 +7,9 @@ import threading
 import signal
 from queue import Queue, Empty
 from dotenv import load_dotenv
+import torch
+import select
+import readline
 
 # Añadir el directorio raíz al path
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -15,17 +18,17 @@ sys.path.insert(0, ROOT_DIR)
 # Configuración inicial del entorno
 os.environ.update({
     'PYTORCH_ENABLE_MPS_FALLBACK': '1',
-    'PYTHONWARNINGS': 'ignore',
-    'PULSE_LATENCY_MSEC': '30',
-    'PULSE_TIMEOUT': '5000',
-    'SDL_AUDIODRIVER': 'pulseaudio'
+    'PYTHONWARNINGS': 'ignore'
 })
 
 # Importaciones
 from utils.error_handler import setup_logging, handle_errors, AudioError, ModelError
 from modules.terminal_manager import TerminalManager
 from modules.llm.model_manager import ModelManager
-from modules.voice import AudioEngine, VoiceTrigger, TTSManager
+from modules.voice import SpeechRecognition, TTSManager
+from modules.system_monitor import SystemMonitor
+from modules.voice.audio_config import AudioConfig
+from modules.text.text_handler import TextHandler
 
 # Configurar logging
 setup_logging()
@@ -42,27 +45,21 @@ class Jarvis:
             'error_count': 0,
             'max_errors': 5
         }
+        
+        self.system_monitor = SystemMonitor()
+        self.text_handler = None
 
         try:
             self._setup_signal_handlers()
+            self._initialize_system()  # Mover esto antes de init_audio
             self._init_audio_subsystem()
-            self._initialize_system()
         except AudioError as e:
             self.terminal.print_warning(f"Iniciando en modo texto: {e}")
             self.text_mode = True
             self.state['voice_active'] = False
-            self._initialize_system()
         except Exception as e:
             self.terminal.print_error(f"Error en inicialización: {e}")
             sys.exit(1)
-
-    def _init_audio_subsystem(self):
-        """Inicializa el subsistema de audio"""
-        self._check_audio_permissions()
-        self.audio_engine = AudioEngine()
-        if self.state['voice_active']:
-            self.tts = TTSManager()
-            self.voice_trigger = VoiceTrigger(self.terminal)
 
     def _initialize_system(self):
         """Inicializa componentes del sistema"""
@@ -70,57 +67,42 @@ class Jarvis:
         load_dotenv()
         self.model = ModelManager()
         
-        self.terminal.print_success(
-            "Sistema iniciado en modo " + 
-            ("voz" if self.state['voice_active'] else "texto")
-        )
-
-    @handle_errors(error_type=Exception, log_message="Error en inicialización", terminal=True)
-    def _initialize_system(self):
-        """Inicializa todos los componentes del sistema"""
-        self.terminal.print_header("Iniciando Sistema Jarvis")
+        # Inicializar el manejador de texto con configuración mejorada
+        self.text_handler = TextHandler(self.terminal, self.input_queue)
         
-        load_dotenv()
-        
-        # Inicializar componentes base
-        self.model = ModelManager()
-        
-        # Inicializar audio si está disponible
-        if self.state['voice_active'] and self.audio_engine:
-            self.tts = TTSManager()
-        else:
-            self.tts = None
-            
         self.terminal.print_success(
             "Sistema iniciado en modo " + 
             ("voz" if self.state['voice_active'] else "texto")
         )
 
     def _init_audio_subsystem(self):
-        """Inicializa el subsistema de audio con validación"""
+        """Inicializa el subsistema de audio"""
+        if not self.state['voice_active']:
+            return
+
         try:
-            # Verificar permisos y estado del sistema de audio
-            self._check_audio_permissions()
+            self.audio_config = AudioConfig()
+            audio_ok, message = self.audio_config.test_audio_system()
             
-            # Configurar variables de entorno para audio
-            os.environ.update({
-                'PULSE_LATENCY_MSEC': '30',
-                'PULSE_TIMEOUT': '5000',
-                'SDL_AUDIODRIVER': 'pulseaudio'
-            })
+            if not audio_ok:
+                self.terminal.print_warning(message)
+                raise AudioError(message)
+
+            self.terminal.print_status("Iniciando sistema de voz...")
+            self.tts = TTSManager()
+            self.terminal.print_status("TTS iniciado correctamente")
             
-            self.audio_engine = AudioEngine()
-            self.terminal.print_success("Sistema de audio iniciado correctamente")
+            self.speech = SpeechRecognition(
+                terminal=self.terminal,
+                language="es",
+                device="cuda" if torch.cuda.is_available() else "cpu"
+            )
+            self.terminal.print_success("Sistema de voz iniciado correctamente")
             
         except Exception as e:
-            raise AudioError(f"Error en subsistema de audio: {e}")
-
-    def _check_audio_permissions(self):
-        """Verifica permisos de audio"""
-        if not os.access('/dev/snd', os.R_OK | os.W_OK):
-            raise AudioError(
-                "Sin permisos de audio. Ejecute: sudo usermod -a -G audio $USER"
-            )
+            self.state['voice_active'] = False
+            self.text_mode = True
+            raise AudioError(f"Error en sistema de audio: {str(e)}")
 
     def _setup_signal_handlers(self):
         """Configura manejadores de señales del sistema"""
@@ -132,81 +114,33 @@ class Jarvis:
         self.state['running'] = False
         self.terminal.print_warning("\nRecibida señal de apagado...")
 
-    @handle_errors(error_type=AudioError, log_message="Error en subsistema de audio", terminal=True)
-    def _configure_audio_subsystem(self):
-        """Configura y verifica el subsistema de audio"""
-        self.terminal.print_status("Configurando audio...")
-        
-        with AudioManager.suppress_output():
-            if not AudioManager.setup_audio_system():
-                raise AudioError("No se pudo configurar el sistema de audio")
-            
-            # Esperar a que los servicios de audio estén listos
-            time.sleep(2)
-        
-        self.terminal.print_success("Subsistema de audio configurado")
-
-    @handle_errors(error_type=ModelError, log_message="Error en modelo de lenguaje", terminal=True)
-    def _initialize_core_components(self):
-        """Inicializa los componentes principales"""
-        try:
-            self.terminal.print_status("Configurando reconocimiento de voz...")
-            device_index = self.terminal.select_audio_device()
-            self.voice_trigger = VoiceTrigger(
-                terminal=self.terminal,
-                wake_word="Hey Jarvis",
-                language="es-ES",
-                energy_threshold=4000,
-                device_index=device_index
-            )
-
-            self.terminal.print_status("Cargando modelo de lenguaje...")
-            self.model = ModelManager()
-
-            self.terminal.print_status("Inicializando TTS...")
-            self.tts = TTSManager()
-
-        except Exception as e:
-            self.terminal.print_error(f"Error en inicialización de componentes: {str(e)}")
-            raise
-
-    def _check_system_dependencies(self):
-        """Verifica dependencias del sistema"""
-        self.terminal.print_status("Verificando dependencias...")
-        required = ['ffmpeg', 'python3', 'pip3']
-        missing = []
-        
-        for cmd in required:
-            if os.system(f'which {cmd} > /dev/null 2>&1') != 0:
-                missing.append(cmd)
-        
-        if missing:
-            self.terminal.print_error(f"Dependencias faltantes: {', '.join(missing)}")
-            self._show_install_instructions(missing)
-            raise RuntimeError("Dependencias faltantes")
-            
-        self.terminal.print_success("Todas las dependencias están instaladas")
-
-    def _show_install_instructions(self, missing):
-        """Muestra instrucciones de instalación para dependencias faltantes"""
-        instructions = {
-            'ffmpeg': "sudo apt install ffmpeg",
-            'python3': "https://www.python.org/downloads/",
-            'pip3': "sudo apt install python3-pip"
-        }
-        
-        self.terminal.print_warning("Instrucciones de instalación:")
-        for dep in missing:
-            if dep in instructions:
-                self.terminal.print_info(f"{dep}: {instructions[dep]}")
+    def _voice_input_handler(self):
+        """Maneja la entrada por voz"""
+        while self.state['running'] and self.state['voice_active']:
+            try:
+                text = self.speech.listen_and_recognize()
+                if text:
+                    self.input_queue.put(('voice', text))
+            except Exception as e:
+                self._handle_critical_error(f"Error en voz: {str(e)}")
+                self.state['voice_active'] = False
+                break
+            time.sleep(0.1)
 
     def _start_service_threads(self):
         """Inicia los hilos de servicio"""
         threads = [
-            threading.Thread(target=self._keyboard_input_handler, daemon=True),
-            threading.Thread(target=self._voice_input_handler, daemon=True),
             threading.Thread(target=self._system_monitor, daemon=True)
         ]
+        
+        if self.state['voice_active']:
+            threads.append(
+                threading.Thread(target=self._voice_input_handler, daemon=True)
+            )
+        
+        # Iniciar el manejador de texto
+        if self.text_handler:
+            self.text_handler.start()
         
         for thread in threads:
             thread.start()
@@ -217,23 +151,15 @@ class Jarvis:
         """Maneja la entrada por teclado"""
         while self.state['running']:
             try:
-                user_input = input(self.terminal.get_prompt()).strip()
-                if user_input:
-                    self.input_queue.put(('keyboard', user_input))
+                if select.select([sys.stdin], [], [], 0.1)[0]:
+                    user_input = input(self.terminal.get_prompt()).strip()
+                    if user_input:
+                        self.input_queue.put(('keyboard', user_input))
+                    readline.get_line_buffer()
             except (EOFError, KeyboardInterrupt):
                 self.state['running'] = False
             except Exception as e:
                 self._handle_critical_error(f"Error en teclado: {str(e)}")
-
-    def _voice_input_handler(self):
-        """Maneja la entrada por voz"""
-        while self.state['running'] and self.state['voice_active']:
-            try:
-                self.audio_engine.listen(self._handle_voice_input)
-            except Exception as e:
-                self._handle_critical_error(f"Error en voz: {str(e)}")
-                self.state['voice_active'] = False
-                break
 
     def _handle_voice_input(self, audio_data):
         """Procesa entrada de voz"""
@@ -243,14 +169,17 @@ class Jarvis:
         """Monitorea el estado del sistema"""
         while self.state['running']:
             try:
-                # Verificar uso de recursos
-                if self._check_system_health():
+                health_status = self.system_monitor.check_system_health()
+                
+                if all(health_status.values()):
                     self.state['error_count'] = 0
                 else:
                     self.state['error_count'] += 1
-                    
-                # Reiniciar servicios caídos
-                self._restart_failed_services()
+                    failed_systems = [k.replace('_ok', '') for k, v in health_status.items() if not v]
+                    self.terminal.print_warning(
+                        f"Alerta: Sistemas con problemas: {', '.join(failed_systems)}"
+                    )
+                    logging.warning(f"Sistemas comprometidos: {failed_systems}")
                 
                 time.sleep(5)
             except Exception as e:
@@ -289,22 +218,13 @@ class Jarvis:
             # Procesamiento de consultas
             self.terminal.print_thinking()
             response = self.model.get_response(content)
-            self.terminal.print_response(response)
+            self.terminal.print_response(response) 
             
             if input_type == 'voice' or self.state['voice_active']:
                 self.tts.speak(response)
                 
         except Exception as e:
             self._handle_critical_error(f"Error procesando {input_type}: {str(e)}")
-
-    def _check_system_health(self) -> bool:
-        """Verifica el estado de salud del sistema"""
-        # Implementar chequeos reales aquí
-        return True
-
-    def _restart_failed_services(self):
-        """Reinicia servicios caídos"""
-        pass  # Implementar lógica de reinicio
 
     def _handle_critical_error(self, message: str):
         """Maneja errores críticos"""
@@ -338,12 +258,12 @@ class Jarvis:
         self.terminal.print_status("\nApagando sistema...")
         
         try:
-            if self.tts:
+            if self.text_handler:
+                self.text_handler.stop()
+            if hasattr(self, 'tts'):
                 self.tts.cleanup()
-                
-            if self.voice_trigger:
-                self.voice_trigger.cleanup()
-                
+            if hasattr(self, 'speech'):
+                self.speech.cleanup()
             self.terminal.print_goodbye()
         except Exception as e:
             logging.error(f"Error en apagado: {str(e)}")

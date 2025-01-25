@@ -13,31 +13,12 @@ import webrtcvad
 
 class AudioEngine:
     def __init__(self):
-        self._check_system_dependencies()
         self.config = AudioConfig()
         self.running = True
         self.audio_queue = queue.Queue()
-        self.vad = webrtcvad.Vad(3)  # Agresividad 3 (max)
+        self.vad = webrtcvad.Vad(3)
         self.ring_buffer = collections.deque(maxlen=10)
         self._init_audio_system()
-
-    def _check_system_dependencies(self):
-        """Verifica dependencias del sistema necesarias para audio"""
-        dependencies = ['pulseaudio', 'portaudio19-dev', 'python3-pyaudio']
-        missing = []
-        
-        for dep in dependencies:
-            try:
-                subprocess.run(['dpkg', '-s', dep], 
-                             capture_output=True, check=True)
-            except subprocess.CalledProcessError:
-                missing.append(dep)
-                
-        if missing:
-            raise AudioError(
-                f"Faltan dependencias: {', '.join(missing)}. "
-                f"Instalar con: sudo apt install {' '.join(missing)}"
-            )
 
     @contextmanager
     def _audio_context(self):
