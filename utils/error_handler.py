@@ -4,11 +4,11 @@ from typing import Any, Type, Callable
 from functools import wraps
 
 class JarvisError(Exception):
-    """Clase base para errores personalizados de Jarvis"""
+    """Clase base para excepciones de Jarvis"""
     pass
 
 class AudioError(JarvisError):
-    """Errores relacionados con el sistema de audio"""
+    """Error relacionado con el audio"""
     pass
 
 class AudioDeviceError(AudioError):
@@ -28,21 +28,21 @@ class PortAudioError(AudioError):
     pass
 
 class ModelError(JarvisError):
-    """Errores relacionados con los modelos de IA"""
+    """Error relacionado con los modelos de IA"""
     pass
 
 class ConfigError(JarvisError):
     """Errores relacionados con la configuración"""
     pass
 
-def setup_logging(log_dir: str = "logs") -> None:
+def setup_logging(log_dir: str = "logs", level: int = logging.INFO) -> None:
     """Configura el sistema de logging"""
     os.makedirs(log_dir, exist_ok=True)
     
     # Configuración básica
     logging.basicConfig(
         filename=os.path.join(log_dir, "jarvis.log"),
-        level=logging.INFO,
+        level=level,
         format="%(asctime)s - %(levelname)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )

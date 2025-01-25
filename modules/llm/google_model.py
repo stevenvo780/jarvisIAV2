@@ -1,11 +1,8 @@
 import os
 import logging
 import google.generativeai as genai
-import subprocess
-import time
-import re
-from typing import Optional, Dict, Any, Union
-from shlex import split
+from typing import Optional, Dict, Any
+from utils.prompt_builder import PromptBuilder  # Cambiado a importación absoluta
 
 class GoogleModel:
     def __init__(self, api_key: Optional[str] = None, config: Optional[Dict[str, Any]] = None):
@@ -22,20 +19,22 @@ class GoogleModel:
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(self.config['logging_level'])
         genai.configure(api_key=self.api_key)
+        self.prompt_builder = PromptBuilder()
 
     # Solo mantener los métodos esenciales
     def get_response(self, query: str) -> str:
         try:
             model = genai.GenerativeModel(self.config['model_name'])
-            response = model.generate_content(query)
+            prompt_data = self.prompt_builder.build_prompt(query, 'google')
+            response = model.generate_content(prompt_data['prompt'])
             
             if response.text:
                 return self._validate_response(response.text)
-            return "No se pudo generar una respuesta"
+            return self.prompt_builder.get_error_message('no_response')
             
         except Exception as e:
             self.logger.error(f"Error en Google API: {str(e)}")
-            return "Error: No se pudo obtener respuesta de Google"
+            return self.prompt_builder.get_error_message('api_error', message=str(e))
 
     def _validate_response(self, response: str) -> str:
         if len(response) > self.config['max_response_length']:

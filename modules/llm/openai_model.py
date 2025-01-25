@@ -2,7 +2,8 @@ import os
 import logging
 import time
 from typing import Optional, Dict, Any
-from openai import OpenAI, APIError, APIConnectionError, RateLimitError, AuthenticationError, OpenAIError
+from openai import OpenAI, APIError, APIConnectionError, RateLimitError, AuthenticationError
+from utils.prompt_builder import PromptBuilder  # Cambiado a importación absoluta
 
 class OpenAIModel:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
@@ -14,6 +15,7 @@ class OpenAIModel:
         self._validate_credentials()
         self.client = self._initialize_client()
         self.logger = self._configure_logger()
+        self.prompt_builder = PromptBuilder()
         
     def _merge_config(self, config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         default_config = {
@@ -22,9 +24,10 @@ class OpenAIModel:
             'backoff_base': 1.8,
             'max_tokens': 1024,
             'max_response_chars': 3000,
-            'model_name': 'gpt-4o-2024-05-13',
+            'model_name': 'gpt-4o',
             'temperature': 0.7,
-            'log_level': 'INFO'
+            'log_level': 'INFO',
+            'system_template': "Eres Jarvis, un asistente virtual profesional y preciso."
         }
         return {**default_config, **(config or {})}
 
@@ -73,23 +76,11 @@ class OpenAIModel:
     def _process_request(self, query: str) -> str:
         start_time = time.monotonic()
         try:
-            # Extraer pregunta del usuario
-            if "Pregunta:" in query:
-                parts = query.split("Pregunta:", 1)
-                system_content = parts[0].strip()
-                user_content = parts[1].strip()
-            else:
-                system_content = "Eres Jarvis, un asistente virtual profesional y preciso."
-                user_content = query.strip()
-
-            messages = [
-                {"role": "system", "content": system_content},
-                {"role": "user", "content": user_content}
-            ]
-
+            prompt_data = self.prompt_builder.build_prompt(query, 'openai')
+            
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",  # Ajusta según la versión de tu preferencia
-                messages=messages,
+                model=self.config['model_name'],
+                messages=prompt_data['messages'],
                 temperature=self.config['temperature'],
                 max_tokens=self.config['max_tokens'],
                 stream=False

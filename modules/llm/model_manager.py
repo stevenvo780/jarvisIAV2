@@ -191,11 +191,14 @@ class ModelManager:
             model_name = self._select_appropriate_model(difficulty)
             logging.info(f"Modelo seleccionado: {model_name}")
             
-            # Construir prompt más simple y directo
+            # Construir prompt usando la plantilla correcta 'query' en lugar de 'user_template'
             system_prompt = self._build_context_prompt()
-            user_prompt = self.context['prompts']['user_template'].format(query=query)
+            user_prompt = self.context['prompts']['templates']['query'].format(
+                input=query,
+                name=self.context['assistant_profile']['name']
+            )
             
-            # Combinar prompts de forma más limpia
+            # Combinar prompts
             enriched_query = f"{system_prompt}\n\n{user_prompt}"
             
             # Obtener respuesta
@@ -246,9 +249,14 @@ class ModelManager:
     def _build_context_prompt(self) -> str:
         """Construye el prompt del sistema de forma concisa."""
         profile = self.context.get("assistant_profile", {})
+        model_name = self._select_appropriate_model(0)  # Ejemplo: Se pasa un 0 o la dificultad real
+        
+        # Tomar la plantilla del JSON según el modelo (local, openai, google)
+        model_template = self.context['prompts']['system_context'][model_name]['template']
+        
         traits = "\n".join(f"- {trait}" for trait in profile.get('core_traits', []))
         
-        return self.context['prompts']['system_template'].format(
+        return model_template.format(
             name=profile.get('name', 'Jarvis'),
             personality=profile.get('personality', 'profesional y servicial'),
             traits=traits

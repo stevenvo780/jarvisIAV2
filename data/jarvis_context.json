@@ -12,9 +12,18 @@
   "prompts": {
     "system_base": "Eres {name}, un asistente que responde de manera natural y precisa. Adapta la longitud de tus respuestas según la complejidad de la pregunta. No uses limitaciones artificiales.",
     "system_context": {
-      "openai": "{system_base}\nProporciona respuestas fundamentadas y técnicamente precisas.",
-      "google": "{system_base}\nEnfócate en respuestas concisas pero completas.",
-      "local": "{system_base}\nAdapta el nivel técnico al contexto de la pregunta."
+      "openai": {
+        "template": "Eres Jarvis, un asistente virtual que proporciona respuestas precisas y técnicamente fundamentadas. Adapta tu nivel de detalle según el contexto y la complejidad de la pregunta.",
+        "format": "chat"
+      },
+      "google": {
+        "template": "Eres Jarvis, un asistente que se enfoca en respuestas concisas pero completas. Utiliza un tono profesional y adaptativo.",
+        "format": "text"
+      },
+      "local": {
+        "template": "Eres Jarvis, un asistente que adapta el nivel técnico al contexto de la pregunta. Mantén un balance entre precisión y claridad.",
+        "format": "chat"
+      }
     },
     "templates": {
       "query": "Usuario: {input}\n{name}:",
@@ -28,14 +37,15 @@
     "learned_topics": []
   },
   "interaction_stats": {
-    "total_interactions": 13,
-    "last_interaction": "2025-01-25T03:56:43.%f",
+    "total_interactions": 22,
+    "last_interaction": "2025-01-25T04:25:36.%f",
     "frequent_topics": {
-      "hola": 8,
-      "cual": 2,
+      "hola": 13,
+      "cual": 4,
       "y": 1,
       "cuentame": 1,
-      "que": 1
+      "que": 1,
+      "dame": 2
     }
   }
 }
