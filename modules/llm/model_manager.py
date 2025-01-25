@@ -12,7 +12,7 @@ from .local_model import LocalModel
 class ModelManager:
     CONFIG_DEFAULTS = {
         "models": {
-            "google": {"difficulty_range": [0, 10]},
+            "google": {"difficulty_range": [4, 7]},
             "openai": {"difficulty_range": [7, 10]},
             "local": {"difficulty_range": [0, 6]}
         },
@@ -49,16 +49,23 @@ class ModelManager:
 
     def _validate_config(self, config: Dict) -> Dict:
         """Validates essential config fields."""
-        # Ensure all fallback_order models are in 'models'
-        if not all(m in config["models"] for m in config["fallback_order"]):
-            raise ValueError("Configuración inválida: fallback_order contiene modelos no declarados")
-        # Validate security
-        if any(term.strip() == "" for term in config["security"]["blocked_terms"]):
-            raise ValueError("Términos bloqueados inválidos en configuración")
-        # Validate timeouts
-        for model in config["timeouts"]:
-            if config["timeouts"][model] <= 0:
-                raise ValueError(f"Timeout inválido para modelo {model}")
+        if not isinstance(config.get("models"), dict):
+            raise ValueError("Configuración inválida: 'models' debe ser un diccionario")
+        
+        for model_name, model_config in config["models"].items():
+            if "difficulty_range" not in model_config:
+                raise ValueError(f"Configuración inválida: falta difficulty_range para {model_name}")
+            
+            diff_range = model_config["difficulty_range"]
+            if not isinstance(diff_range, list) or len(diff_range) != 2:
+                raise ValueError(f"difficulty_range inválido para {model_name}")
+            
+            if diff_range[0] > diff_range[1] or diff_range[0] < 0 or diff_range[1] > 10:
+                raise ValueError(f"Rango de dificultad inválido para {model_name}")
+        
+        if not isinstance(config.get("security", {}).get("blocked_terms", []), list):
+            raise ValueError("Configuración inválida: blocked_terms debe ser una lista")
+        
         return config
 
     def _initialize_models(self) -> Dict[str, object]:
@@ -135,6 +142,7 @@ class ModelManager:
             
             # Analizar dificultad
             difficulty = self._analyze_query_difficulty(query)
+            print(difficulty)
             logging.info(f"Dificultad detectada: {difficulty}/10")
             
             # Seleccionar modelo
@@ -153,11 +161,12 @@ class ModelManager:
                 "response": response
             })
             
-            return response
+            # Retornar tupla con respuesta y nombre del modelo
+            return response, model_name
             
         except Exception as e:
             logging.error(f"Error procesando consulta: {e}")
-            return "Lo siento, ha ocurrido un error procesando tu consulta."
+            return "Lo siento, ha ocurrido un error procesando tu consulta.", "error"
 
     def get_history(self) -> List[Dict]:
         """Returns conversation history."""

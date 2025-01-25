@@ -193,9 +193,9 @@ class Jarvis:
             input_type, content = self.input_queue.get_nowait()
             self.terminal.print_thinking()
             
-            # Get LLM response
-            response = self.model.get_response(content)
-            self.terminal.print_response(response)
+            # Get LLM response with model name
+            response, model_name = self.model.get_response(content)
+            self.terminal.print_response(response, model_name)
             
             # TTS if voice is active
             if input_type == 'voice' or self.state['voice_active']:

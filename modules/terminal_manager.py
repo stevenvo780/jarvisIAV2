@@ -18,7 +18,11 @@ class TerminalManager:
             'error': '#aa0000',
             'info': '#0000aa',
             'thinking': '#aa00aa',
-            'response': '#00aaaa'
+            # Colores específicos para cada modelo
+            'response_google': '#4285F4',  # Azul Google
+            'response_openai': '#10a37f',  # Verde OpenAI
+            'response_local': '#FF6B6B',   # Rojo suave
+            'response_default': '#00aaaa'   # Color por defecto
         })
 
     def _setup_colors(self):
@@ -81,9 +85,19 @@ class TerminalManager:
         """Indicator of system processing."""
         print_formatted_text(HTML("<thinking>Thinking...</thinking>"), style=self.style)
 
-    def print_response(self, message: str):
-        """Prints system responses in a dedicated style."""
+    def print_response(self, message: str, model_name: str = None):
+        """Prints system responses in model-specific colors."""
+        style_key = f'response_{model_name.lower()}' if model_name else 'response_default'
+        if style_key not in self.style.style_rules:
+            style_key = 'response_default'
+            
+        # Agregar prefijo del modelo
+        prefix = f"[{model_name.upper()}] " if model_name else ""
+        
         lines = message.split('\n')
         for line in lines:
-            print_formatted_text(HTML(f"<response>{line}</response>"), style=self.style)
+            print_formatted_text(
+                HTML(f"<{style_key}>{prefix}{line}</{style_key}>"), 
+                style=self.style
+            )
         sys.stdout.flush()

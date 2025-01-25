@@ -8,8 +8,8 @@ from llama_cpp import Llama
 from pathlib import Path
 
 class LocalModel:
-    DEFAULT_MODEL_FILENAME = "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
-    DEFAULT_MODEL_URL = f"https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/{DEFAULT_MODEL_FILENAME}"
+    DEFAULT_MODEL_FILENAME = "llama-2-7b-chat.Q4_K_M.gguf"
+    DEFAULT_MODEL_URL = "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q4_K_M.gguf"
     
     SIMPLE_RESPONSES = {
         "hola": "¡Hola! ¿En qué puedo ayudarte hoy?",
@@ -114,17 +114,15 @@ class LocalModel:
         try:
             return Llama(
                 model_path=self.model_path,
-                n_ctx=1024,  # Contexto más pequeño
-                n_batch=128,  # Batch size más pequeño
-                n_threads=min(4, os.cpu_count() or 2),  # Limitar threads
+                n_ctx=2048,
+                n_batch=512,
+                n_gpu_layers=32,  # Activar capas en GPU
+                n_threads=4,
                 verbose=False
             )
         except Exception as e:
             logging.error(f"Error crítico al inicializar modelo: {str(e)}")
-            raise RuntimeError("No se pudo cargar el modelo local. Verifica: "
-                             "1. Permisos de archivo\n"
-                             "2. Espacio en disco\n"
-                             "3. Integridad del modelo descargado")
+            raise RuntimeError("No se pudo cargar el modelo local")
 
     def get_response(self, query: str) -> str:
         if not isinstance(query, str) or not query.strip():

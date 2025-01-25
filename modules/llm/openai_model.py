@@ -28,9 +28,9 @@ class OpenAIModel:
     def _validate_credentials(self) -> None:
         """Validates API key format."""
         if not self._api_key.strip():
-            raise OpenAIError(message="API key no proporcionada")
+            raise AuthenticationError("API key no proporcionada")
         if len(self._api_key.strip()) != 51 or not self._api_key.startswith('sk-'):
-            raise OpenAIError(message="Formato de API key inválido")
+            raise AuthenticationError("Formato de API key inválido")
 
     def _initialize_client(self) -> OpenAI:
         return OpenAI(
@@ -46,7 +46,7 @@ class OpenAIModel:
 
     def get_response(self, query: str) -> str:
         if not isinstance(query, str) or len(query.strip()) < 3:
-            raise ValueError("Query debe ser texto no vacío (>3 caracteres)")
+            return "Query debe ser texto no vacío (>3 caracteres)"
 
         for attempt in range(self.config['max_retries'] + 1):
             try:
@@ -56,11 +56,16 @@ class OpenAIModel:
             except APIConnectionError as e:
                 self._handle_connection_error(attempt, e)
             except AuthenticationError as e:
-                self._handle_auth_error(e)
+                return self._handle_auth_error(e)
             except APIError as e:
-                self._handle_api_error(e)
+                self.logger.error(f"Error API: {str(e)}")
+                return "Error en la API de OpenAI"
+            except Exception as e:
+                self.logger.error(f"Error inesperado: {str(e)}")
+                if attempt == self.config['max_retries']:
+                    return "Error procesando la consulta"
                 
-        return self._final_error_message()
+        return "No se pudo obtener respuesta de OpenAI"
 
     def _process_request(self, query: str) -> str:
         start_time = time.monotonic()
@@ -92,7 +97,8 @@ class OpenAIModel:
 
     def _handle_auth_error(self, error: AuthenticationError) -> None:
         self.logger.critical("Error de autenticación irreversible")
-        raise error
+        # Aquí no relanzamos el error, solo lo logueamos
+        return "Error de autenticación con OpenAI"
 
     def _handle_api_error(self, error: APIError) -> None:
         self.logger.error(f"Error API: {error.code} - {error.message}")
