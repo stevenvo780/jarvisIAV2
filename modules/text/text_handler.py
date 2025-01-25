@@ -6,6 +6,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.shortcuts import clear
 from prompt_toolkit.styles import Style
 from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.patch_stdout import patch_stdout
 
 class TextHandler:
     def __init__(self, terminal_manager, input_queue, tts=None, state=None):
@@ -21,82 +22,68 @@ class TextHandler:
             'command': '#884444',
             'username': '#884444 italic'
         })
+
+    def run_interactive(self):
+        """Ejecuta el bucle de entrada de texto en el hilo principal."""
+        print("\nJarvis Text Interface - Escribe 'help' para ver los comandos")
         
-    def start(self):
-        """Starts the text handler on a separate thread."""
-        self.input_thread = threading.Thread(target=self._input_loop, daemon=True)
-        self.input_thread.start()
-
-    def stop(self):
-        """Stops text input loop."""
-        self.running = False
-        if hasattr(self, 'input_thread'):
-            self.input_thread.join(timeout=1)
-
-    def _get_formatted_prompt(self):
-        """Generates a formatted prompt string."""
-        voice_status = "🎤" if self.state.get('voice_active', False) else "⌨️"
-        return HTML(f"<username>{voice_status}</username> <prompt>></prompt> ")
-
-    def _input_loop(self):
-        """Main loop for reading user text input with prompt_toolkit."""
         while self.running and self.state.get('running', True):
             try:
                 user_input = self.session.prompt(
                     self._get_formatted_prompt(),
-                    style=self.style,
-                    enable_history=True,
-                    mouse_support=False
+                    style=self.style
                 ).strip()
 
                 if user_input:
                     self._process_input(user_input)
                     
             except KeyboardInterrupt:
-                # If user presses Ctrl+C, ignore and continue
                 continue
             except EOFError:
-                # If user presses Ctrl+D, we exit
-                self.running = False
                 break
             except Exception as e:
-                logging.error(f"Text input error: {e}")
+                logging.error(f"Error de entrada: {e}")
                 continue
+
+    def _get_formatted_prompt(self):
+        """Genera un prompt formateado."""
+        icon = "🎤" if self.state.get('voice_active', False) else "⌨️"
+        return HTML(f"{icon} <prompt>></prompt> ")
 
     def _process_input(self, text: str):
         """Process user text commands or forward them to Jarvis."""
-        # Remove \r or \n to avoid extra carriage returns
-        text = text.replace('\r', '').replace('\n', '').strip()
-        if not text:
+        if not text or text.isspace():
             return
-
+            
+        text = text.strip()
         text_lower = text.lower()
         
-        # System commands
+        # System commands con feedback mejorado
         if text_lower in ['exit', 'salir', 'quit']:
             self.state['running'] = False
-            self.terminal.print_success("\nExiting system...")
+            self.terminal.print_success("👋 Saliendo del sistema...")
             return
                 
         if text_lower == 'clear':
             clear()
+            print("🧹 Pantalla limpiada")
             return
                 
         if text_lower == 'voz off':
             self.state['voice_active'] = False
-            self.terminal.print_success("Voice mode disabled")
+            self.terminal.print_success("🔇 Modo voz desactivado")
             return
                 
         if text_lower == 'voz on':
             self.state['voice_active'] = True
-            self.terminal.print_success("Voice mode enabled")
+            self.terminal.print_success("🔊 Modo voz activado")
             return
 
         if text_lower == 'help':
             self._show_help()
             return
 
-        # Otherwise, send text to the queue
+        # Input normal al sistema
         self.input_queue.put(('keyboard', text))
 
     def _show_help(self):

@@ -54,8 +54,9 @@ class Jarvis:
             self._setup_signal_handlers()
             self._initialize_system()
             # Start audio in background
-            # self._start_audio_initialization()
+            self._start_audio_initialization()
             self._initialize_text_mode()
+            self.terminal.print_status("System ready")
         except Exception as e:
             self.terminal.print_error(f"Initialization error: {e}")
             sys.exit(1)
@@ -119,7 +120,7 @@ class Jarvis:
                 input_queue=self.input_queue,
                 state=self.state
             )
-            self.terminal.print_success("Text mode available")
+            self.terminal.print_success("✓ Modo texto disponible")
 
     def _start_service_threads(self):
         """Starts needed background threads (system monitor, voice input if available, text input)."""
@@ -187,50 +188,54 @@ class Jarvis:
             self._graceful_shutdown()
 
     def _process_inputs(self):
-        """Continuously processes queued inputs from voice or keyboard."""
-        while self.state['running']:
-            try:
-                input_type, content = self.input_queue.get(timeout=0.5)
-                self.terminal.print_thinking()
-                
-                # Get LLM response
-                response = self.model.get_response(content)
-                self.terminal.print_response(response)
-                
-                # If voice is active, TTS
-                if input_type == 'voice' or self.state['voice_active']:
-                    if hasattr(self, 'tts'):
-                        self.tts.speak(response)
-                
-                self.input_queue.task_done()
-            except Empty:
-                continue
-            except Exception as e:
-                self._handle_critical_error(f"Error processing input: {str(e)}")
+        """Process single input from queue."""
+        try:
+            input_type, content = self.input_queue.get_nowait()
+            self.terminal.print_thinking()
+            
+            # Get LLM response
+            response = self.model.get_response(content)
+            self.terminal.print_response(response)
+            
+            # TTS if voice is active
+            if input_type == 'voice' or self.state['voice_active']:
+                if hasattr(self, 'tts'):
+                    self.tts.speak(response)
+            
+            self.input_queue.task_done()
+        except Empty:
+            pass
+        except Exception as e:
+            self._handle_critical_error(f"Error processing input: {str(e)}")
 
     def run(self):
         """Main execution loop."""
         try:
-            # Start service threads
-            threads = self._start_service_threads()
+            # Start background threads
+            monitor_thread = threading.Thread(target=self._system_monitor, daemon=True)
+            monitor_thread.start()
             
-            # Start a separate thread to consume inputs
-            process_thread = threading.Thread(target=self._process_inputs, daemon=True)
+            process_thread = threading.Thread(target=self._process_inputs_loop, daemon=True)
             process_thread.start()
+            
+            if self.state['audio_initialized'] and self.state['voice_active']:
+                voice_thread = threading.Thread(target=self._voice_input_handler, daemon=True)
+                voice_thread.start()
             
             self.terminal.print_header("Operating System")
             
-            # Keep the main thread alive
-            while self.state['running']:
-                time.sleep(0.5)
-            
-            # Join threads
-            process_thread.join(timeout=2)
-            for t in threads:
-                t.join(timeout=2)
+            # Run text handler in main thread
+            if self.text_handler:
+                self.text_handler.run_interactive()
                 
         finally:
             self._shutdown_system()
+
+    def _process_inputs_loop(self):
+        """Continuous loop for processing inputs."""
+        while self.state['running']:
+            self._process_inputs()
+            time.sleep(0.1)
 
     def _shutdown_system(self):
         """Clean shutdown procedure."""

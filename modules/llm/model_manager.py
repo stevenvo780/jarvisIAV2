@@ -38,7 +38,6 @@ class ModelManager:
         self._validate_config(self.config)
         self.models = self._initialize_models()
         self._setup_logging()
-        self._validate_system()
         self.conversation_history: Deque[Dict] = deque(maxlen=self.config["max_history"])
         self.processing_lock = threading.Lock()
         logging.info("ModelManager inicializado")
@@ -100,13 +99,6 @@ class ModelManager:
             handler.setFormatter(fmt)
             logger.addHandler(handler)
 
-    def _validate_system(self):
-        """Checks system resources like memory and CPU usage."""
-        if psutil.virtual_memory().percent > 90:
-            logging.warning("Memoria del sistema alta (>90%)")
-        if psutil.cpu_percent(interval=1) > 90:
-            logging.warning("Uso de CPU alto (>90%)")
-
     def _validate_query(self, query: str):
         """Prevents excessively long queries or blocked terms."""
         if len(query) > self.config['security']['max_query_length']:
@@ -149,10 +141,8 @@ class ModelManager:
             logging.warning(f"Consulta bloqueada: {str(e)}")
             return "Consulta rechazada por motivos de seguridad."
 
-        # (Animaciones deshabilitadas, se removieron por completo)
         try:
             for model_name in self.config['fallback_order']:
-                # Skip if model wasn't initialized
                 if model_name not in self.models:
                     continue
 
