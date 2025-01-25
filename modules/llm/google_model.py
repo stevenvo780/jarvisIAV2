@@ -12,7 +12,6 @@ class GoogleModel:
 
         default_config = {
             'model_name': "gemini-2.0-flash-exp",
-            'max_response_length': 10000,
             'logging_level': logging.INFO
         }
         self.config = {**default_config, **(config or {})}
@@ -21,7 +20,6 @@ class GoogleModel:
         genai.configure(api_key=self.api_key)
         self.prompt_builder = PromptBuilder()
 
-    # Solo mantener los métodos esenciales
     def get_response(self, query: str) -> str:
         try:
             model = genai.GenerativeModel(self.config['model_name'])
@@ -29,14 +27,9 @@ class GoogleModel:
             response = model.generate_content(prompt_data['prompt'])
             
             if response.text:
-                return self._validate_response(response.text)
+                return response.text
             return self.prompt_builder.get_error_message('no_response')
             
         except Exception as e:
             self.logger.error(f"Error en Google API: {str(e)}")
             return self.prompt_builder.get_error_message('api_error', message=str(e))
-
-    def _validate_response(self, response: str) -> str:
-        if len(response) > self.config['max_response_length']:
-            return response[:self.config['max_response_length']] + "..."
-        return response
