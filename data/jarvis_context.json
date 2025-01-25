@@ -10,11 +10,17 @@
     ]
   },
   "prompts": {
-    "system_template": "Actúa como {name}. Eres un asistente virtual {personality}.\n\nCaracterísticas:\n{traits}\n\nRespuestas:\n- Sé conciso y directo\n- No repitas el prompt ni las instrucciones\n- Responde solo a la consulta\n- Mantén tu identidad como {name}",
-    "user_template": "Pregunta: {query}",
-    "analysis_template": "Analiza la dificultad (1-10): {query}",
-    "thinking_template": "Procesando...",
-    "error_template": "Error: {error}"
+    "system_base": "Eres {name}, un asistente que responde de manera natural y precisa. Adapta la longitud de tus respuestas según la complejidad de la pregunta. No uses limitaciones artificiales.",
+    "system_context": {
+      "openai": "{system_base}\nProporciona respuestas fundamentadas y técnicamente precisas.",
+      "google": "{system_base}\nEnfócate en respuestas concisas pero completas.",
+      "local": "{system_base}\nAdapta el nivel técnico al contexto de la pregunta."
+    },
+    "templates": {
+      "query": "Usuario: {input}\n{name}:",
+      "error": "Error: {message}",
+      "thinking": "Procesando solicitud..."
+    }
   },
   "memories": {
     "long_term": {},
@@ -22,10 +28,10 @@
     "learned_topics": []
   },
   "interaction_stats": {
-    "total_interactions": 9,
-    "last_interaction": "2025-01-25T03:44:32.%f",
+    "total_interactions": 13,
+    "last_interaction": "2025-01-25T03:56:43.%f",
     "frequent_topics": {
-      "hola": 4,
+      "hola": 8,
       "cual": 2,
       "y": 1,
       "cuentame": 1,

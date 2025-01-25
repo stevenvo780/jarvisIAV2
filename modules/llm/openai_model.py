@@ -88,7 +88,7 @@ class OpenAIModel:
             ]
 
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",  # Usar modelo correcto
+                model="gpt-3.5-turbo",  # Ajusta según la versión de tu preferencia
                 messages=messages,
                 temperature=self.config['temperature'],
                 max_tokens=self.config['max_tokens'],
@@ -99,7 +99,13 @@ class OpenAIModel:
                 raise ValueError("Respuesta vacía de OpenAI")
 
             processing_time = time.monotonic() - start_time
-            self.logger.info(f"Respuesta en {processing_time:.2f}s | Tokens: {response.usage.total_tokens}")
+            # Si tu objeto 'response' no provee usage y total_tokens en todos los endpoints,
+            # podrías omitir este log
+            if hasattr(response, "usage"):
+                self.logger.info(f"Respuesta en {processing_time:.2f}s | Tokens: {response.usage.total_tokens}")
+            else:
+                self.logger.info(f"Respuesta en {processing_time:.2f}s (tokens no disponibles)")
+            
             return self._sanitize_response(response.choices[0].message.content)
 
         except Exception as e:
@@ -121,7 +127,7 @@ class OpenAIModel:
         if attempt >= self.config['max_retries']:
             raise TimeoutError("Fallo persistente de conexión") from error
 
-    def _handle_auth_error(self, error: AuthenticationError) -> None:
+    def _handle_auth_error(self, error: AuthenticationError) -> str:
         self.logger.critical("Error de autenticación irreversible")
         # Aquí no relanzamos el error, solo lo logueamos
         return "Error de autenticación con OpenAI"
