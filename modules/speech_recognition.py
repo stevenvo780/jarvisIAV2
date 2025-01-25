@@ -64,30 +64,27 @@ class VoiceTrigger:
             
         try:
             with self.microphone as source:
-                print("Esperando palabra de activación...")
                 audio = self.recognizer.listen(source, timeout=1, phrase_time_limit=3)
                 text = self.recognizer.recognize_google(audio, language=self.language)
-                activated = self.wake_word.lower() in text.lower()
-                if activated:
-                    print(f"¡Palabra de activación detectada! ({text})")
-                return activated
-        except (sr.WaitTimeoutError, sr.UnknownValueError):
+                return self.wake_word.lower() in text.lower()
+        except sr.WaitTimeoutError:
+            return False
+        except sr.UnknownValueError:
             return False
         except Exception as e:
-            logging.error(f"Error en detección: {str(e)}")
+            logging.error(f"Error en detección de wake word: {str(e)}")
             return False
 
     def capture_query(self):
         if not self.microphone:
             return ""
-            
         try:
+            print("Escuchando tu consulta...")  # Eliminamos uso de "\r" y borrado
             with self.microphone as source:
-                print("Escuchando...")
                 audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
                 text = self.recognizer.recognize_google(audio, language=self.language)
-                return text
-        except (sr.UnknownValueError, sr.RequestError) as e:
+                return text.strip()
+        except Exception as e:
             logging.error(f"Error en captura de consulta: {str(e)}")
             return ""
 

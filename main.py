@@ -135,37 +135,95 @@ def chat_mode(manager, tts):
     print("\nModo de chat activado. Comandos disponibles:")
     print("- 'salir': Salir del chat")
     print("- 'voz on/off': Activar/desactivar respuestas por voz")
-    print("- 'limpiar': Limpiar historial de conversación\n")
+    print("- 'limpiar': Limpiar historial de conversación")
+    print("- 'historial': Mostrar historial de conversación")
+    print("- 'exportar': Exportar historial a archivo\n")
     
     use_voice = False
     
     while True:
-        user_input = input("Tu: ").strip()
-        
-        if user_input.lower() in ["salir", "adiós", "terminar", "exit"]:
-            break
-        elif user_input.lower() == "voz on":
-            use_voice = True
-            print("Respuestas por voz activadas")
-            continue
-        elif user_input.lower() == "voz off":
-            use_voice = False
-            print("Respuestas por voz desactivadas")
-            continue
-        elif user_input.lower() == "limpiar":
-            manager.clear_context()
-            print("Historial de conversación limpiado")
-            continue
+        try:
+            user_input = input("Tu: ").strip()
             
-        response = manager.get_response(user_input)
-        print("Jarvis:", response)
-        
-        if use_voice:
-            tts.speak(response)
+            if not user_input:
+                continue
+                
+            if user_input.lower() in ["salir", "adiós", "terminar", "exit"]:
+                break
+            elif user_input.lower() == "voz on":
+                use_voice = True
+                print("Respuestas por voz activadas")
+                continue
+            elif user_input.lower() == "voz off":
+                use_voice = False
+                print("Respuestas por voz desactivadas")
+                continue
+            elif user_input.lower() == "limpiar":
+                manager.clear_context()
+                print("Historial de conversación limpiado")
+                continue
+            elif user_input.lower() == "historial":
+                for entry in manager.get_conversation_history():
+                    role = "Tu:" if entry["role"] == "user" else "Jarvis:"
+                    print(f"{role} {entry['content']}")
+                continue
+            elif user_input.lower() == "exportar":
+                history = manager.get_conversation_history()
+                timestamp = time.strftime("%Y%m%d-%H%M%S")
+                export_file = f"chat_history_{timestamp}.txt"
+                
+                with open(export_file, 'w', encoding='utf-8') as f:
+                    for entry in history:
+                        f.write(f"Tu: {entry['query']}\n")
+                        f.write(f"Jarvis: {entry['response']}\n\n")
+                print(f"Historial exportado a {export_file}")
+                continue
+                
+            response = manager.get_response(user_input)
+            print("Jarvis:", response)
+            
+            if use_voice:
+                tts.speak(response)
+                
+        except Exception as e:
+            logging.error(f"Error en modo chat: {e}")
+            print("Ocurrió un error. Intenta de nuevo.")
 
 def signal_handler(signum, frame):
     print("\n¡Hasta luego!")
     sys.exit(0)
+
+def process_keyboard_input(current_input: str, cursor_pos: int, manager: ModelManager) -> tuple:
+    """Procesa la entrada de teclado y retorna el input actualizado y posición del cursor"""
+    if manager.is_busy():  # Si está procesando, ignorar entrada
+        return current_input, cursor_pos, False
+        
+    char = sys.stdin.read(1)
+    
+    if char == '\n':
+        return current_input, cursor_pos, True
+    elif char == '\x7f':  # Backspace
+        if cursor_pos > 0:
+            current_input = current_input[:-1]
+            cursor_pos -= 1
+    else:  # Caracteres normales
+        current_input += char
+        cursor_pos += 1
+    
+    return current_input, cursor_pos, False
+
+def handle_voice_activation(trigger, manager, tts, current_input: str) -> str:
+    """Maneja la activación por voz y retorna el input actual"""
+    print("\rEscuchando comando...", end="", flush=True)
+    user_query = trigger.capture_query()
+    
+    if user_query:
+        print(f"\nTu: {user_query}")
+        response = manager.get_response(user_query)
+        print("Jarvis:", response)
+        tts.speak(response)
+    
+    return current_input
 
 def main():
     # Configurar argumentos de línea de comandos
@@ -231,50 +289,61 @@ def main():
 
     print("\n" + "="*50)
     print("Jarvis está listo!")
-    print("Di 'Hey Jarvis' para activación por voz")
+    print("Teclea algo o di 'Hey Jarvis' para activarlo.")
+    print("Escribe 'config mic' para cambiar micrófono.")
     print("Presiona Ctrl+C para salir")
     print("="*50 + "\n")
 
-    try:
-        while True:
-            try:
-                # Añadir pequeña pausa para reducir uso de CPU
+    while True:
+        try:
+            # Mostrar 'Cargando...' en lugar del prompt si está ocupado
+            if manager.is_busy():
+                print("\rCargando...     ", end="", flush=True)
                 time.sleep(0.1)
-                
-                if trigger.listen_for_activation():
-                    print("\n¡Activado! ¿En qué puedo ayudarte?")
-                    user_query = trigger.capture_query()
-                    
-                    if not user_query:
-                        print("No pude entender tu consulta. ¿Podrías repetirla?")
-                        continue
-                        
-                    print(f"Tu: {user_query}")
-                    response = manager.get_response(user_query)
-                    print("Jarvis:", response)
-                    tts.speak(response)
-                    print("\nEsperando nueva activación...")
-                    
-            except Exception as e:
-                logging.error(f"Error en el bucle principal: {e}")
-                print(f"\nError recuperable: {e}")
-                print("Reiniciando escucha...")
-                time.sleep(1)
                 continue
+            
+            # Cuando no está ocupado, se puede leer input normalmente
+            user_input = input("🔴 > ").strip()
+            if not user_input:
+                continue
+            
+            if user_input.lower() in ["salir", "exit"]:
+                break
+            elif user_input.lower() == "config mic":
+                new_dev = select_audio_device()
+                if new_dev is not None:
+                    trigger = VoiceTrigger(
+                        wake_word="Hey Jarvis",
+                        language="es-ES",
+                        energy_threshold=4000,
+                        device_index=new_dev
+                    )
+                    print("Micrófono reconfigurado.")
+                continue
+            
+            # Enviar query al manager, hablar la respuesta
+            print(f"Tu: {user_input}")
+            response = manager.get_response(user_input)
+            print("Jarvis:", response)
+            tts.speak(response)
+            
+            # Verificar activación por voz sólo si no está ocupado
+            if trigger and not manager.is_busy():
+                if trigger.listen_for_activation():
+                    voice_query = trigger.capture_query()
+                    if voice_query:
+                        print(f"\nTu: {voice_query}")
+                        response = manager.get_response(voice_query)
+                        print("Jarvis:", response)
+                        tts.speak(response)
+            
+        except KeyboardInterrupt:
+            print("\n¡Hasta luego!")
+            sys.exit(0)
+        except Exception as e:
+            logging.error(f"Error en el bucle principal: {e}")
+            time.sleep(0.1)
 
-    except KeyboardInterrupt:
-        print("\n¡Hasta luego!")
-    except Exception as ex:
-        print(f"\nError fatal: {ex}")
-        logging.error(f"Error fatal: {ex}")
-        return 1
-    finally:
-        # Limpieza
-        if 'trigger' in locals():
-            del trigger
-        if 'tts' in locals():
-            del tts
-        
     return 0
 
 if __name__ == "__main__":
