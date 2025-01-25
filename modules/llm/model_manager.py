@@ -4,6 +4,7 @@ import threading
 import os
 from typing import List, Dict, Optional, Deque
 from collections import deque
+from ..voice.tts_manager import TTSManager  # Añadir esta importación
 
 from .google_model import GoogleModel
 from .openai_model import OpenAIModel
@@ -31,6 +32,7 @@ class ModelManager:
         self.conversation_history = deque(maxlen=self.config["max_history"])
         self.processing_lock = threading.Lock()
         self.difficulty_analyzer = self.models.get('google')  # Usamos Google para analizar dificultad
+        self.tts = TTSManager()  # Inicializar TTS
         logging.info("ModelManager inicializado")
 
     def _load_config(self, config_path: str) -> Dict:
@@ -156,10 +158,12 @@ class ModelManager:
         return next(iter(available_models))
 
     def get_response(self, query: str) -> str:
-        """Obtiene respuesta seleccionando el modelo según dificultad."""
+        """Obtiene respuesta seleccionando el modelo según dificultad y la lee en voz alta."""
         try:
             if not self._validate_query(query):
-                return "Lo siento, tu consulta no puede ser procesada por razones de seguridad."
+                response = "Lo siento, tu consulta no puede ser procesada por razones de seguridad."
+                self.tts.speak(response)
+                return response, "error"
             
             # Analizar dificultad
             difficulty = self._analyze_query_difficulty(query)
@@ -172,6 +176,9 @@ class ModelManager:
             
             # Obtener respuesta
             response = self.models[model_name].get_response(query)
+            
+            # Leer la respuesta en voz alta
+            self.tts.speak(response)
             
             # Guardar en historial
             self.conversation_history.append({
@@ -186,8 +193,10 @@ class ModelManager:
             return response, model_name
             
         except Exception as e:
+            error_msg = "Lo siento, ha ocurrido un error procesando tu consulta."
+            self.tts.speak(error_msg)
             logging.error(f"Error procesando consulta: {e}")
-            return "Lo siento, ha ocurrido un error procesando tu consulta.", "error"
+            return error_msg, "error"
 
     def get_history(self) -> List[Dict]:
         """Returns conversation history."""

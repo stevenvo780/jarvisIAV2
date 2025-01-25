@@ -8,15 +8,15 @@ from llama_cpp import Llama
 from pathlib import Path
 
 class LocalModel:
-    DEFAULT_MODEL_FILENAME = "llama-2-13b-chat.Q4_K_M.gguf"
-    DEFAULT_MODEL_URL = "https://huggingface.co/TheBloke/Llama-2-13B-chat-GGUF/resolve/main/llama-2-13b-chat.Q4_K_M.gguf"
+    DEFAULT_MODEL_FILENAME = "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+    DEFAULT_MODEL_URL = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
     
     SIMPLE_RESPONSES = {
         "hola": "¡Hola! ¿En qué puedo ayudarte hoy?",
         "hora": lambda: f"Son las {time.strftime('%H:%M:%S')}",
         "fecha": lambda: f"Hoy es {time.strftime('%A, %d de %B de %Y')}",
         "ayuda": "Puedes preguntarme sobre:\n- La hora actual\n- La fecha\n- Temas generales\n¡Intenta hacerme una pregunta!",
-        "creditos": "Soy un modelo local LLama-2-7B corriendo en tu dispositivo. Desarrollado por Meta y cuantizado por TheBloke."
+        "creditos": "Soy TinyLlama-1.1B ejecutándome localmente. Un modelo pequeño pero capaz."
     }
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
@@ -34,99 +34,70 @@ class LocalModel:
         logging.info("LocalModel inicializado")
 
     def _validate_config(self):
+        """Valida la configuración del modelo."""
         if not isinstance(self.config, dict):
-            raise ValueError("Configuración debe ser un diccionario")
-        
+            raise ValueError("La configuración debe ser un diccionario")
+
         required_keys = ['timeout', 'max_length', 'download_retries', 'model_dir', 'n_threads']
         for key in required_keys:
             if key not in self.config:
-                raise ValueError(f"Falta clave de configuración: '{key}'")
-            
+                raise ValueError(f"Falta la clave de configuración requerida: {key}")
+
         if not isinstance(self.config['timeout'], (int, float)) or self.config['timeout'] <= 0:
             raise ValueError("'timeout' debe ser un número positivo")
-        
+
         if not isinstance(self.config['max_length'], int) or self.config['max_length'] <= 0:
             raise ValueError("'max_length' debe ser un entero positivo")
-        
+
         if not isinstance(self.config['download_retries'], int) or self.config['download_retries'] < 0:
             raise ValueError("'download_retries' debe ser un entero no negativo")
-        
+
         if not isinstance(self.config['model_dir'], str):
-            raise ValueError("'model_dir' debe ser una cadena")
-        
+            raise ValueError("'model_dir' debe ser una cadena de texto")
+
         if not isinstance(self.config['n_threads'], int) or self.config['n_threads'] <= 0:
             raise ValueError("'n_threads' debe ser un entero positivo")
 
     def _setup_model_path(self) -> str:
-        model_dir = Path(self.config['model_dir'])
-        model_dir.mkdir(parents=True, exist_ok=True)
-        return str(model_dir / self.DEFAULT_MODEL_FILENAME)
+        """Define la ruta local donde se guardará/leerá el modelo."""
+        model_path = os.path.join(self.config['model_dir'], self.DEFAULT_MODEL_FILENAME)
+        return model_path
 
     def _download_model_if_needed(self):
-        if not os.path.exists(self.model_path):
-            logging.warning(f"Modelo no encontrado en {self.model_path}, iniciando descarga...")
-            self._download_model()
-
-    def _download_model(self):
-        for attempt in range(1, self.config['download_retries'] + 1):
-            try:
-                self._download_attempt(attempt)
-                return
-            except Exception as e:
-                logging.error(f"Intento de descarga {attempt} fallido: {str(e)}")
-                if attempt == self.config['download_retries']:
-                    raise RuntimeError(
-                        f"Fallo al descargar modelo tras {attempt} intentos. "
-                        f"URL: {self.DEFAULT_MODEL_URL}. Error: {str(e)}"
-                    )
-
-    def _download_attempt(self, attempt: int):
-        headers = {}
-        if hf_token := os.getenv('HUGGINGFACE_TOKEN'):
-            headers['Authorization'] = f'Bearer {hf_token}'
-
-        with requests.get(
-            self.DEFAULT_MODEL_URL,
-            headers=headers,
-            stream=True,
-            timeout=self.config['timeout']
-        ) as response:
-            response.raise_for_status()
-            
-            total_size = int(response.headers.get('content-length', 0))
-            progress_bar = tqdm(
-                total=total_size, 
-                unit='iB', 
-                unit_scale=True, 
-                desc="Descargando modelo",
-                bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]'
-            )
-            
-            with open(self.model_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
+        """Descarga el modelo si no existe en la ruta especificada."""
+        if os.path.exists(self.model_path):
+            logging.info("Modelo disponible localmente. No se requiere descarga.")
+            return
+        logging.info("Descargando modelo TinyLlama-1.1B-Chat...")
+        try:
+            import requests
+            with requests.get(self.DEFAULT_MODEL_URL, stream=True) as r:
+                r.raise_for_status()
+                with open(self.model_path, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=8192):
                         f.write(chunk)
-                        progress_bar.update(len(chunk))
-            
-            progress_bar.close()
+            logging.info("Descarga completada con éxito")
+        except Exception as e:
+            logging.error(f"Error descargando modelo: {e}")
+            raise RuntimeError("No se pudo descargar el modelo")
 
     def _initialize_model(self) -> Llama:
         try:
             gpu_params = {
-                "n_gpu_layers": -1,  # Usar todas las capas en GPU
+                "n_gpu_layers": -1,
                 "n_threads": min(4, os.cpu_count() or 1),
                 "n_batch": 512,
                 "n_ctx": 2048,
-                "verbose": False,
+                "verbose": False
             }
             
             try:
                 import torch
                 if torch.cuda.is_available():
                     logging.info(f"CUDA disponible: {torch.cuda.get_device_name(0)}")
-                    # Nuevos parámetros optimizados para CUDA
+                    # Parámetros optimizados para modelo pequeño
                     gpu_params.update({
-                        "n_gqa": 8,
+                        "n_gqa": 4,  # Reducido para modelo más pequeño
                         "rms_norm_eps": 1e-5,
                         "mul_mat_q": True,
                     })
@@ -150,57 +121,38 @@ class LocalModel:
             raise RuntimeError(f"No se pudo cargar el modelo local: {str(e)}")
 
     def get_response(self, query: str) -> str:
-        if not isinstance(query, str) or not query.strip():
-            return "Consulta inválida."
+        query = query.lower().strip()
         
-        query_lower = query.lower().strip()
-        simple_response = self.get_simple_response(query_lower)
-        if (simple_response != "Comando no reconocido"):
-            return simple_response
-
-        prompt = self._build_prompt(query)
-        start_time = time.time()
+        if response := self._get_simple_response(query):
+            return response
         
         try:
-            response = self.model.create_chat_completion(
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=256,  # Reducir tokens máximos
-                temperature=0.7,
-                top_p=0.9,
-                stop=["</s>", "[INST]"]
+            prompt = self._build_prompt(query)
+            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.config['device'])
+            
+            outputs = self.model.generate(
+                inputs.input_ids,
+                max_new_tokens=256,
+                temperature=self.config['temperature'],
+                do_sample=True
             )
             
-            processing_time = time.time() - start_time
-            logging.info(f"Tiempo de procesamiento: {processing_time:.2f}s")
-            return self._validate_response(response['choices'][0]['message']['content'])
-        
+            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            return self._process_response(response.split("[/INST]")[-1].strip())
+            
         except Exception as e:
-            logging.error(f"Error en generación: {str(e)}")
-            return f"Error procesando consulta: {str(e)}"
+            logging.error(f"Error generando respuesta: {str(e)}")
+            return "Error procesando tu solicitud"
 
     def _build_prompt(self, query: str) -> str:
-        return f"""<s>[INST] <<SYS>>
-Responde de manera concisa y precisa en español. Si no sabes la respuesta, dilo claramente.
-Evita formato markdown y mantén la respuesta en un párrafo.
-<</SYS>>
+        return f"[INST] {query} [/INST]"
 
-{query} [/INST]"""
+    def _process_response(self, response: str) -> str:
+        return response[:self.config['max_length']].strip() + ("..." if len(response) > self.config['max_length'] else "")
 
-    def _validate_response(self, response: str) -> str:
-        response = response.strip()
-        
-        if not response:
-            return "No pude generar una respuesta para esa consulta."
-        
-        if len(response) > self.config['max_length']:
-            last_space = response[:self.config['max_length']].rfind(' ')
-            return response[:last_space].strip() + "... [truncada]" if last_space != -1 else response[:self.config['max_length']] + "..."
-        
-        return response
-
-    def get_simple_response(self, command: str) -> str:
-        response = self.SIMPLE_RESPONSES.get(command, "Comando no reconocido")
+    def _get_simple_response(self, command: str) -> Optional[str]:
+        response = self.SIMPLE_RESPONSES.get(command)
         return response() if callable(response) else response
 
     def __repr__(self):
-        return f"<LocalModel(path='{self.model_path}', threads={self.config['n_threads']})>"
+        return f"<LocalModel(model={self.DEFAULT_MODEL_NAME}, device={self.config['device'].upper()})>"
