@@ -6,10 +6,10 @@ import threading
 import sys
 from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from modules.local_model import LocalModel
-from modules.google_model import GoogleModel
-from modules.openai_model import OpenAIModel
-from modules.storage_manager import StorageManager
+from .local_model import LocalModel
+from .google_model import GoogleModel
+from .openai_model import OpenAIModel
+from ..storage_manager import StorageManager
 
 class ModelManager:
     def __init__(self, config_path: str, timeout_in_seconds: int = 5,

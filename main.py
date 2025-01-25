@@ -8,9 +8,9 @@ import subprocess
 import signal
 import argparse
 from dotenv import load_dotenv
-from modules.speech_recognition import VoiceTrigger
-from modules.model_manager import ModelManager
-from modules.tts_manager import TTSManager
+from modules.voice.speech_recognition import VoiceTrigger
+from modules.llm.model_manager import ModelManager
+from modules.voice.tts_manager import TTSManager
 from modules.terminal_manager import TerminalManager
 
 # Configuración más agresiva para suprimir mensajes
