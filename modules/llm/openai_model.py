@@ -8,6 +8,9 @@ class OpenAIModel:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.api_key = os.getenv("OPENAI_API_KEY")
         self.config = self._merge_config(config)
+        if not self.api_key:
+            logging.error("No se encontró OPENAI_API_KEY")
+            raise ValueError("OPENAI_API_KEY no encontrada")
         self._validate_credentials()
         self.client = self._initialize_client()
         self.logger = self._configure_logger()
@@ -69,16 +72,39 @@ class OpenAIModel:
 
     def _process_request(self, query: str) -> str:
         start_time = time.monotonic()
-        response = self.client.chat.completions.create(
-            model=self.config['model_name'],
-            messages=[{"role": "user", "content": query}],
-            temperature=self.config['temperature'],
-            max_tokens=self.config['max_tokens'],
-            stream=False
-        )
-        processing_time = time.monotonic() - start_time
-        self.logger.info(f"Respuesta en {processing_time:.2f}s | Tokens usados: {response.usage.total_tokens}")
-        return self._sanitize_response(response.choices[0].message.content)
+        try:
+            # Extraer pregunta del usuario
+            if "Pregunta:" in query:
+                parts = query.split("Pregunta:", 1)
+                system_content = parts[0].strip()
+                user_content = parts[1].strip()
+            else:
+                system_content = "Eres Jarvis, un asistente virtual profesional y preciso."
+                user_content = query.strip()
+
+            messages = [
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content}
+            ]
+
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",  # Usar modelo correcto
+                messages=messages,
+                temperature=self.config['temperature'],
+                max_tokens=self.config['max_tokens'],
+                stream=False
+            )
+
+            if not response.choices or not response.choices[0].message:
+                raise ValueError("Respuesta vacía de OpenAI")
+
+            processing_time = time.monotonic() - start_time
+            self.logger.info(f"Respuesta en {processing_time:.2f}s | Tokens: {response.usage.total_tokens}")
+            return self._sanitize_response(response.choices[0].message.content)
+
+        except Exception as e:
+            self.logger.error(f"Error en process_request: {str(e)}")
+            raise
 
     def _sanitize_response(self, response: str) -> str:
         clean_response = response.strip().replace('\x00', '')

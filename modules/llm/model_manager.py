@@ -2,6 +2,8 @@ import logging
 import time
 import threading
 import os
+import json
+from pathlib import Path
 from typing import List, Dict, Optional, Deque
 from collections import deque
 from ..voice.tts_manager import TTSManager  # Añadir esta importación
@@ -25,6 +27,7 @@ class ModelManager:
     }
 
     def __init__(self, config_path: str = "config.json"):
+        self.context = self._load_context()
         self.config = self._load_config(config_path)
         self._validate_config(self.config)
         self.models = self._initialize_models()
@@ -34,6 +37,16 @@ class ModelManager:
         self.difficulty_analyzer = self.models.get('google')  # Usamos Google para analizar dificultad
         self.tts = TTSManager()  # Inicializar TTS
         logging.info("ModelManager inicializado")
+
+    def _load_context(self) -> Dict:
+        """Carga el contexto de Jarvis."""
+        context_path = Path(__file__).parent.parent.parent / "data" / "jarvis_context.json"
+        try:
+            with open(context_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"Error cargando contexto: {e}")
+            return {}
 
     def _load_config(self, config_path: str) -> Dict:
         """Loads or merges JSON config if exists."""
@@ -158,8 +171,13 @@ class ModelManager:
         return next(iter(available_models))
 
     def get_response(self, query: str) -> str:
-        """Obtiene respuesta seleccionando el modelo según dificultad y la lee en voz alta."""
+        """Obtiene respuesta incluyendo el contexto."""
         try:
+            # Verificar si es comando de stop
+            if query.lower().strip() in ['stop', 'para', 'detente', 'silencio']:
+                self.tts.stop_speaking()
+                return "He detenido la reproducción.", "system"
+
             if not self._validate_query(query):
                 response = "Lo siento, tu consulta no puede ser procesada por razones de seguridad."
                 self.tts.speak(response)
@@ -167,15 +185,24 @@ class ModelManager:
             
             # Analizar dificultad
             difficulty = self._analyze_query_difficulty(query)
-            print(difficulty)
             logging.info(f"Dificultad detectada: {difficulty}/10")
             
             # Seleccionar modelo
             model_name = self._select_appropriate_model(difficulty)
             logging.info(f"Modelo seleccionado: {model_name}")
             
+            # Construir prompt más simple y directo
+            system_prompt = self._build_context_prompt()
+            user_prompt = self.context['prompts']['user_template'].format(query=query)
+            
+            # Combinar prompts de forma más limpia
+            enriched_query = f"{system_prompt}\n\n{user_prompt}"
+            
             # Obtener respuesta
-            response = self.models[model_name].get_response(query)
+            response = self.models[model_name].get_response(enriched_query)
+            
+            # Actualizar contexto
+            self._update_context(query, response)
             
             # Leer la respuesta en voz alta
             self.tts.speak(response)
@@ -197,6 +224,35 @@ class ModelManager:
             self.tts.speak(error_msg)
             logging.error(f"Error procesando consulta: {e}")
             return error_msg, "error"
+
+    def _update_context(self, query: str, response: str):
+        """Actualiza el contexto con la nueva interacción."""
+        try:
+            self.context["interaction_stats"]["total_interactions"] += 1
+            self.context["interaction_stats"]["last_interaction"] = time.strftime("%Y-%m-%dT%H:%M:%S.%f")
+            
+            # Actualizar temas frecuentes
+            topic = query.split()[0].lower()  # Simplificación - usa primera palabra como tema
+            self.context["interaction_stats"]["frequent_topics"][topic] = \
+                self.context["interaction_stats"]["frequent_topics"].get(topic, 0) + 1
+
+            # Guardar contexto
+            context_path = Path(__file__).parent.parent.parent / "data" / "jarvis_context.json"
+            with open(context_path, 'w', encoding='utf-8') as f:
+                json.dump(self.context, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logging.error(f"Error actualizando contexto: {e}")
+
+    def _build_context_prompt(self) -> str:
+        """Construye el prompt del sistema de forma concisa."""
+        profile = self.context.get("assistant_profile", {})
+        traits = "\n".join(f"- {trait}" for trait in profile.get('core_traits', []))
+        
+        return self.context['prompts']['system_template'].format(
+            name=profile.get('name', 'Jarvis'),
+            personality=profile.get('personality', 'profesional y servicial'),
+            traits=traits
+        )
 
     def get_history(self) -> List[Dict]:
         """Returns conversation history."""

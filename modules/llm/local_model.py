@@ -9,14 +9,6 @@ from pathlib import Path
 class LocalModel:
     DEFAULT_MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
     
-    SIMPLE_RESPONSES = {
-        "hola": "¡Hola! ¿En qué puedo ayudarte hoy?",
-        "hora": lambda: f"Son las {time.strftime('%H:%M:%S')}",
-        "fecha": lambda: f"Hoy es {time.strftime('%A, %d de %B de %Y')}",
-        "ayuda": "Puedes preguntarme sobre:\n- La hora actual\n- La fecha\n- Temas generales\n¡Intenta hacerme una pregunta!",
-        "creditos": "Soy TinyLlama-1.1B ejecutándome localmente. Un modelo pequeño pero capaz."
-    }
-
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {
             'timeout': 30,
@@ -88,17 +80,17 @@ class LocalModel:
 
     def get_response(self, query: str) -> str:
         """Genera una respuesta usando el modelo local."""
-        query = query.lower().strip()
-        
-        if response := self._get_simple_response(query):
-            return response
-        
         try:
             prompt = self._build_prompt(query)
             response = self.pipeline(
                 prompt,
                 max_new_tokens=256,
-                return_full_text=False  # Solo devolver el texto nuevo
+                num_return_sequences=1,
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.9,
+                repetition_penalty=1.2,  # Evitar repeticiones
+                return_full_text=False
             )[0]['generated_text']
             
             return self._process_response(response)
@@ -108,14 +100,30 @@ class LocalModel:
             return "Error procesando tu solicitud"
 
     def _build_prompt(self, query: str) -> str:
-        return f"[INST] {query} [/INST]"
+        """Formatea el prompt para TinyLlama."""
+        # Extraer solo la pregunta del usuario si existe
+        if "Pregunta:" in query:
+            query = query.split("Pregunta:", 1)[1].strip()
+            
+        # Construir prompt simplificado
+        return f"[INST] Como Jarvis, responde de forma concisa y profesional a esta pregunta:\n{query} [/INST]"
 
     def _process_response(self, response: str) -> str:
-        return response[:self.config['max_length']].strip() + ("..." if len(response) > self.config['max_length'] else "")
-
-    def _get_simple_response(self, command: str) -> Optional[str]:
-        response = self.SIMPLE_RESPONSES.get(command)
-        return response() if callable(response) else response
+        """Limpia y procesa la respuesta."""
+        # Limpiar marcadores especiales
+        response = response.replace("[INST]", "").replace("[/INST]", "")
+        
+        # Tomar solo la primera respuesta coherente
+        response_parts = response.split("\n")
+        clean_response = response_parts[0] if response_parts else response
+        
+        # Remover repeticiones y prompts
+        for unwanted in ["Pregunta:", "Respuesta:", "Como Jarvis,", "responde de forma concisa"]:
+            clean_response = clean_response.replace(unwanted, "")
+        
+        # Limpiar y truncar
+        clean_response = clean_response.strip()
+        return clean_response[:self.config['max_length']]
 
     def __repr__(self):
         return f"<LocalModel(model={self.DEFAULT_MODEL_NAME}, device={self.config['device'].upper()})>"
