@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from modules.speech_recognition import VoiceTrigger
 from modules.model_manager import ModelManager
 from modules.tts_manager import TTSManager
+from modules.terminal_manager import TerminalManager
 
 # Configuración más agresiva para suprimir mensajes
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
@@ -226,129 +227,81 @@ def handle_voice_activation(trigger, manager, tts, current_input: str) -> str:
     return current_input
 
 def main():
-    # Configurar argumentos de línea de comandos
-    parser = argparse.ArgumentParser(description='Jarvis AI Assistant')
-    parser.add_argument('--chat', action='store_true', help='Iniciar en modo chat')
-    args = parser.parse_args()
-
-    # Cargar variables de entorno
+    # Inicializar componentes
+    terminal = TerminalManager()
+    terminal.setup_logging()
+    
+    # Cargar configuración y variables de entorno
     load_dotenv()
     
-    # Configurar manejador de señales
-    signal.signal(signal.SIGINT, signal_handler)
-    
-    print("Iniciando Jarvis... Presiona Ctrl+C para salir.")
-    logging.info("Jarvis is starting up.")
-    
-    # 1. Inicializar sistema de audio con más tolerancia a errores
-    initialize_audio_system()
-    time.sleep(1)  # Dar tiempo a que el sistema de audio se estabilice
-    
-    # 2. Se intenta inicializar con el micrófono por defecto
-    print("\nIntentando inicializar el micrófono por defecto...")
+    # Inicializar micrófono
     trigger = None
-    default_device_index = None
+    while trigger is None:
+        try:
+            trigger = VoiceTrigger(
+                wake_word="Hey Jarvis",
+                language="es-ES",
+                energy_threshold=4000
+            )
+            terminal.print_success("Micrófono inicializado correctamente.")
+        except Exception as e:
+            terminal.print_error(f"Error al inicializar micrófono: {e}")
+            if input("¿Intentar con otro dispositivo? (s/n): ").lower() != 's':
+                return 1
+
+    # Inicializar componentes principales
+    try:
+        manager = ModelManager("config/models.json", timeout_in_seconds=5)
+    except Exception as e:
+        terminal.print_error(f"Error al inicializar el gestor de modelos: {e}")
+        return 1
 
     try:
-        trigger = VoiceTrigger(
-            wake_word="Hey Jarvis",
-            language="es-ES",
-            energy_threshold=4000,
-            device_index=default_device_index
-        )
-        print("Micrófono predeterminado inicializado correctamente.")
-    except Exception as ex:
-        logging.error(f"Error al inicializar el micrófono predeterminado: {ex}")
-        print("No se pudo inicializar el micrófono predeterminado. Se procederá a la selección manual.")
-        
-        while trigger is None:
-            try:
-                device_index = select_audio_device()
-                print(f"\nIntentando con dispositivo: {device_index if device_index is not None else 'predeterminado'}")
-                trigger = VoiceTrigger(
-                    wake_word="Hey Jarvis", 
-                    language="es-ES", 
-                    energy_threshold=4000,
-                    device_index=device_index
-                )
-            except Exception as e:
-                print(f"Error al inicializar dispositivo: {e}")
-                print("¿Deseas intentar con otro dispositivo? (s/n)")
-                if input().lower() != 's':
-                    print("Saliendo...")
-                    sys.exit(1)
+        tts = TTSManager()
+    except Exception as e:
+        terminal.print_error(f"Error al inicializar el sistema de voz: {e}")
+        return 1
+    
+    # Mostrar bienvenida
+    terminal.print_welcome()
 
-    # Manager y TTS 
-    manager = ModelManager(priority=["local", "google", "openai"], timeout_in_seconds=5)
-    tts = TTSManager()
-
-    if args.chat:
-        print("\nIniciando en modo chat...")
-        chat_mode(manager, tts)
-        return
-
-    print("\n" + "="*50)
-    print("Jarvis está listo!")
-    print("Teclea algo o di 'Hey Jarvis' para activarlo.")
-    print("Escribe 'config mic' para cambiar micrófono.")
-    print("Presiona Ctrl+C para salir")
-    print("="*50 + "\n")
-
+    # Bucle principal
     while True:
         try:
-            # Mostrar 'Cargando...' en lugar del prompt si está ocupado
             if manager.is_busy():
-                print("\rCargando...     ", end="", flush=True)
+                terminal.print_thinking()
                 time.sleep(0.1)
                 continue
             
-            # Cuando no está ocupado, se puede leer input normalmente
-            user_input = input("🔴 > ").strip()
+            user_input = terminal.get_input('IDLE')
             if not user_input:
                 continue
-            
-            if user_input.lower() in ["salir", "exit"]:
+                
+            if not terminal.handle_command(user_input, manager, tts, trigger):
                 break
-            elif user_input.lower() == "config mic":
-                new_dev = select_audio_device()
-                if new_dev is not None:
-                    trigger = VoiceTrigger(
-                        wake_word="Hey Jarvis",
-                        language="es-ES",
-                        energy_threshold=4000,
-                        device_index=new_dev
-                    )
-                    print("Micrófono reconfigurado.")
-                continue
             
-            # Enviar query al manager, hablar la respuesta
-            print(f"Tu: {user_input}")
+            terminal.print_thinking()
             response = manager.get_response(user_input)
-            print("Jarvis:", response)
+            terminal.print_jarvis_response(response)
             tts.speak(response)
             
-            # Verificar activación por voz sólo si no está ocupado
             if trigger and not manager.is_busy():
                 if trigger.listen_for_activation():
+                    terminal.print_listening()
                     voice_query = trigger.capture_query()
                     if voice_query:
-                        print(f"\nTu: {voice_query}")
                         response = manager.get_response(voice_query)
-                        print("Jarvis:", response)
+                        terminal.print_jarvis_response(response)
                         tts.speak(response)
             
         except KeyboardInterrupt:
-            print("\n¡Hasta luego!")
-            sys.exit(0)
+            terminal.print_goodbye()
+            return 0
         except Exception as e:
-            logging.error(f"Error en el bucle principal: {e}")
+            terminal.print_error(f"Error: {e}")
             time.sleep(0.1)
 
     return 0
 
 if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except Exception as e:
-        print(f"Error crítico: {e}")
-        sys.exit(1)
+    sys.exit(main())
