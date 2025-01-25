@@ -2,14 +2,14 @@ import os
 import requests
 import logging
 import time
-from typing import Optional, Dict, Any, Callable
+from typing import Optional, Dict, Any
 from tqdm.auto import tqdm
 from llama_cpp import Llama
 from pathlib import Path
 
 class LocalModel:
-    DEFAULT_MODEL_FILENAME = "llama-2-7b-chat.Q4_K_M.gguf"
-    DEFAULT_MODEL_URL = "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q4_K_M.gguf"
+    DEFAULT_MODEL_FILENAME = "llama-2-13b-chat.Q4_K_M.gguf"
+    DEFAULT_MODEL_URL = "https://huggingface.co/TheBloke/Llama-2-13B-chat-GGUF/resolve/main/llama-2-13b-chat.Q4_K_M.gguf"
     
     SIMPLE_RESPONSES = {
         "hola": "¡Hola! ¿En qué puedo ayudarte hoy?",
@@ -112,17 +112,42 @@ class LocalModel:
 
     def _initialize_model(self) -> Llama:
         try:
+            gpu_params = {
+                "n_gpu_layers": -1,  # Usar todas las capas en GPU
+                "n_threads": min(4, os.cpu_count() or 1),
+                "n_batch": 512,
+                "n_ctx": 2048,
+                "verbose": False,
+            }
+            
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    logging.info(f"CUDA disponible: {torch.cuda.get_device_name(0)}")
+                    # Nuevos parámetros optimizados para CUDA
+                    gpu_params.update({
+                        "n_gqa": 8,
+                        "rms_norm_eps": 1e-5,
+                        "mul_mat_q": True,
+                    })
+                else:
+                    logging.warning("CUDA no disponible, usando CPU")
+                    gpu_params["n_gpu_layers"] = 0
+            except ImportError:
+                logging.warning("PyTorch no instalado, usando CPU")
+                gpu_params["n_gpu_layers"] = 0
+
             return Llama(
                 model_path=self.model_path,
-                n_ctx=2048,
-                n_batch=512,
-                n_gpu_layers=32,  # Activar capas en GPU
-                n_threads=4,
-                verbose=False
+                seed=42,
+                use_mmap=True,
+                use_mlock=False,
+                embedding=True,
+                **gpu_params
             )
         except Exception as e:
             logging.error(f"Error crítico al inicializar modelo: {str(e)}")
-            raise RuntimeError("No se pudo cargar el modelo local")
+            raise RuntimeError(f"No se pudo cargar el modelo local: {str(e)}")
 
     def get_response(self, query: str) -> str:
         if not isinstance(query, str) or not query.strip():
@@ -130,7 +155,7 @@ class LocalModel:
         
         query_lower = query.lower().strip()
         simple_response = self.get_simple_response(query_lower)
-        if simple_response != "Comando no reconocido":
+        if (simple_response != "Comando no reconocido"):
             return simple_response
 
         prompt = self._build_prompt(query)

@@ -1,26 +1,44 @@
+import os
+import logging
 import speech_recognition as sr
-import whisper
 import numpy as np
 import torch
-import logging
 from typing import Optional, Tuple
 from utils.error_handler import AudioError
 
+# Agregamos manejo de errores para la importación de whisper
+try:
+    os.environ['PYTHONPATH'] = ''  # Limpiar PYTHONPATH para evitar conflictos
+    import whisper
+except ImportError as e:
+    logging.error(f"Error importando whisper: {e}")
+    raise ImportError("No se pudo importar whisper. Verifica la instalación de numpy y numba.")
+
 class SpeechRecognition:
-    def __init__(self, terminal, language: str = "es", device: str = "cpu"):
+    def __init__(self, terminal, language: str = "es", device: str = "cuda" if torch.cuda.is_available() else "cpu"):
         self.terminal = terminal
         self.language = language
+        self.device = device
         self.recognizer = sr.Recognizer()
         self.microphone = None
-        self.model = self._load_whisper_model(device)
+        
+        try:
+            self.model = self._load_whisper_model(device)
+            if torch.cuda.is_available():
+                logging.info(f"Usando GPU: {torch.cuda.get_device_name(0)}")
+            else:
+                logging.info("Usando CPU para procesamiento")
+        except Exception as e:
+            logging.error(f"Error cargando modelo whisper: {e}")
+            raise RuntimeError("No se pudo cargar el modelo de whisper")
+            
         self._initialize_microphone()
 
     def _load_whisper_model(self, device: str) -> whisper.Whisper:
         """Carga el modelo de Whisper"""
         try:
             self.terminal.print_status("Cargando modelo de reconocimiento...")
-            model = whisper.load_model("base")
-            model.to(device)
+            model = whisper.load_model("base", device=device)
             self.terminal.print_success("Modelo de reconocimiento cargado")
             return model
         except Exception as e:

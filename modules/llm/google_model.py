@@ -14,7 +14,7 @@ class GoogleModel:
             raise ValueError("GOOGLE_API_KEY no encontrada en variables de entorno")
 
         default_config = {
-            'model_name': "gemini-pro",
+            'model_name': "gemini-2.0-flash-exp",
             'max_response_length': 10000,
             'logging_level': logging.INFO
         }

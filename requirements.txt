@@ -1,32 +1,33 @@
 # Core dependencies
-SpeechRecognition>=3.10.0
+setuptools>=69.0.3
+wheel>=0.42.0
+numpy==2.1.0  # Versión más nueva compatible con Python 3.12
+numba  # Versión compatible con Python 3.12
+torch
+torchaudio>=2.2.0
+torchvision>=0.17.0
+
+# Audio & Speech
+SpeechRecognition
 PyAudio>=0.2.13
-python-dotenv>=1.0.0
+sounddevice==0.4.6
+openai-whisper
+
+# LLM & AI
 openai>=1.12.0
+llama-cpp-python
+google-generativeai>=0.3.0
 google-cloud-speech>=2.21.3
-requests>=2.32.2
-psutil>=5.9.8  # Nueva dependencia para monitoreo de recursos
+transformers
 
 # Text-to-Speech
-gTTS>=2.4.0
-pygame>=2.5.2
+gTTS
+pygame
 pyttsx3==2.90
 
-# LLM Local
-llama-cpp-python>=0.2.61  # Actualizado para soporte de nuevos modelos
-
-# Modelos LLM
-google-generativeai>=0.3.2  # Para Gemini
-
-# Progreso de descargas
-tqdm>=4.66.2  # Nueva dependencia para barras de progreso
-
-# Gestión de modelos
-numpy>=1.21  # Dependencia implícita para varios componentes
-
-# Additional dependencies
-sounddevice==0.4.6
+# Utils
+python-dotenv
+requests
+psutil>=5.9.8
+tqdm
 prompt_toolkit>=3.0.0
-
-# Asegúrate de tener las siguientes dependencias para manejar correctamente el prompt y audio
-concurrent.futures
