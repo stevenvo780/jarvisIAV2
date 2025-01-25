@@ -1,7 +1,6 @@
 import threading
 import sys
 import logging
-import os
 from queue import Queue
 from prompt_toolkit import PromptSession
 from prompt_toolkit.shortcuts import clear
@@ -24,96 +23,88 @@ class TextHandler:
         })
         
     def start(self):
-        """Inicia el manejador de texto en un hilo separado"""
+        """Starts the text handler on a separate thread."""
         self.input_thread = threading.Thread(target=self._input_loop, daemon=True)
         self.input_thread.start()
 
     def stop(self):
-        """Detiene el manejador de texto"""
+        """Stops text input loop."""
         self.running = False
         if hasattr(self, 'input_thread'):
             self.input_thread.join(timeout=1)
 
     def _get_formatted_prompt(self):
-        """Genera un prompt formateado"""
+        """Generates a formatted prompt string."""
         voice_status = "🎤" if self.state.get('voice_active', False) else "⌨️"
         return HTML(f"<username>{voice_status}</username> <prompt>></prompt> ")
 
     def _input_loop(self):
-        """Bucle principal de entrada de texto mejorado"""
-        while self.running:
+        """Main loop for reading user text input with prompt_toolkit."""
+        while self.running and self.state.get('running', True):
             try:
-                # Usar prompt_toolkit para entrada mejorada
-                text = self.session.prompt(
+                user_input = self.session.prompt(
                     self._get_formatted_prompt(),
                     style=self.style,
                     enable_history=True,
-                    complete_while_typing=True,
-                    mouse_support=True
+                    mouse_support=False
                 ).strip()
 
-                if text:
-                    self._process_input(text)
+                if user_input:
+                    self._process_input(user_input)
                     
             except KeyboardInterrupt:
+                # If user presses Ctrl+C, ignore and continue
                 continue
             except EOFError:
+                # If user presses Ctrl+D, we exit
                 self.running = False
                 break
             except Exception as e:
-                logging.error(f"Error en entrada de texto: {e}")
+                logging.error(f"Text input error: {e}")
                 continue
 
     def _process_input(self, text: str):
-        """Procesa el texto ingresado con mejor manejo de comandos"""
-        # Eliminar caracteres ^M
-        text = text.replace('\r', '').replace('\n', '')
-        text = text.strip()
+        """Process user text commands or forward them to Jarvis."""
+        text = text.replace('\r', '').replace('\n', '').strip()
         if not text:
             return
 
-        try:
-            text_lower = text.lower().strip()
-            
-            # Comandos del sistema
-            if text_lower in ['exit', 'salir', 'quit']:
-                self.state['running'] = False
-                self.terminal.print_success("\nSaliendo del sistema...")
-                return
+        text_lower = text.lower()
+        
+        # System commands
+        if text_lower in ['exit', 'salir', 'quit']:
+            self.state['running'] = False
+            self.terminal.print_success("\nExiting system...")
+            return
                 
-            if text_lower == 'clear':
-                clear()
-                return
+        if text_lower == 'clear':
+            clear()
+            return
                 
-            if text_lower == 'voz off':
-                self.state['voice_active'] = False
-                self.terminal.print_success("Modo voz desactivado")
-                return
+        if text_lower == 'voz off':
+            self.state['voice_active'] = False
+            self.terminal.print_success("Voice mode disabled")
+            return
                 
-            if text_lower == 'voz on':
-                self.state['voice_active'] = True
-                self.terminal.print_success("Modo voz activado")
-                return
+        if text_lower == 'voz on':
+            self.state['voice_active'] = True
+            self.terminal.print_success("Voice mode enabled")
+            return
 
-            if text_lower == 'help':
-                self._show_help()
-                return
+        if text_lower == 'help':
+            self._show_help()
+            return
 
-            # Enviar a la cola solo si es un texto válido
-            if text_lower:
-                self.input_queue.put(('keyboard', text))
-                
-        except Exception as e:
-            logging.error(f"Error procesando entrada: {str(e)}")
-            self.terminal.print_error(f"Error: {str(e)}")
+        # Otherwise, send text to the queue
+        self.input_queue.put(('keyboard', text))
 
     def _show_help(self):
-        """Muestra ayuda de comandos disponibles"""
+        """Shows help commands."""
         help_text = """
-Comandos disponibles:
-  - exit, salir, quit : Salir del sistema
-  - clear            : Limpiar pantalla
-  - voz on/off      : Activar/desactivar modo voz
-  - help            : Mostrar esta ayuda
+Available commands:
+  - exit, salir, quit : Exit the system
+  - clear             : Clear the screen
+  - voz on/off        : Enable/disable voice mode
+  - help              : Show this help
 """
         print(help_text)
