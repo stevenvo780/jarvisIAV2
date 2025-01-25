@@ -34,7 +34,7 @@ class ModelManager:
         self._setup_logging()
         self.conversation_history = deque(maxlen=self.config["max_history"])
         self.processing_lock = threading.Lock()
-        self.difficulty_analyzer = self.models.get('google')  # Usamos Google para analizar dificultad
+        self.difficulty_analyzer = self.models.get('google')
         self.tts = TTSManager()  # Inicializar TTS
         logging.info("ModelManager inicializado")
 
