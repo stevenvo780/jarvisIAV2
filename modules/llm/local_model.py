@@ -1,12 +1,19 @@
 import os
 import requests
 import logging
+import time
 from typing import Optional
 from tqdm import tqdm
 from llama_cpp import Llama
 
 class LocalModel:
     MODEL_URL = "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q4_K_M.gguf"
+    SIMPLE_RESPONSES = {
+        "hola": "¡Hola! ¿En qué puedo ayudarte?",
+        "hora": lambda: f"Son las {time.strftime('%H:%M')}",
+        "fecha": lambda: f"Hoy es {time.strftime('%d/%m/%Y')}",
+        "ayuda": "Puedes preguntarme sobre la hora, fecha o saludar.",
+    }
     
     def __init__(self, model_path: Optional[str] = None):
         self.model_path = model_path or os.path.join(
@@ -62,6 +69,11 @@ class LocalModel:
             raise RuntimeError(f"No se pudo descargar el modelo: {e}")
 
     def get_response(self, query: str) -> str:
+        query_lower = query.lower().strip()
+        response = self.SIMPLE_RESPONSES.get(query_lower, None)
+        if response:
+            return response() if callable(response) else response
+        
         try:
             prompt = f"### Humano: {query}\n### Asistente:"
             response = self.model(
