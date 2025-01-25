@@ -1,5 +1,15 @@
 {
-  "models": ["google", "openai", "local"],
+  "models": {
+    "google": {
+      "difficulty_range": [0, 10]
+    },
+    "openai": {
+      "difficulty_range": [7, 10]
+    },
+    "local": {
+      "difficulty_range": [0, 6]
+    }
+  },
   "timeouts": {
       "google": 15,
       "openai": 20,
@@ -13,7 +23,6 @@
   "fallback_order": ["google", "openai", "local"],
   "max_history": 15,
   "security": {
-      "max_query_length": 2000,
       "blocked_terms": [";", "&&", "|", "`", "$("]
   }
 }

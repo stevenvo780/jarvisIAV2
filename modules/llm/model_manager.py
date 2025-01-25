@@ -1,35 +1,25 @@
 import logging
 import time
 import threading
-import sys
 import os
 from typing import List, Dict, Optional, Deque
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from collections import deque
-import psutil
 
-# Importar las clases reales en lugar de los stubs
 from .google_model import GoogleModel
 from .openai_model import OpenAIModel
 from .local_model import LocalModel
 
-
-class SecurityError(Exception):
-    pass
-
-
 class ModelManager:
     CONFIG_DEFAULTS = {
-        "models": ["google", "openai", "local"],
-        "timeouts": {"google": 15, "openai": 20, "local": 30},
-        "retry_policy": {"max_retries": 3, "backoff_base": 2, "max_delay": 60},
-        "fallback_order": ["google", "openai", "local"],
+        "models": {
+            "google": {"difficulty_range": [0, 10]},
+            "openai": {"difficulty_range": [7, 10]},
+            "local": {"difficulty_range": [0, 6]}
+        },
         "max_history": 10,
         "security": {
-            "max_query_length": 2000,
             "blocked_terms": [";", "&&", "|", "`", "$("]
         },
-        # Nivel de log (INFO, DEBUG, etc.)
         "log_level": "INFO"
     }
 
@@ -38,8 +28,9 @@ class ModelManager:
         self._validate_config(self.config)
         self.models = self._initialize_models()
         self._setup_logging()
-        self.conversation_history: Deque[Dict] = deque(maxlen=self.config["max_history"])
+        self.conversation_history = deque(maxlen=self.config["max_history"])
         self.processing_lock = threading.Lock()
+        self.difficulty_analyzer = self.models.get('google')  # Usamos Google para analizar dificultad
         logging.info("ModelManager inicializado")
 
     def _load_config(self, config_path: str) -> Dict:
@@ -99,68 +90,74 @@ class ModelManager:
             handler.setFormatter(fmt)
             logger.addHandler(handler)
 
-    def _validate_query(self, query: str):
-        """Prevents excessively long queries or blocked terms."""
-        if len(query) > self.config['security']['max_query_length']:
-            raise SecurityError("Consulta demasiado larga")
+    def _validate_query(self, query: str) -> bool:
+        """Validates blocked terms. Returns True if valid."""
         lower_query = query.lower()
-        if any(term.lower() in lower_query for term in self.config['security']['blocked_terms']):
-            raise SecurityError("Consulta contiene términos potencialmente peligrosos")
+        for term in self.config['security']['blocked_terms']:
+            if term.lower() in lower_query:
+                logging.warning(f"Término bloqueado detectado en consulta: {term}")
+                return False
+        return True
 
-    def _process_with_model(self, model_name: str, query: str) -> Optional[str]:
-        """
-        Calls the model using ThreadPoolExecutor and handles retries/backoff.
-        Returns response or None if fails.
-        """
-        retries = self.config['retry_policy']['max_retries']
-        backoff_base = self.config['retry_policy']['backoff_base']
-        max_delay = self.config['retry_policy']['max_delay']
-        model_timeout = self.config['timeouts'].get(model_name, 15)
+    def _analyze_query_difficulty(self, query: str) -> int:
+        """Analiza la dificultad de la consulta usando el modelo de Google."""
+        try:
+            prompt = f"""
+            Por favor analiza la siguiente consulta y califica su dificultad del 1 al 10,
+            donde 1 es muy simple y 10 es muy compleja. Responde solo con el número.
+            
+            Consulta: {query}
+            """
+            
+            response = self.difficulty_analyzer.get_response(prompt)
+            # Extraer el número de la respuesta
+            difficulty = int(''.join(filter(str.isdigit, response)))
+            return min(max(difficulty, 1), 10)  # Asegurar rango 1-10
+        except Exception as e:
+            logging.warning(f"Error analizando dificultad: {e}")
+            return 5  # Dificultad media por defecto
 
-        for attempt in range(retries + 1):
-            try:
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(self.models[model_name].get_response, query)
-                    return future.result(timeout=model_timeout)
-            except Exception as e:
-                logging.warning(f"Fallo en '{model_name}' (Intento {attempt+1}/{retries}): {str(e)}")
-                if attempt < retries:
-                    backoff_time = min(backoff_base ** attempt, max_delay)
-                    time.sleep(backoff_time)
-        return None
+    def _select_appropriate_model(self, difficulty: int) -> str:
+        """Selecciona el modelo más apropiado según la dificultad."""
+        for model_name, config in self.config['models'].items():
+            diff_range = config['difficulty_range']
+            if diff_range[0] <= difficulty <= diff_range[1]:
+                if model_name in self.models:
+                    return model_name
+        
+        return next(iter(self.models.keys()))  # Retorna el primer modelo disponible como fallback
 
     def get_response(self, query: str) -> str:
-        """
-        Attempts to get a response using fallback_order (e.g. Google -> OpenAI -> Local).
-        Returns the first valid response found.
-        """
-        # Validate query
+        """Obtiene respuesta seleccionando el modelo según dificultad."""
         try:
-            self._validate_query(query)
-        except SecurityError as e:
-            logging.warning(f"Consulta bloqueada: {str(e)}")
-            return "Consulta rechazada por motivos de seguridad."
-
-        try:
-            for model_name in self.config['fallback_order']:
-                if model_name not in self.models:
-                    continue
-
-                response = self._process_with_model(model_name, query)
-                if response:
-                    # Save to history
-                    self.conversation_history.append({
-                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                        "model": model_name,
-                        "query": query,
-                        "response": response
-                    })
-                    return response
-
-            return "Error: Ningún modelo pudo responder."
-        finally:
-            # No spinner/animation cleanup needed
-            pass
+            if not self._validate_query(query):
+                return "Lo siento, tu consulta no puede ser procesada por razones de seguridad."
+            
+            # Analizar dificultad
+            difficulty = self._analyze_query_difficulty(query)
+            logging.info(f"Dificultad detectada: {difficulty}/10")
+            
+            # Seleccionar modelo
+            model_name = self._select_appropriate_model(difficulty)
+            logging.info(f"Modelo seleccionado: {model_name}")
+            
+            # Obtener respuesta
+            response = self.models[model_name].get_response(query)
+            
+            # Guardar en historial
+            self.conversation_history.append({
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "model": model_name,
+                "difficulty": difficulty,
+                "query": query,
+                "response": response
+            })
+            
+            return response
+            
+        except Exception as e:
+            logging.error(f"Error procesando consulta: {e}")
+            return "Lo siento, ha ocurrido un error procesando tu consulta."
 
     def get_history(self) -> List[Dict]:
         """Returns conversation history."""
