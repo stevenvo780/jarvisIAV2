@@ -74,15 +74,27 @@ class ModelManager:
         for model_name in self.config['models']:
             try:
                 if model_name == "google":
-                    instantiated[model_name] = GoogleModel()
+                    try:
+                        instantiated[model_name] = GoogleModel()
+                    except Exception as e:
+                        logging.error(f"Error inicializando OpenAI: {e}")
+                        continue
                 elif model_name == "openai":
-                    instantiated[model_name] = OpenAIModel()
+                    try:
+                        instantiated[model_name] = OpenAIModel()
+                    except Exception as e:
+                        logging.error(f"Error inicializando OpenAI: {e}")
+                        continue
                 elif model_name == "local":
-                    instantiated[model_name] = LocalModel()
+                    try:
+                        instantiated[model_name] = LocalModel()
+                    except Exception as e:
+                        logging.error(f"Error inicializando OpenAI: {e}")
+                        continue
                 else:
                     logging.warning(f"Modelo '{model_name}' no reconocido")
             except Exception as e:
-                logging.exception(f"Error inicializando {model_name}: {str(e)}")
+                logging.error(f"Error inicializando {model_name}: {str(e)}")
         if not instantiated:
             raise RuntimeError("No se pudo inicializar ningún modelo")
         return instantiated
@@ -126,13 +138,22 @@ class ModelManager:
 
     def _select_appropriate_model(self, difficulty: int) -> str:
         """Selecciona el modelo más apropiado según la dificultad."""
+        available_models = self.models.keys()
+        
+        # Primero intentamos encontrar un modelo adecuado que esté disponible
         for model_name, config in self.config['models'].items():
             diff_range = config['difficulty_range']
-            if diff_range[0] <= difficulty <= diff_range[1]:
-                if model_name in self.models:
-                    return model_name
+            if diff_range[0] <= difficulty <= diff_range[1] and model_name in available_models:
+                return model_name
         
-        return next(iter(self.models.keys()))  # Retorna el primer modelo disponible como fallback
+        # Si no encontramos un modelo ideal, usamos el siguiente en orden de preferencia
+        if difficulty >= 7 and "google" in available_models:
+            return "google"
+        elif "local" in available_models:
+            return "local"
+        
+        # Último recurso: usar cualquier modelo disponible
+        return next(iter(available_models))
 
     def get_response(self, query: str) -> str:
         """Obtiene respuesta seleccionando el modelo según dificultad."""

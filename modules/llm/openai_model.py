@@ -6,7 +6,7 @@ from openai import OpenAI, APIError, APIConnectionError, RateLimitError, Authent
 
 class OpenAIModel:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self._api_key = os.getenv("OPENAI_API_KEY") or ""
+        self.api_key = os.getenv("OPENAI_API_KEY")
         self.config = self._merge_config(config)
         self._validate_credentials()
         self.client = self._initialize_client()
@@ -27,14 +27,14 @@ class OpenAIModel:
 
     def _validate_credentials(self) -> None:
         """Validates API key format."""
-        if not self._api_key.strip():
-            raise AuthenticationError("API key no proporcionada")
-        if len(self._api_key.strip()) != 51 or not self._api_key.startswith('sk-'):
-            raise AuthenticationError("Formato de API key inválido")
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY no encontrada en variables de entorno")
+        if not self.api_key.startswith("sk-"):
+            raise ValueError("Formato de API key de OpenAI inválido")
 
     def _initialize_client(self) -> OpenAI:
         return OpenAI(
-            api_key=self._api_key,
+            api_key=self.api_key,
             timeout=self.config['timeout'],
             max_retries=self.config['max_retries']
         )
