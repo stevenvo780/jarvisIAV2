@@ -4,198 +4,169 @@ import time
 import itertools
 import threading
 import sys
-from typing import List, Optional
+import os
+from typing import List, Dict, Optional, Deque
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from .local_model import LocalModel
-from .google_model import GoogleModel
-from .openai_model import OpenAIModel
-from ..storage_manager import StorageManager
+from collections import deque
+import psutil
+
+class SecurityError(Exception):
+    pass
+
+class GoogleModel:
+    def __init__(self, config):
+        pass
+    def get_response(self, query):
+        time.sleep(1)
+        return f"Respuesta de Google: {query}"
+
+class OpenAIModel:
+    def __init__(self, config):
+        pass
+    def get_response(self, query):
+        time.sleep(2)
+        return f"Respuesta de OpenAI: {query}"
+
+class LocalModel:
+    def __init__(self, config):
+        pass
+    def get_response(self, query):
+        time.sleep(3)
+        return f"Respuesta del Modelo Local: {query}"
 
 class ModelManager:
-    def __init__(self, config_path: str, timeout_in_seconds: int = 5,
-                 max_retries: int = 3, context_size: int = 5):
-        self.timeout = timeout_in_seconds
-        self.max_retries = max_retries
-        self.context_size = context_size
-        self.thinking_animation = None
-        self.stop_thinking = False
-        self.is_processing = False
-        
+    CONFIG_DEFAULTS = {
+        "models": ["google", "openai", "local"],
+        "timeouts": {"google": 15, "openai": 20, "local": 30},
+        "retry_policy": {"max_retries": 3, "backoff_base": 2, "max_delay": 60},
+        "fallback_order": ["google", "openai", "local"],
+        "max_history": 10,
+        "security": {"max_query_length": 2000, "blocked_terms": [";", "&&", "|", "`", "$("]},
+    }
+
+    def __init__(self, config_path: str = "config.json"):
+        self.config = self._load_config(config_path)
+        self._validate_config(self.config)  # Pasando config como argumento
+        self.models = self._initialize_models()
         self._setup_logging()
-        self._initialize_models()
-        self.storage = StorageManager()
-        self.conversation_history = self.storage.load_conversation()
-        
-        # Load configuration from JSON
-        self.model_order = []
-        self.model_levels = {}
+        self._validate_system()
+        self.conversation_history: Deque[Dict] = deque(maxlen=self.config["max_history"])
+        self.thinking_animation_active = False
+        self.thinking_thread: Optional[threading.Thread] = None
+        self.processing_lock = threading.Lock()
+        logging.info("ModelManager inicializado")
+
+    def _load_config(self, config_path: str) -> Dict:
+        if not os.path.exists(config_path):
+            return self.CONFIG_DEFAULTS
         try:
             with open(config_path, 'r') as f:
-                config_data = json.load(f)
-                for model_info in config_data.get('modelos', []):
-                    model_name = model_info['nombre'].lower()
-                    nivel = model_info['nivel_capacitacion'].lower()
-                    if model_name in self.models:
-                        self.model_levels[model_name] = nivel
-                        self.model_order.append(model_name)
-                    else:
-                        logging.warning(f"Model {model_name} not found in available models")
-        except Exception as e:
-            logging.error(f"Error loading config file: {e}")
-            # Default configuration
-            self.model_order = ["openai", "google", "local"]
-            self.model_levels = {
-                "openai": "alto",
-                "google": "medio",
-                "local": "bajo"
-            }
+                return self._validate_config(json.load(f))
+        except (json.JSONDecodeError, ValueError):
+            return self.CONFIG_DEFAULTS
+
+    def _validate_config(self, config: Dict) -> Dict:
+        config = {**self.CONFIG_DEFAULTS, **config}
+        if not all(m in config["models"] for m in config["fallback_order"]):
+            raise ValueError("Configuración inválida: fallback_order")
+        if any(term.strip() == "" for term in config["security"]["blocked_terms"]):
+            raise ValueError("Términos bloqueados inválidos")
+        return config
+
+    def _initialize_models(self) -> Dict:
+        models = {}
+        for model_name in self.config['models']:
+            try:
+                if model_name == "google":
+                    models[model_name] = GoogleModel(config={})
+                elif model_name == "openai":
+                    models[model_name] = OpenAIModel(config={})
+                elif model_name == "local":
+                    models[model_name] = LocalModel(config={})
+            except Exception:
+                logging.exception(f"Error inicializando {model_name}")
+        if not models:
+            raise RuntimeError("Ningún modelo inicializado")
+        return models
 
     def _setup_logging(self):
-        logging.basicConfig(
-            filename="logs/jarvis.log",
-            level=logging.INFO,
-            format="%(asctime)s %(levelname)s %(message)s"
-        )
-    
-    def _initialize_models(self):
-        self.models = {
-            "local": LocalModel(),
-            "google": GoogleModel(),
-            "openai": OpenAIModel()
-        }
+        logger = logging.getLogger('ModelManager')
+        logger.setLevel(self.config.get('log_level', 'INFO'))
+        if not logger.handlers:
+            handler = logging.FileHandler('ai_system.log', encoding='utf-8')
+            handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+            logger.addHandler(handler)
 
-    def _show_thinking_animation(self):
-        animation = itertools.cycle(['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'])
-        while not self.stop_thinking:
-            sys.stdout.write('\rPensando ' + next(animation))
-            sys.stdout.flush()
-            time.sleep(0.1)
-        sys.stdout.write('\r' + ' '*20 + '\r')
-        sys.stdout.flush()
+    def _validate_system(self):
+        if psutil.virtual_memory().percent > 90:
+            logging.warning("Memoria del sistema baja")
+        if psutil.cpu_percent(interval=1) > 90:
+            logging.warning("Uso de CPU alto")
 
     def _start_thinking_animation(self):
-        self.stop_thinking = False
-        self.thinking_animation = threading.Thread(target=self._show_thinking_animation)
-        self.thinking_animation.start()
+        with self.processing_lock:
+            self.thinking_animation_active = True
+            self.thinking_thread = threading.Thread(target=self._animate_loading, daemon=True)
+            self.thinking_thread.start()
+
+    def _animate_loading(self):
+        for frame in itertools.cycle(['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']):
+            with self.processing_lock:
+                if not self.thinking_animation_active:
+                    return
+            sys.stdout.write(f'\rProcesando {frame}')
+            sys.stdout.flush()
+            time.sleep(0.1)
 
     def _stop_thinking_animation(self):
-        if self.thinking_animation:
-            self.stop_thinking = True
-            self.thinking_animation.join()
+        with self.processing_lock:
+            self.thinking_animation_active = False
+        if self.thinking_thread:
+            self.thinking_thread.join(timeout=0.5)
 
-    def _execute_with_timeout(self, model, query: str) -> Optional[str]:
-        with ThreadPoolExecutor(max_workers=1) as executor:
+    def _validate_query(self, query: str):
+        if len(query) > self.config['security']['max_query_length']:
+            raise SecurityError("Consulta demasiado larga")
+        lower_query = query.lower()
+        if any(term.lower() in lower_query for term in self.config['security']['blocked_terms']):
+            raise SecurityError("Consulta contiene términos bloqueados")
+
+    def _process_with_model(self, model_name: str, query: str) -> Optional[str]:
+        retries = self.config['retry_policy']['max_retries']
+        backoff_base = self.config['retry_policy']['backoff_base']
+        max_delay = self.config['retry_policy']['max_delay']
+
+        for attempt in range(retries + 1):
             try:
-                future = executor.submit(model.get_response, query)
-                return future.result(timeout=self.timeout)
-            except TimeoutError:
-                logging.error(f"Timeout after {self.timeout} seconds with {model}")
-                return None
-
-    def _try_model_with_retry(self, model_name: str, query: str) -> Optional[str]:
-        model = self.models.get(model_name)
-        if not model:
-            return None
-
-        for attempt in range(self.max_retries):
-            try:
-                start_time = time.time()
-                response = self._execute_with_timeout(model, query)
-                if response:
-                    duration = time.time() - start_time
-                    logging.info(f"Model {model_name} responded in {duration:.2f}s")
-                    return response
+                with ThreadPoolExecutor(max_workers=len(self.models)) as executor:
+                    future = executor.submit(self.models[model_name].get_response, query)
+                    return future.result(timeout=self.config['timeouts'][model_name])
             except Exception as e:
-                logging.error(f"Error with {model_name} (attempt {attempt+1}): {e}")
-                if attempt < self.max_retries - 1:
-                    time.sleep(2 ** attempt)  # Exponential backoff
+                logging.warning(f"Intento {attempt+1} en {model_name}: {str(e)}")
+                if attempt < retries:
+                    time.sleep(min(backoff_base ** attempt, max_delay))
         return None
 
-    def _evaluate_complexity(self, query: str) -> str:
-        evaluator_model = self.models.get('local')
-        if not evaluator_model:
-            logging.error("Local model not available for complexity evaluation")
-            return 'medio'
-        prompt = f"Clasifica la complejidad de la siguiente pregunta como 'bajo', 'medio' o 'alto'. Responde solo con una de esas palabras en minúsculas. Pregunta: {query}"
-        try:
-            response = evaluator_model.get_response(prompt)
-            response = response.strip().lower()
-            if response in ['bajo', 'medio', 'alto']:
-                return response
-            else:
-                logging.warning(f"Invalid complexity evaluation: {response}, defaulting to 'medio'")
-                return 'medio'
-        except Exception as e:
-            logging.error(f"Error evaluating complexity: {e}, defaulting to 'medio'")
-            return 'medio'
-
-    def _generate_priority_list(self, evaluated_complexity: str) -> List[str]:
-        level_order = {'alto': 3, 'medio': 2, 'bajo': 1}
-        evaluated_level = level_order.get(evaluated_complexity.lower(), 2)
-        
-        model_info_list = []
-        for idx, model_name in enumerate(self.model_order):
-            model_level = self.model_levels.get(model_name, 'bajo')
-            model_level_order = level_order.get(model_level, 1)
-            model_info_list.append((model_name, model_level_order, idx))
-        
-        group_exact = []
-        group_higher = []
-        group_lower = []
-        for model_name, level, idx in model_info_list:
-            if level == evaluated_level:
-                group_exact.append((model_name, level, idx))
-            elif level > evaluated_level:
-                group_higher.append((model_name, level, idx))
-            else:
-                group_lower.append((model_name, level, idx))
-        
-        group_exact_sorted = sorted(group_exact, key=lambda x: (-x[1], x[2]))
-        group_higher_sorted = sorted(group_higher, key=lambda x: (x[1], x[2]))
-        group_lower_sorted = sorted(group_lower, key=lambda x: (-x[1], x[2]))
-        
-        priority_list = [x[0] for x in group_exact_sorted + group_higher_sorted + group_lower_sorted]
-        return priority_list
-
     def get_response(self, query: str) -> str:
-        self.is_processing = True
-        self._start_thinking_animation()
-        
         try:
-            evaluated_complexity = self._evaluate_complexity(query)
-            logging.info(f"Evaluated complexity: {evaluated_complexity}")
-            priority_list = self._generate_priority_list(evaluated_complexity)
-            logging.info(f"Using priority list: {priority_list}")
-            
-            if len(self.conversation_history) >= self.context_size:
-                self.conversation_history.pop(0)
-            self.conversation_history.append({
-                "query": query,
-                "complexity": evaluated_complexity
-            })
-            
-            for model_name in priority_list:
-                response = self._try_model_with_retry(model_name, query)
-                if response:
-                    self.conversation_history[-1]["response"] = response
-                    self.conversation_history[-1]["model"] = model_name
-                    self.storage.save_conversation(self.conversation_history)
+            self._validate_query(query)
+        except SecurityError as e:
+            logging.warning(f"Consulta bloqueada: {str(e)}")
+            return "Consulta rechazada por seguridad."
+
+        self._start_thinking_animation()
+        try:
+            for model_name in self.config['fallback_order']:
+                if response := self._process_with_model(model_name, query):
+                    self.conversation_history.append({
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "query": query,
+                        "response": response
+                    })
                     return response
-            
-            default_response = "Lo siento, no pude procesar tu solicitud en este momento."
-            self.conversation_history[-1]["response"] = default_response
-            self.storage.save_conversation(self.conversation_history)
-            return default_response
+            return "Error: Todos los modelos fallaron"
         finally:
             self._stop_thinking_animation()
-            self.is_processing = False
 
-    def clear_context(self):
-        self.conversation_history.clear()
-        self.storage.clear_history()
-
-    def get_conversation_history(self) -> List[dict]:
-        return self.conversation_history
-
-    def is_busy(self) -> bool:
-        return self.is_processing
+    def get_history(self) -> List[Dict]:
+        return list(self.conversation_history)

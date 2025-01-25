@@ -1,64 +1,52 @@
 import speech_recognition as sr
 import logging
-import time
 import warnings
-import pyaudio
 import os
+from typing import Optional
+from utils.audio_manager import AudioManager
+from utils.error_handler import AudioError
 
 class VoiceTrigger:
-    def __init__(self, wake_word="Hey Jarvis", language="es-ES",
-                 energy_threshold=4000, dynamic_energy=True,
-                 pause_threshold=0.8, device_index=None):
-        # Silenciar warnings de ALSA y JACK
-        os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-        warnings.filterwarnings("ignore", category=UserWarning)
-        logging.getLogger('alsa').setLevel(logging.ERROR)
-        logging.getLogger('jack').setLevel(logging.ERROR)
-        logging.getLogger('speechrecognition').setLevel(logging.ERROR)
-        
+    def __init__(self, terminal, wake_word: str = "Hey Jarvis", language: str = "es-ES"):
+        self.terminal = terminal
         self.wake_word = wake_word.lower()
         self.language = language
         self.recognizer = sr.Recognizer()
         self.microphone = None
-        
+        self._initialize_microphone()
+
+    def _initialize_microphone(self) -> None:
+        """Inicializa el micrófono con manejo de errores"""
         try:
-            # Inicializar micrófono
-            print(f"Intentando inicializar micrófono con índice: {device_index}")
-            self.microphone = sr.Microphone(device_index=device_index)
-            
-            # Configurar el reconocedor con manejo de errores más robusto
-            retries = 3
-            for attempt in range(retries):
-                try:
-                    with self.microphone as source:
-                        print("Calibrando micrófono... Por favor, guarda silencio.")
-                        self.recognizer.adjust_for_ambient_noise(source, duration=1)
-                        self.recognizer.energy_threshold = energy_threshold
-                        self.recognizer.dynamic_energy_threshold = dynamic_energy
-                        self.recognizer.pause_threshold = pause_threshold
-                        print("¡Calibración completada!")
-                        break
-                except Exception as e:
-                    if attempt == retries - 1:
-                        raise
-                    print(f"Reintento {attempt + 1} de calibración...")
-                    time.sleep(1)
-            
-            self.continuous_mode = False
-            logging.info(f"Micrófono inicializado correctamente (índice: {device_index})")
-            
+            with AudioManager.suppress_output():  # Suprimir stderr durante la inicialización
+                self.microphone = sr.Microphone()  # Usa micrófono predeterminado
+                with self.microphone as source:
+                    self.terminal.print_status("Calibrando micrófono...")
+                    self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                    self.recognizer.energy_threshold = 4000
+            self.terminal.print_success("Micrófono configurado correctamente")
         except Exception as e:
-            logging.error(f"Error al inicializar micrófono: {str(e)}")
-            raise  # Re-lanzar la excepción para que main() pueda manejarla
+            self.terminal.print_error(f"Error con micrófono predeterminado: {e}")
+            self._try_manual_selection()
 
-    def toggle_continuous_mode(self):
-        self.continuous_mode = not self.continuous_mode
-        return self.continuous_mode
-
-    def listen_for_activation(self):
-        if self.continuous_mode:
-            return True
+    def _try_manual_selection(self) -> None:
+        """Permite selección manual del micrófono si falla el predeterminado"""
+        try:
+            devices = sr.Microphone.list_microphone_names()
+            self.terminal.print_status("\nMicrófonos disponibles:")
+            for idx, name in enumerate(devices):
+                print(f"[{idx}] {name}")
             
+            idx = int(input("\nSeleccione número de micrófono: "))
+            self.microphone = sr.Microphone(device_index=idx)
+            with AudioManager.suppress_output(), self.microphone as source:
+                self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                
+        except Exception as e:
+            raise AudioError(f"No se pudo inicializar ningún micrófono: {e}")
+
+    def listen_for_activation(self) -> bool:
+        """Escucha la palabra de activación"""
         if not self.microphone:
             return False
             
@@ -67,32 +55,26 @@ class VoiceTrigger:
                 audio = self.recognizer.listen(source, timeout=1, phrase_time_limit=3)
                 text = self.recognizer.recognize_google(audio, language=self.language)
                 return self.wake_word.lower() in text.lower()
-        except sr.WaitTimeoutError:
-            return False
-        except sr.UnknownValueError:
+        except (sr.WaitTimeoutError, sr.UnknownValueError):
             return False
         except Exception as e:
-            logging.error(f"Error en detección de wake word: {str(e)}")
+            logging.error(f"Error en detección: {e}")
             return False
 
-    def capture_query(self):
+    def capture_query(self) -> str:
+        """Captura una consulta de voz"""
         if not self.microphone:
             return ""
+            
         try:
-            print("Escuchando tu consulta...")  # Eliminamos uso de "\r" y borrado
             with self.microphone as source:
                 audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
-                text = self.recognizer.recognize_google(audio, language=self.language)
-                return text.strip()
+                return self.recognizer.recognize_google(audio, language=self.language).strip()
         except Exception as e:
-            logging.error(f"Error en captura de consulta: {str(e)}")
+            logging.error(f"Error capturando audio: {e}")
             return ""
 
-    def configure(self, energy_threshold=None, dynamic_energy=None,
-                 pause_threshold=None):
-        if energy_threshold:
-            self.recognizer.energy_threshold = energy_threshold
-        if dynamic_energy is not None:
-            self.recognizer.dynamic_energy_threshold = dynamic_energy
-        if pause_threshold:
-            self.recognizer.pause_threshold = pause_threshold
+    def cleanup(self):
+        """Limpia recursos"""
+        if self.microphone:
+            self.microphone.__exit__(None, None, None)

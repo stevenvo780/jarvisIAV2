@@ -5,6 +5,12 @@ from typing import Optional, List, Tuple
 
 class TerminalManager:
     def __init__(self):
+        self._setup_colors()
+        self._setup_states()
+        self.setup_logging()
+
+    def _setup_colors(self):
+        """Configura los códigos de color ANSI"""
         self.COLORS = {
             'GREEN': '\033[92m',
             'RED': '\033[91m',
@@ -15,6 +21,8 @@ class TerminalManager:
             'BOLD': '\033[1m'
         }
 
+    def _setup_states(self):
+        """Configura los estados visuales del sistema"""
         self.STATES = {
             'LISTENING': f"{self.COLORS['GREEN']}🟢{self.COLORS['RESET']}",
             'IDLE': f"{self.COLORS['RED']}🔴{self.COLORS['RESET']}",
@@ -22,7 +30,7 @@ class TerminalManager:
         }
 
     def setup_logging(self):
-        """Configura el sistema de logging"""
+        """Configura el sistema de logging silenciando logs innecesarios"""
         os.makedirs('logs', exist_ok=True)
         logging.basicConfig(
             filename="logs/jarvis.log",
@@ -30,26 +38,23 @@ class TerminalManager:
             format="%(asctime)s %(levelname)s %(message)s"
         )
         
-        # Silenciar logs innecesarios
-        logging.getLogger("alsa").setLevel(logging.ERROR)
-        logging.getLogger("jack").setLevel(logging.ERROR)
-        logging.getLogger("pulse").setLevel(logging.ERROR)
+        # Silenciar logs específicos de sistemas de audio
+        for lib in ['alsa', 'jack', 'pulse', 'libav']:
+            logging.getLogger(lib).setLevel(logging.CRITICAL)
+            logging.getLogger(lib).propagate = False
 
     def list_audio_devices(self) -> List[Tuple[int, dict]]:
-        """Lista los dispositivos de audio disponibles"""
+        """Lista dispositivos de audio con manejo de errores silencioso"""
         try:
             import pyaudio
             p = pyaudio.PyAudio()
             devices = []
             
-            print("\nDispositivos de audio disponibles:")
             for i in range(p.get_device_count()):
-                device_info = p.get_device_info_by_index(i)
-                if device_info['maxInputChannels'] > 0:
-                    devices.append((i, device_info))
-                    print(f"[{i}] {device_info['name']}")
-                    print(f"    Canales: {device_info['maxInputChannels']}")
-                    print(f"    Tasa de muestreo: {int(device_info['defaultSampleRate'])}Hz")
+                with self._suppress_output():
+                    device_info = p.get_device_info_by_index(i)
+                    if device_info['maxInputChannels'] > 0:
+                        devices.append((i, device_info))
             
             p.terminate()
             return devices
@@ -59,106 +64,108 @@ class TerminalManager:
             return []
 
     def select_audio_device(self) -> Optional[int]:
-        """Maneja la selección de dispositivo de audio"""
+        """Interfaz de selección de dispositivo de audio"""
         devices = self.list_audio_devices()
         
         if not devices:
-            self.print_error("No se encontraron dispositivos de audio.")
+            self.print_error("No se encontraron dispositivos de entrada.")
             return None
             
+        self._print_devices(devices)
+        
         while True:
             try:
-                device_index = input("\nSelecciona el número del dispositivo a usar (Enter para el predeterminado): ").strip()
-                
+                device_index = input(f"\n{self.STATES['IDLE']} Selecciona dispositivo (Enter para predeterminado): ").strip()
                 if not device_index:
                     return None
-                    
-                device_index = int(device_index)
-                if any(d[0] == device_index for d in devices):
-                    return device_index
-                else:
-                    self.print_error("Índice de dispositivo inválido. Intenta de nuevo.")
+                
+                return self._validate_device_index(int(device_index), devices)
+                
             except ValueError:
-                self.print_error("Por favor ingresa un número válido.")
+                self.print_error("Ingrese un número válido.")
 
+    def _print_devices(self, devices: List[Tuple[int, dict]]):
+        """Muestra los dispositivos disponibles con formato"""
+        print("\nDispositivos de entrada disponibles:")
+        for idx, dev in devices:
+            print(f"[{idx}] {dev['name']}")
+            print(f"    Canales: {dev['maxInputChannels']}")
+            print(f"    Tasa de muestreo: {int(dev['defaultSampleRate'])}Hz")
+
+    def _validate_device_index(self, index: int, devices: List[Tuple[int, dict]]) -> int:
+        """Valida el índice del dispositivo seleccionado"""
+        if any(d[0] == index for d in devices):
+            return index
+        self.print_error("Índice inválido.")
+        raise ValueError
+
+    class _suppress_output:
+        """Context manager para suprimir salida temporalmente"""
+        def __enter__(self):
+            self._original_stderr = os.dup(2)
+            self._devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(self._devnull, 2)
+        
+        def __exit__(self, *args):
+            os.dup2(self._original_stderr, 2)
+            os.close(self._devnull)
+
+    # Métodos de visualización mejorados
     def print_error(self, message: str):
-        """Imprime mensajes de error con formato"""
-        print(f"{self.COLORS['RED']}Error:{self.COLORS['RESET']} {message}")
+        """Muestra mensajes de error formateados"""
+        sys.stdout.write(f"\r{self.COLORS['RED']}✖{self.COLORS['RESET']} {message}\n")
 
     def print_success(self, message: str):
-        """Imprime mensajes de éxito con formato"""
-        print(f"{self.COLORS['GREEN']}✓{self.COLORS['RESET']} {message}")
+        """Muestra mensajes de éxito formateados"""
+        sys.stdout.write(f"\r{self.COLORS['GREEN']}✓{self.COLORS['RESET']} {message}\n")
 
-    def print_audio_help(self):
-        """Muestra ayuda para problemas de audio"""
-        print("\nPosibles soluciones para problemas de audio:")
-        print("1. Instalar dependencias: sudo apt-get install python3-pip python3-pyaudio")
-        print("2. Instalar ALSA: sudo apt-get install libasound2-dev portaudio19-dev")
-        print("3. Verificar permisos de audio: sudo usermod -a -G audio $USER")
-        print("4. Reiniciar el servidor de audio: pulseaudio -k && pulseaudio --start")
+    def print_jarvis_response(self, message: str):
+        """Formatea respuestas del asistente"""
+        sys.stdout.write(f"\r{self.COLORS['CYAN']}🤖 Jarvis:{self.COLORS['RESET']} {message}\n")
 
-    def handle_command(self, command: str, manager, tts, trigger) -> bool:
-        """Maneja comandos especiales del sistema"""
-        if command.lower() in ["salir", "exit"]:
-            return False
-        elif command.lower() == "config mic":
-            new_dev = self.select_audio_device()
-            if new_dev is not None:
-                try:
-                    trigger.reconfigure(device_index=new_dev)
-                    self.print_success("Micrófono reconfigurado.")
-                except Exception as e:
-                    self.print_error(f"Error reconfigurando micrófono: {e}")
-        return True
+    def print_thinking(self):
+        """Muestra indicador de procesamiento"""
+        sys.stdout.write(f"\r{self.STATES['THINKING']} Procesando...")
+        sys.stdout.flush()
 
-    def clear_line(self):
-        """Limpia la línea actual en la terminal"""
+    def print_listening(self):
+        """Muestra indicador de escucha activa"""
+        sys.stdout.write(f"\r{self.STATES['LISTENING']} Escuchando...")
+        sys.stdout.flush()
+
+    def clear_display(self):
+        """Limpia la línea actual de la terminal"""
         sys.stdout.write('\r' + ' ' * 80 + '\r')
         sys.stdout.flush()
 
-    def show_prompt(self, state: str = 'IDLE'):
-        """Muestra el prompt con el estado actual"""
-        return f"{self.STATES[state]} > "
-
-    def print_thinking(self):
-        """Muestra el estado de procesamiento"""
-        self.clear_line()
-        sys.stdout.write(f"{self.STATES['THINKING']} Procesando...")
-        sys.stdout.flush()
-        print()  # Solo un salto de línea
-
-    def print_listening(self):
-        """Muestra el estado de escucha"""
-        print(f"\n{self.STATES['LISTENING']} Escuchando...")
-
-    def print_jarvis_response(self, message: str):
-        """Formatea y muestra la respuesta de Jarvis"""
-        print(f"{self.COLORS['CYAN']}Jarvis:{self.COLORS['RESET']} {message}")
-
-    def print_user_message(self, message: str):
-        """Formatea y muestra el mensaje del usuario"""
-        print(message)
-
     def print_welcome(self):
-        """Muestra el mensaje de bienvenida"""
-        print("\n" + "="*50)
-        print("Jarvis está listo!")
-        print("Teclea algo o di 'Hey Jarvis' para activarlo.")
-        print("Escribe 'config mic' para cambiar micrófono.")
-        print("Presiona Ctrl+C para salir")
-        print("="*50 + "\n")
+        """Muestra mensaje de bienvenida"""
+        self.clear_display()
+        print(f"{self.COLORS['CYAN']}{'='*50}")
+        print("   🎙️  Jarvis - Asistente de Voz Inteligente  ")
+        print(f"{'='*50}{self.COLORS['RESET']}")
+        print("Comandos disponibles:")
+        print("- 'config mic': Configurar dispositivo de entrada")
+        print("- 'voz on/off': Activar/desactivar reconocimiento por voz")
+        print(f"- {self.COLORS['YELLOW']}Ctrl+C para salir{self.COLORS['RESET']}\n")
 
     def print_goodbye(self):
         """Muestra mensaje de despedida"""
-        print(f"\n{self.COLORS['CYAN']}¡Hasta luego!{self.COLORS['RESET']}")
+        self.clear_display()
+        print(f"\n{self.COLORS['CYAN']}🛑 Sistema finalizado.{self.COLORS['RESET']}")
 
-    def get_input(self, state: str = 'IDLE') -> str:
-        """Obtiene input del usuario con el prompt apropiado"""
-        try:
-            user_input = input(f"{self.STATES[state]} > ").strip()
-            if user_input:
-                # No añadir línea extra después del input
-                pass
-            return user_input
-        except (EOFError, KeyboardInterrupt):
-            return ""
+    def print_header(self, message: str):
+        """Encabezado para mensajes importantes."""
+        sys.stdout.write(f"\n{self.COLORS['BLUE']}=== {message} ==={self.COLORS['RESET']}\n")
+
+    def print_status(self, message: str):
+        """Mensaje de estado."""
+        sys.stdout.write(f"{self.COLORS['YELLOW']}[STATUS]{self.COLORS['RESET']} {message}\n")
+
+    def print_warning(self, message: str):
+        """Muestra mensajes de advertencia formateados"""
+        sys.stdout.write(f"\r{self.COLORS['YELLOW']}⚠{self.COLORS['RESET']} {message}\n")
+
+    def get_prompt(self, prompt: str = "User: "):
+        """Obtiene entrada del usuario."""
+        return input(prompt)

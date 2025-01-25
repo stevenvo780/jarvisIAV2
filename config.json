@@ -1,0 +1,19 @@
+{
+  "models": ["google", "openai", "local"],
+  "timeouts": {
+      "google": 15,
+      "openai": 20,
+      "local": 30
+  },
+  "retry_policy": {
+      "max_retries": 3,
+      "backoff_base": 2,
+      "max_delay": 60
+  },
+  "fallback_order": ["google", "openai", "local"],
+  "max_history": 15,
+  "security": {
+      "max_query_length": 2000,
+      "blocked_terms": [";", "&&", "|", "`", "$("]
+  }
+}

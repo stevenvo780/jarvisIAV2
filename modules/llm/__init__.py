@@ -4,4 +4,9 @@ from .google_model import GoogleModel
 from .openai_model import OpenAIModel
 from .local_model import LocalModel
 
-__all__ = ['ModelManager', 'GoogleModel', 'OpenAIModel', 'LocalModel']
+__all__ = [
+    'ModelManager',
+    'GoogleModel',
+    'OpenAIModel',
+    'LocalModel'
+]
