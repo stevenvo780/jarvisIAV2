@@ -8,8 +8,6 @@ import signal
 from queue import Queue, Empty
 from dotenv import load_dotenv
 import torch
-import select
-import readline
 
 # Añadir el directorio raíz al path
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -37,11 +35,13 @@ class Jarvis:
     def __init__(self):
         self.terminal = TerminalManager()
         self.input_queue = Queue()
+        self.audio_init_queue = Queue()
         self.text_mode = False
         
         self.state = {
             'running': True,
             'voice_active': True,
+            'audio_initialized': False,
             'error_count': 0,
             'max_errors': 5
         }
@@ -51,58 +51,69 @@ class Jarvis:
 
         try:
             self._setup_signal_handlers()
-            self._initialize_system()  # Mover esto antes de init_audio
-            self._init_audio_subsystem()
-        except AudioError as e:
-            self.terminal.print_warning(f"Iniciando en modo texto: {e}")
-            self.text_mode = True
-            self.state['voice_active'] = False
+            self._initialize_system()
+            # Iniciar el audio en segundo plano
+            self._start_audio_initialization()
+            # Iniciar en modo texto mientras se configura el audio
+            self._initialize_text_mode()
         except Exception as e:
             self.terminal.print_error(f"Error en inicialización: {e}")
             sys.exit(1)
+
+    def _start_audio_initialization(self):
+        """Inicia la inicialización del audio en segundo plano"""
+        self.audio_init_thread = threading.Thread(
+            target=self._async_audio_init,
+            daemon=True
+        )
+        self.audio_init_thread.start()
+
+    def _async_audio_init(self):
+        """Inicialización asíncrona del sistema de audio"""
+        try:
+            self.audio_config = AudioConfig(timeout=5)
+            audio_ok, message = self.audio_config.test_audio_system()
+            
+            if not audio_ok:
+                raise AudioError(message)
+
+            self.tts = TTSManager()
+            self.speech = SpeechRecognition(
+                terminal=self.terminal,
+                language="es",
+                device="cuda" if torch.cuda.is_available() else "cpu"
+            )
+            
+            # Señalizar éxito
+            self.state['audio_initialized'] = True
+            self.state['voice_active'] = True
+            self.terminal.print_success("Sistema de voz iniciado correctamente")
+            
+        except Exception as e:
+            self.state['voice_active'] = False
+            self.state['audio_initialized'] = False
+            self.terminal.print_warning(f"Fallback a modo texto: {str(e)}")
+            logging.error(f"Error inicializando audio: {e}")
+
+    def _initialize_text_mode(self):
+        """Inicialización del modo texto"""
+        if not self.text_handler:
+            self.text_handler = TextHandler(
+                terminal_manager=self.terminal,
+                input_queue=self.input_queue,
+                state=self.state
+            )
+            self.terminal.print_success("Modo texto disponible")
 
     def _initialize_system(self):
         """Inicializa componentes del sistema"""
         self.terminal.print_header("Iniciando Sistema Jarvis")
         load_dotenv()
         self.model = ModelManager()
-        
-        # Inicializar el manejador de texto con configuración mejorada
-        self.text_handler = TextHandler(self.terminal, self.input_queue)
-        
         self.terminal.print_success(
             "Sistema iniciado en modo " + 
             ("voz" if self.state['voice_active'] else "texto")
         )
-
-    def _init_audio_subsystem(self):
-        """Inicializa el subsistema de audio"""
-        if not self.state['voice_active']:
-            return
-
-        try:
-            self.audio_config = AudioConfig()
-            audio_ok, message = self.audio_config.test_audio_system()
-            
-            if not audio_ok:
-                self.terminal.print_warning(message)
-                raise AudioError(message)
-
-            self.terminal.print_status("Iniciando sistema de voz...")
-            self.tts = TTSManager()
-            self.terminal.print_status("TTS iniciado correctamente")
-            
-            self.speech = SpeechRecognition(
-                terminal=self.terminal,
-                language="es",
-                device="cuda" if torch.cuda.is_available() else "cpu"
-            )
-            self.terminal.print_success("Sistema de voz iniciado correctamente")
-            
-        except Exception as e:
-            self.state['voice_active'] = False
-            self.text_mode = True
-            raise AudioError(f"Error en sistema de audio: {str(e)}")
 
     def _setup_signal_handlers(self):
         """Configura manejadores de señales del sistema"""
@@ -133,7 +144,8 @@ class Jarvis:
             threading.Thread(target=self._system_monitor, daemon=True)
         ]
         
-        if self.state['voice_active']:
+        # El hilo de voz solo se inicia si el audio se inicializó correctamente
+        if self.state['audio_initialized'] and self.state['voice_active']:
             threads.append(
                 threading.Thread(target=self._voice_input_handler, daemon=True)
             )
@@ -147,23 +159,6 @@ class Jarvis:
             
         return threads
 
-    def _keyboard_input_handler(self):
-        """Maneja la entrada por teclado"""
-        while self.state['running']:
-            try:
-                if select.select([sys.stdin], [], [], 0.1)[0]:
-                    user_input = input(self.terminal.get_prompt()).strip()
-                    if user_input:
-                        self.input_queue.put(('keyboard', user_input))
-                    readline.get_line_buffer()
-            except (EOFError, KeyboardInterrupt):
-                self.state['running'] = False
-            except Exception as e:
-                self._handle_critical_error(f"Error en teclado: {str(e)}")
-
-    def _handle_voice_input(self, audio_data):
-        """Procesa entrada de voz"""
-        self.input_queue.put(('voice', audio_data))
 
     def _system_monitor(self):
         """Monitorea el estado del sistema"""
@@ -190,41 +185,21 @@ class Jarvis:
         while self.state['running']:
             try:
                 input_type, content = self.input_queue.get(timeout=0.5)
-                self._handle_input(input_type, content)
+                
+                # Procesamiento de consultas
+                self.terminal.print_thinking()
+                response = self.model.get_response(content)
+                self.terminal.print_response(response)
+                
+                if input_type == 'voice' or self.state['voice_active']:
+                    self.tts.speak(response)
+                    
                 self.input_queue.task_done()
             except Empty:
                 continue
             except Exception as e:
                 self._handle_critical_error(f"Error procesando entrada: {str(e)}")
 
-    def _handle_input(self, input_type: str, content: str):
-        """Maneja diferentes tipos de entrada"""
-        try:
-            # Comandos del sistema
-            if content.lower() in ['exit', 'salir', 'quit']:
-                self.state['running'] = False
-                return
-                
-            if content.lower() == 'voz off':
-                self.state['voice_active'] = False
-                self.terminal.print_success("Modo voz desactivado")
-                return
-                
-            if content.lower() == 'voz on':
-                self.state['voice_active'] = True
-                self.terminal.print_success("Modo voz activado")
-                return
-                
-            # Procesamiento de consultas
-            self.terminal.print_thinking()
-            response = self.model.get_response(content)
-            self.terminal.print_response(response) 
-            
-            if input_type == 'voice' or self.state['voice_active']:
-                self.tts.speak(response)
-                
-        except Exception as e:
-            self._handle_critical_error(f"Error procesando {input_type}: {str(e)}")
 
     def _handle_critical_error(self, message: str):
         """Maneja errores críticos"""
@@ -273,8 +248,8 @@ class Jarvis:
 if __name__ == "__main__":
     jarvis = Jarvis()
     try:
-        jarvis.run()  # Cambiado de main_loop() a run()
+        jarvis.run()
     except KeyboardInterrupt:
         print("\nRecibida señal de apagado...")
     finally:
-        jarvis._shutdown_system()  # Cambiado de cleanup() a _shutdown_system()
+        jarvis._shutdown_system()

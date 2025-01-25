@@ -5,6 +5,7 @@ import numpy as np
 import subprocess
 import threading
 import logging
+import time
 from contextlib import contextmanager
 from .audio_config import AudioConfig
 from .audio_utils import AudioError, retry_audio
@@ -12,40 +13,71 @@ from typing import Callable, Optional
 import webrtcvad
 
 class AudioEngine:
-    def __init__(self):
+    def __init__(self, timeout=5):
         self.config = AudioConfig()
         self.running = True
         self.audio_queue = queue.Queue()
         self.vad = webrtcvad.Vad(3)
         self.ring_buffer = collections.deque(maxlen=10)
+        self.timeout = timeout
         self._init_audio_system()
 
     @contextmanager
     def _audio_context(self):
-        """Contexto seguro para operaciones de audio"""
+        """Contexto seguro para operaciones de audio con timeout"""
+        start_time = time.time()
         try:
-            if not hasattr(sd, '_initialized') or not sd._initialized:
-                # Forzar reinicialización de PortAudio
-                if hasattr(sd, '_lib'):
+            # Forzar cierre de cualquier instancia previa
+            if hasattr(sd, '_lib'):
+                try:
                     sd._lib.Pa_Terminate()
-                sd._initialize()
+                except:
+                    pass
+
+            # Inicializar con timeout
+            while time.time() - start_time < self.timeout:
+                try:
+                    if not hasattr(sd, '_initialized') or not sd._initialized:
+                        sd._initialize()
+                    break
+                except Exception as e:
+                    if time.time() - start_time >= self.timeout:
+                        raise AudioError(f"Timeout inicializando audio: {str(e)}")
+                    time.sleep(0.1)
             yield
+            
         except Exception as e:
             raise AudioError(f"Error de PortAudio: {str(e)}")
         finally:
             if hasattr(sd, '_lib'):
-                sd._lib.Pa_Terminate()
+                try:
+                    sd._lib.Pa_Terminate()
+                except:
+                    pass
 
-    @retry_audio(max_attempts=3)
+    @retry_audio(max_attempts=2)
     def _init_audio_system(self) -> None:
-        """Inicializa el sistema de audio con reintentos"""
+        """Inicializa el sistema de audio con timeout"""
         try:
             with self._audio_context():
+                # Verificar permisos de audio primero
+                self._check_audio_permissions()
                 self.devices = self._find_best_devices()
                 self._setup_streams()
         except Exception as e:
             logging.error(f"Error inicializando audio: {e}")
             raise AudioError("Fallo en inicialización de audio", recoverable=False)
+
+    def _check_audio_permissions(self):
+        """Verifica permisos de audio"""
+        try:
+            # Intenta abrir brevemente el stream para verificar permisos
+            dummy_stream = sd.InputStream(channels=1, samplerate=16000, blocksize=1024)
+            dummy_stream.start()
+            dummy_stream.stop()
+            dummy_stream.close()
+        except Exception as e:
+            raise AudioError(f"Error de permisos de audio: {str(e)}")
 
     def _find_best_devices(self) -> dict:
         try:

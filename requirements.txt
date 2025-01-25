@@ -26,3 +26,4 @@ numpy>=1.21  # Dependencia implícita para varios componentes
 
 # Additional dependencies
 sounddevice==0.4.6
+prompt_toolkit>=3.0.0

@@ -6,6 +6,8 @@ from dataclasses import dataclass, asdict
 import time
 from typing import Optional, Dict, Any, Tuple
 from .audio_utils import AudioError
+import sounddevice as sd
+from utils.timeout import timeout
 
 @dataclass
 class AudioProfile:
@@ -20,7 +22,7 @@ class AudioProfile:
     dynamic_energy: bool = True
 
 class AudioConfig:
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, timeout: int = 5):
         self.config_path = config_path or os.path.expanduser('~/.jarvis/audio_config.json')
         self._setup_alsa_config()
         self._configure_audio_system()
@@ -43,6 +45,8 @@ class AudioConfig:
             )
         }
         self._load_config()
+        self.timeout = timeout
+        self._setup_timeouts()
 
     def _setup_alsa_config(self) -> None:
         """Configura ALSA para minimizar mensajes de error"""
@@ -148,28 +152,39 @@ ctl.!default {
             logging.error(f"Error solicitando permisos: {e}")
             return False
 
+    def _setup_timeouts(self):
+        """Configura timeouts para operaciones de audio"""
+        os.environ.update({
+            'PULSE_TIMEOUT': str(self.timeout * 1000),  # en milisegundos
+            'SDL_AUDIO_ALLOW_REOPEN': '0',  # Evitar reintento infinito
+            'AUDIODEV': 'null' if not self._check_audio_permissions() else ''
+        })
+
     def test_audio_system(self) -> Tuple[bool, str]:
-        """Prueba exhaustiva del sistema de audio"""
+        """Prueba el sistema de audio con timeout estricto"""
+        start_time = time.time()
+        
         try:
-            # 1. Verificar permisos
-            if not self._check_audio_permissions():
-                return False, "Permisos de audio insuficientes"
+            # Verificar rápidamente si hay dispositivos
+            with timeout(self.timeout):
+                devices = sd.query_devices()
+                if not any(d['max_input_channels'] > 0 for d in devices):
+                    return False, "No se encontraron dispositivos de entrada"
 
-            # 2. Verificar PulseAudio
-            if os.system('pulseaudio --check') != 0:
-                return False, "PulseAudio no está ejecutándose"
-
-            # 3. Verificar tarjetas de sonido
-            alsa_output = subprocess.getoutput('aplay -l')
-            if "no soundcards found" in alsa_output.lower():
-                return False, "No se detectaron tarjetas de sonido"
-
-            # 4. Verificar configuración
-            if not os.path.exists(os.path.expanduser('~/.asoundrc')):
-                self._setup_alsa_config()
+            # Verificar PulseAudio con timeout
+            with timeout(2):
+                result = subprocess.run(
+                    ['pulseaudio', '--check'],
+                    capture_output=True,
+                    timeout=1
+                )
+                if result.returncode != 0:
+                    return False, "Servicio de audio no disponible"
 
             return True, "Sistema de audio OK"
-            
+
+        except TimeoutError:
+            return False, "Timeout verificando sistema de audio"
         except Exception as e:
             return False, f"Error en sistema de audio: {str(e)}"
 

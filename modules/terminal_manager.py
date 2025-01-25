@@ -2,12 +2,24 @@ import sys
 import os
 import logging
 from typing import Optional, List, Tuple
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit import print_formatted_text
+from prompt_toolkit.styles import Style
 
 class TerminalManager:
     def __init__(self):
         self._setup_colors()
         self._setup_states()
         self.setup_logging()
+        self.style = Style.from_dict({
+            'header': '#00aa00 bold',
+            'success': '#00aa00',
+            'warning': '#aaaa00',
+            'error': '#aa0000',
+            'info': '#0000aa',
+            'thinking': '#aa00aa',
+            'response': '#00aaaa'
+        })
 
     def _setup_colors(self):
         """Configura los códigos de color ANSI"""
@@ -113,11 +125,11 @@ class TerminalManager:
     # Métodos de visualización mejorados
     def print_error(self, message: str):
         """Muestra mensajes de error formateados"""
-        sys.stdout.write(f"\r{self.COLORS['RED']}✖{self.COLORS['RESET']} {message}\n")
+        print_formatted_text(HTML(f"✗ <error>{message}</error>"), style=self.style)
 
     def print_success(self, message: str):
         """Muestra mensajes de éxito formateados"""
-        sys.stdout.write(f"\r{self.COLORS['GREEN']}✓{self.COLORS['RESET']} {message}\n")
+        print_formatted_text(HTML(f"✓ <success>{message}</success>"), style=self.style)
 
     def print_jarvis_response(self, message: str):
         """Formatea respuestas del asistente"""
@@ -125,8 +137,7 @@ class TerminalManager:
 
     def print_thinking(self):
         """Muestra indicador de procesamiento"""
-        sys.stdout.write(f"\r{self.STATES['THINKING']} Procesando...")
-        sys.stdout.flush()
+        print_formatted_text(HTML("<thinking>Procesando...</thinking>"), style=self.style)
 
     def print_listening(self):
         """Muestra indicador de escucha activa"""
@@ -151,12 +162,11 @@ class TerminalManager:
 
     def print_goodbye(self):
         """Muestra mensaje de despedida"""
-        self.clear_display()
-        print(f"\n{self.COLORS['CYAN']}🛑 Sistema finalizado.{self.COLORS['RESET']}")
+        print_formatted_text(HTML("\n<header>¡Hasta luego!</header>\n"), style=self.style)
 
     def print_header(self, message: str):
         """Encabezado para mensajes importantes."""
-        sys.stdout.write(f"\n{self.COLORS['BLUE']}=== {message} ==={self.COLORS['RESET']}\n")
+        print_formatted_text(HTML(f"\n=== <header>{message}</header> ===\n"), style=self.style)
 
     def print_status(self, message: str):
         """Mensaje de estado."""
@@ -164,7 +174,7 @@ class TerminalManager:
 
     def print_warning(self, message: str):
         """Muestra mensajes de advertencia formateados"""
-        sys.stdout.write(f"\r{self.COLORS['YELLOW']}⚠{self.COLORS['RESET']} {message}\n")
+        print_formatted_text(HTML(f"⚠ <warning>{message}</warning>"), style=self.style)
 
     def get_prompt(self, prompt: str = "User: "):
         """Obtiene entrada del usuario."""
@@ -175,5 +185,5 @@ class TerminalManager:
         self.clear_display()
         lines = message.split('\n')
         for line in lines:
-            sys.stdout.write(f"\r{self.COLORS['CYAN']}│{self.COLORS['RESET']} {line}\n")
+            print_formatted_text(HTML(f"\n<response>{line}</response>\n"), style=self.style)
         sys.stdout.flush()
