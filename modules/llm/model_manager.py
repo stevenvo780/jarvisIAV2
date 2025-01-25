@@ -92,7 +92,7 @@ class ModelManager:
                     try:
                         instantiated[model_name] = GoogleModel()
                     except Exception as e:
-                        logging.error(f"Error inicializando OpenAI: {e}")
+                        logging.error(f"Error inicializando Google: {e}")
                         continue
                 elif model_name == "openai":
                     try:
@@ -104,7 +104,7 @@ class ModelManager:
                     try:
                         instantiated[model_name] = LocalModel()
                     except Exception as e:
-                        logging.error(f"Error inicializando OpenAI: {e}")
+                        logging.error(f"Error inicializando Local: {e}")
                         continue
                 else:
                     logging.warning(f"Modelo '{model_name}' no reconocido")

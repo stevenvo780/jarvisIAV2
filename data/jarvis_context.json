@@ -37,10 +37,10 @@
     "learned_topics": []
   },
   "interaction_stats": {
-    "total_interactions": 22,
-    "last_interaction": "2025-01-25T04:25:36.%f",
+    "total_interactions": 27,
+    "last_interaction": "2025-01-25T11:16:37.%f",
     "frequent_topics": {
-      "hola": 13,
+      "hola": 18,
       "cual": 4,
       "y": 1,
       "cuentame": 1,
