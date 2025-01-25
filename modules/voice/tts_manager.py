@@ -6,7 +6,6 @@ import logging
 from typing import Optional
 from contextlib import contextmanager
 from utils.error_handler import handle_errors, AudioError
-from utils.audio_manager import AudioManager  # Asegurar que AudioManager está importado
 
 class TTSManager:
     def __init__(self):
@@ -20,10 +19,9 @@ class TTSManager:
     @handle_errors(error_type=AudioError, log_message="Error inicializando mixer")
     def _setup_mixer(self) -> None:
         try:
-            with AudioManager.suppress_output():
-                pygame.mixer.pre_init(44100, -16, 2, 2048)
-                pygame.mixer.init()
-                pygame.mixer.set_num_channels(16)
+            pygame.mixer.pre_init(44100, -16, 2, 2048)
+            pygame.mixer.init()
+            pygame.mixer.set_num_channels(16)
             
             if not pygame.mixer.get_init():
                 raise AudioError("Mixer no inicializado correctamente")
@@ -60,7 +58,7 @@ class TTSManager:
 
         try:
             self.is_speaking = True
-            with AudioManager.suppress_output(), self._temp_audio_file():
+            with self._temp_audio_file():
                 # Verificar estado del audio
                 if not pygame.mixer.get_init():
                     self._setup_mixer()

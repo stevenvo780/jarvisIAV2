@@ -1,17 +1,15 @@
 from .error_handler import (
-    JarvisError,
+    setup_logging,
+    handle_errors,
     AudioError,
     ModelError,
-    ConfigError,
-    setup_logging,
-    handle_errors
+    JarvisError
 )
 
 __all__ = [
-    'JarvisError',
-    'AudioError',
-    'ModelError', 
-    'ConfigError',
     'setup_logging',
-    'handle_errors'
+    'handle_errors',
+    'AudioError',
+    'ModelError',
+    'JarvisError'
 ]

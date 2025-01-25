@@ -23,6 +23,10 @@ class AudioConfigError(AudioError):
     """Error específico para problemas de configuración de audio"""
     pass
 
+class PortAudioError(AudioError):
+    """Error específico para problemas con PortAudio"""
+    pass
+
 class ModelError(JarvisError):
     """Errores relacionados con los modelos de IA"""
     pass

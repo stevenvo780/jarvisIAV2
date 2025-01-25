@@ -1,51 +1,79 @@
 #!/usr/bin/env python3
 import os
 import sys
-import time  # Añadir importación faltante
+import time
 import logging
 import threading
 import signal
 from queue import Queue, Empty
 from dotenv import load_dotenv
-from utils.audio_manager import AudioManager
+
+# Añadir el directorio raíz al path
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, ROOT_DIR)
 
 # Configuración inicial del entorno
 os.environ.update({
     'PYTORCH_ENABLE_MPS_FALLBACK': '1',
-    'PYTHONWARNINGS': 'ignore'
+    'PYTHONWARNINGS': 'ignore',
+    'PULSE_LATENCY_MSEC': '30',
+    'PULSE_TIMEOUT': '5000',
+    'SDL_AUDIODRIVER': 'pulseaudio'
 })
 
-# Configurar path para imports
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-# Módulos personalizados
+# Importaciones
 from utils.error_handler import setup_logging, handle_errors, AudioError, ModelError
 from modules.terminal_manager import TerminalManager
-from modules.voice.speech_recognition import VoiceTrigger
 from modules.llm.model_manager import ModelManager
-from modules.voice.tts_manager import TTSManager
+from modules.voice import AudioEngine, VoiceTrigger, TTSManager
 
-# Configurar audio y logging
-AudioManager.configure_environment()
+# Configurar logging
 setup_logging()
 
-class JarvisCore:
+class Jarvis:
     def __init__(self):
-        # Inicialización básica
         self.terminal = TerminalManager()
         self.input_queue = Queue()
+        self.text_mode = False
         
-        # Estado del sistema
         self.state = {
             'running': True,
             'voice_active': True,
             'error_count': 0,
             'max_errors': 5
         }
+
+        try:
+            self._setup_signal_handlers()
+            self._init_audio_subsystem()
+            self._initialize_system()
+        except AudioError as e:
+            self.terminal.print_warning(f"Iniciando en modo texto: {e}")
+            self.text_mode = True
+            self.state['voice_active'] = False
+            self._initialize_system()
+        except Exception as e:
+            self.terminal.print_error(f"Error en inicialización: {e}")
+            sys.exit(1)
+
+    def _init_audio_subsystem(self):
+        """Inicializa el subsistema de audio"""
+        self._check_audio_permissions()
+        self.audio_engine = AudioEngine()
+        if self.state['voice_active']:
+            self.tts = TTSManager()
+            self.voice_trigger = VoiceTrigger(self.terminal)
+
+    def _initialize_system(self):
+        """Inicializa componentes del sistema"""
+        self.terminal.print_header("Iniciando Sistema Jarvis")
+        load_dotenv()
+        self.model = ModelManager()
         
-        # Configurar señales e inicializar
-        self._setup_signal_handlers()
-        self._initialize_system()
+        self.terminal.print_success(
+            "Sistema iniciado en modo " + 
+            ("voz" if self.state['voice_active'] else "texto")
+        )
 
     @handle_errors(error_type=Exception, log_message="Error en inicialización", terminal=True)
     def _initialize_system(self):
@@ -54,16 +82,45 @@ class JarvisCore:
         
         load_dotenv()
         
-        # Configurar audio primero
-        self._configure_audio_subsystem()
+        # Inicializar componentes base
+        self.model = ModelManager()
         
-        # Inicializar componentes con suppressión de output
-        with AudioManager.suppress_output():
-            self.voice_trigger = VoiceTrigger(self.terminal)
-            self.model = ModelManager()
+        # Inicializar audio si está disponible
+        if self.state['voice_active'] and self.audio_engine:
             self.tts = TTSManager()
-        
-        self.terminal.print_success("Sistema inicializado correctamente")
+        else:
+            self.tts = None
+            
+        self.terminal.print_success(
+            "Sistema iniciado en modo " + 
+            ("voz" if self.state['voice_active'] else "texto")
+        )
+
+    def _init_audio_subsystem(self):
+        """Inicializa el subsistema de audio con validación"""
+        try:
+            # Verificar permisos y estado del sistema de audio
+            self._check_audio_permissions()
+            
+            # Configurar variables de entorno para audio
+            os.environ.update({
+                'PULSE_LATENCY_MSEC': '30',
+                'PULSE_TIMEOUT': '5000',
+                'SDL_AUDIODRIVER': 'pulseaudio'
+            })
+            
+            self.audio_engine = AudioEngine()
+            self.terminal.print_success("Sistema de audio iniciado correctamente")
+            
+        except Exception as e:
+            raise AudioError(f"Error en subsistema de audio: {e}")
+
+    def _check_audio_permissions(self):
+        """Verifica permisos de audio"""
+        if not os.access('/dev/snd', os.R_OK | os.W_OK):
+            raise AudioError(
+                "Sin permisos de audio. Ejecute: sudo usermod -a -G audio $USER"
+            )
 
     def _setup_signal_handlers(self):
         """Configura manejadores de señales del sistema"""
@@ -172,14 +229,15 @@ class JarvisCore:
         """Maneja la entrada por voz"""
         while self.state['running'] and self.state['voice_active']:
             try:
-                if self.voice_trigger.listen_for_activation():
-                    self.terminal.print_listening()
-                    query = self.voice_trigger.capture_query()
-                    if query:
-                        self.input_queue.put(('voice', query))
-                time.sleep(0.1)
+                self.audio_engine.listen(self._handle_voice_input)
             except Exception as e:
                 self._handle_critical_error(f"Error en voz: {str(e)}")
+                self.state['voice_active'] = False
+                break
+
+    def _handle_voice_input(self, audio_data):
+        """Procesa entrada de voz"""
+        self.input_queue.put(('voice', audio_data))
 
     def _system_monitor(self):
         """Monitorea el estado del sistema"""
@@ -293,10 +351,10 @@ class JarvisCore:
             os._exit(0)
 
 if __name__ == "__main__":
+    jarvis = Jarvis()
     try:
-        jarvis = JarvisCore()
-        jarvis.run()
-    except Exception as e:
-        logging.critical(f"Error fatal: {str(e)}")
-        TerminalManager().print_error(f"Error crítico: {str(e)}")
-        sys.exit(1)
+        jarvis.run()  # Cambiado de main_loop() a run()
+    except KeyboardInterrupt:
+        print("\nRecibida señal de apagado...")
+    finally:
+        jarvis._shutdown_system()  # Cambiado de cleanup() a _shutdown_system()
