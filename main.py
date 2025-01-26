@@ -18,44 +18,16 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT_DIR)
 
 from utils.error_handler import setup_logging, handle_errors, AudioError, ModelError
+from utils import beep
 from modules.terminal_manager import TerminalManager
 from modules.llm.model_manager import ModelManager
 from modules.system_monitor import SystemMonitor
 from modules.text.text_handler import TextHandler
 
-from modules.voice.audio_handler import SimplifiedAudioHandler  # Removemos AudioEngine
+from modules.voice.audio_handler import SimplifiedAudioHandler
 from modules.voice.tts_manager import TTSManager
 
 setup_logging()
-
-def beep(freq=1000, duration=0.3, sr=44100):
-    t = np.linspace(0, duration, int(sr * duration), endpoint=False)
-    wave = 0.1 * np.sin(2 * np.pi * freq * t)
-    sd.play(wave.astype(np.float32), sr)
-    sd.wait()
-
-def list_input_devices():
-    d = sd.query_devices()
-    r = []
-    for i, dev in enumerate(d):
-        if dev['max_input_channels'] > 0:
-            r.append((i, dev['name'], dev['default_samplerate']))
-    return r
-
-def select_input_device():
-    devs = list_input_devices()
-    if not devs:
-        print("No input devices found")
-        sys.exit(1)
-    for i, v in enumerate(devs):
-        print(f"[{i}] {v[1]} (index={v[0]}, samplerate={v[2]})")
-    c = input("Select input device by number: ")
-    try:
-        c = int(c)
-        return devs[c][0]
-    except:
-        print("Invalid selection")
-        sys.exit(1)
 
 class Jarvis:
     def __init__(self):
@@ -77,24 +49,50 @@ class Jarvis:
             self._start_audio_initialization()
             self._initialize_text_mode()
             self.terminal.print_status("System ready")
+            
+            self.monitor_thread = threading.Thread(target=self._system_monitor, daemon=True)
+            self.processor_thread = threading.Thread(target=self._process_inputs_loop, daemon=True)
+            self.monitor_thread.start()
+            self.processor_thread.start()
         except Exception as e:
             self.terminal.print_error(f"Initialization error: {e}")
             sys.exit(1)
 
     def _setup_signal_handlers(self):
-        signal.signal(signal.SIGINT, self._graceful_shutdown)
-        signal.signal(signal.SIGTERM, self._graceful_shutdown)
+        signal.signal(signal.SIGINT, self._shutdown_system)
+        signal.signal(signal.SIGTERM, self._shutdown_system)
 
-    def _graceful_shutdown(self, signum=None, frame=None):
-        self.state['running'] = False
-        self.terminal.print_warning("Shutdown signal received...")
+    def _shutdown_system(self, signum=None, frame=None):
+        self.terminal.print_status("Shutting down...")
+        if not self.state['running']:  # Evitar múltiples shutdowns
+            return
+        try:
+            self.state['running'] = False
+            self.terminal.print_warning("Shutdown signal received...")
+            
+            if hasattr(self, 'monitor_thread'):
+                self.monitor_thread.join(timeout=2)
+            if hasattr(self, 'processor_thread'):
+                self.processor_thread.join(timeout=2)
+                
+            if self.text_handler:
+                self.text_handler.stop()
+            if hasattr(self, 'tts'):
+                self.tts.cleanup()
+            if hasattr(self, 'audio'):
+                self.audio.cleanup()
+            self.terminal.print_goodbye()
+        except Exception as e:
+            logging.error(f"Shutdown error: {str(e)}")
+        finally:
+            os._exit(0)
 
     def _initialize_system(self):
         self.terminal.print_header("Starting Jarvis System")
         load_dotenv()
         self.model = ModelManager()
         self.tts = TTSManager()
-        self.model.set_tts_manager(self.tts)  # Establecer TTSManager después de inicialización
+        self.model.set_tts_manager(self.tts)
         self.terminal.print_success("Core system initialized")
 
     def _start_audio_initialization(self):
@@ -103,29 +101,46 @@ class Jarvis:
 
     def _async_audio_init(self):
         try:
-            self.audio = SimplifiedAudioHandler(terminal_manager=self.terminal)
-            
-            def audio_processor():
-                while self.state['running']:
-                    try:
-                        if self.audio.listen_for_trigger("jarvis"):
-                            beep()
-                            # Eliminar estado redundante
-                            command_text = self.audio.listen_command()
-                            if command_text:
-                                self.terminal.update_prompt_state('THINKING')
-                                self.input_queue.put(('voice', command_text))
-                            # Restaurar estado idle con un solo icono
-                            self.terminal.update_prompt_state('IDLE')
-                    except Exception as e:
-                        logging.error(f"Error en procesamiento de audio: {e}")
-                    time.sleep(0.1)
+            logging.info("Iniciando inicialización de audio...")
+            try:
+                self.audio = SimplifiedAudioHandler(
+                    terminal_manager=self.terminal,
+                    tts=self.tts,
+                    state=self.state
+                )
+                
+                def audio_processor():
+                    while self.state['running']:
+                        try:
+                            if not self.state['audio_initialized']:
+                                logging.warning("Audio no inicializado, reintentando...")
+                                time.sleep(5)
+                                continue
+                                
+                            if self.audio.listen_for_trigger("jarvis"):
+                                beep()
+                                command_text = self.audio.listen_command()
+                                if command_text:
+                                    self.terminal.update_prompt_state('THINKING')
+                                    self.input_queue.put(('voice', command_text))
+                                self.terminal.update_prompt_state('IDLE')
+                        except Exception as e:
+                            logging.error(f"Error en procesamiento de audio: {e}")
+                            self.state['audio_initialized'] = False
+                        time.sleep(0.1)
 
-            threading.Thread(target=audio_processor, daemon=True).start()
-            self.state['audio_initialized'] = True
-            self.state['voice_active'] = True
-            self.terminal.print_success("🎤 Voice ready")
-            
+                threading.Thread(target=audio_processor, daemon=True).start()
+                self.state['audio_initialized'] = True
+                self.state['voice_active'] = True
+                self.terminal.print_success("🎤 Voice ready")
+                
+            except AudioError as e:
+                logging.error(f"Error de Audio: {e}")
+                raise
+            except Exception as e:
+                logging.error(f"Error inesperado: {e}")
+                raise
+                
         except Exception as e:
             self.state['voice_active'] = False
             self.state['audio_initialized'] = False
@@ -137,7 +152,8 @@ class Jarvis:
             self.text_handler = TextHandler(
                 terminal_manager=self.terminal,
                 input_queue=self.input_queue,
-                state=self.state
+                state=self.state,
+                tts=self.tts
             )
             self.terminal.print_success("Text mode ready")
 
@@ -147,7 +163,7 @@ class Jarvis:
         self.state['error_count'] += 1
         if self.state['error_count'] >= self.state['max_errors']:
             self.terminal.print_error("Max error limit reached")
-            self._graceful_shutdown()
+            self._shutdown_system()
 
     def _system_monitor(self):
         while self.state['running']:
@@ -169,14 +185,15 @@ class Jarvis:
             t, content = self.input_queue.get_nowait()
             
             if content.strip():
-                # No mostrar thinking para voz ya que audio_handler lo maneja
+                if hasattr(self, 'tts'):
+                    self.tts.stop_speaking()
+                
                 if t == 'text':
                     self.terminal.print_thinking()
                 
                 response, model_name = self.model.get_response(content)
                 self.terminal.print_response(response, model_name)
                 
-                # Solo usar TTS para respuestas de voz o si está activo el modo voz
                 if t == 'voice' or self.state['voice_active']:
                     if hasattr(self, 'tts'):
                         self.tts.speak(response)
@@ -188,21 +205,6 @@ class Jarvis:
         except Exception as e:
             self._handle_critical_error(f"Error processing input: {str(e)}")
 
-    def _shutdown_system(self):
-        self.terminal.print_status("Shutting down...")
-        try:
-            if self.text_handler:
-                self.text_handler.stop()
-            if hasattr(self, 'tts'):
-                self.tts.cleanup()
-            if hasattr(self, 'audio'):
-                self.audio.cleanup()
-            self.terminal.print_goodbye()
-        except Exception as e:
-            logging.error(f"Shutdown error: {str(e)}")
-        finally:
-            os._exit(0)
-
     def run(self):
         m = threading.Thread(target=self._system_monitor, daemon=True)
         m.start()
@@ -211,7 +213,6 @@ class Jarvis:
         
         self.terminal.print_header("Operating System")
         self.terminal.print_status("Jarvis Text Interface - Escribe 'help' para ver los comandos")
-        print("\n🎤 > ", end='', flush=True)  # Prompt inicial
         
         if self.text_handler:
             self.text_handler.run_interactive()
@@ -228,5 +229,6 @@ if __name__ == "__main__":
         jarvis.run()
     except KeyboardInterrupt:
         pass
-    finally:
+    except Exception as e:
         jarvis._shutdown_system()
+        logging.error(f"Fatal error: {e}")

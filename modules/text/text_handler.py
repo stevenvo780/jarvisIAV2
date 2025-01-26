@@ -2,11 +2,13 @@ import threading
 import sys
 import logging
 from queue import Queue
+import time
 from prompt_toolkit import PromptSession
 from prompt_toolkit.shortcuts import clear
 from prompt_toolkit.styles import Style
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.patch_stdout import patch_stdout
+from modules.command_manager import CommandManager
 
 class TextHandler:
     def __init__(self, terminal_manager, input_queue, tts=None, state=None):
@@ -22,6 +24,10 @@ class TextHandler:
             'command': '#884444',
             'username': '#884444 italic'
         })
+        self.command_manager = CommandManager(tts=tts, state=self.state)
+
+    def stop(self):
+        self.running = False
 
     def run_interactive(self):
         print("\nJarvis Text Interface - Escribe 'help' para ver los comandos")
@@ -29,6 +35,8 @@ class TextHandler:
         with patch_stdout():
             while self.running and self.state.get('running', True):
                 try:
+                    time.sleep(0.05)
+                    
                     user_input = self.session.prompt(
                         self._get_formatted_prompt(),
                         style=self.style

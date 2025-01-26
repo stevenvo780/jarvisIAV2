@@ -4,23 +4,45 @@ import ctypes
 import os
 import sys
 import json
+import logging
 from contextlib import contextmanager
+from modules.command_manager import CommandManager
+from utils.error_handler import AudioError
 
 class SimplifiedAudioHandler:
-    def __init__(self, config_path="config/audio_config.json", terminal_manager=None):
+    def __init__(self, config_path="config/audio_config.json", terminal_manager=None, tts=None, state=None):
         self.terminal = terminal_manager
-        self._load_config(config_path)
-        ctypes.CDLL('libasound.so').snd_lib_error_set_handler(None)
-        warnings.filterwarnings("ignore")
-        
-        self.recognizer = sr.Recognizer()
-        self.recognizer.energy_threshold = self.config['audio']['energy_threshold']
-        self.recognizer.dynamic_energy_threshold = self.config['audio']['dynamic_energy']
-        self.recognizer.pause_threshold = self.config['audio']['pause_threshold']
-        
-        # Usar directamente el device_index de la configuración
-        self.mic = sr.Microphone(device_index=self.config['audio']['device_index'])
-        self.running = True
+        try:
+            self._load_config(config_path)
+            ctypes.CDLL('libasound.so').snd_lib_error_set_handler(None)
+            warnings.filterwarnings("ignore")
+            
+            devices = sr.Microphone.list_microphone_names()
+            if not devices:
+                raise AudioError("No se encontraron dispositivos de audio")
+                
+            if self.config['audio']['device_index'] >= len(devices):
+                logging.warning(f"Índice de dispositivo inválido {self.config['audio']['device_index']}, usando default")
+                self.config['audio']['device_index'] = None
+            
+            self.recognizer = sr.Recognizer()
+            self.recognizer.energy_threshold = self.config['audio']['energy_threshold']
+            self.recognizer.dynamic_energy_threshold = self.config['audio']['dynamic_energy']
+            self.recognizer.pause_threshold = self.config['audio']['pause_threshold']
+            
+            self.mic = sr.Microphone(device_index=self.config['audio']['device_index'])
+            
+            # Verificar que el micrófono funciona
+            with self.mic as source:
+                self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                
+            self.running = True
+            self.command_manager = CommandManager(tts=tts, state=state)
+            logging.info("Audio inicializado correctamente")
+            
+        except Exception as e:
+            logging.error(f"Error inicializando audio: {e}")
+            raise AudioError(f"Error de inicialización: {e}")
 
     def _load_config(self, config_path):
         try:
@@ -126,6 +148,9 @@ class SimplifiedAudioHandler:
                     audio = self.recognizer.listen(source, timeout=10, phrase_time_limit=10)
                 text = self.recognizer.recognize_google(audio, language=self.config['audio']['language'])
                 if text and self.terminal:
+                    text = text.lower()
+                    if self.command_manager.handle_command(text):
+                        return None
                     self.terminal.print_voice_detected(text)
                 return text.lower()
             except:

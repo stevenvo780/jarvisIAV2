@@ -5,13 +5,16 @@ from .error_handler import (
     handle_errors,
     AudioError,
     ModelError,
-    JarvisError
+    JarvisError,
 )
+
+from .audio_utils import beep
 
 __all__ = [
     'setup_logging',
     'handle_errors',
     'AudioError',
     'ModelError',
-    'JarvisError'
+    'JarvisError',
+    'beep',
 ]
