@@ -7,7 +7,8 @@ import json
 from contextlib import contextmanager
 
 class SimplifiedAudioHandler:
-    def __init__(self, config_path="config/audio_config.json"):
+    def __init__(self, config_path="config/audio_config.json", terminal_manager=None):
+        self.terminal = terminal_manager
         self._load_config(config_path)
         ctypes.CDLL('libasound.so').snd_lib_error_set_handler(None)
         warnings.filterwarnings("ignore")
@@ -63,21 +64,40 @@ class SimplifiedAudioHandler:
     def listen(self):
         with self.suppress_stderr():
             try:
+                # Añadir beep antes de escuchar
+                if hasattr(self.terminal, 'beep'):
+                    self.terminal.beep()
+                if self.terminal:
+                    self.terminal.update_prompt_state('LISTENING', 'Escuchando...')
                 with self.mic as source:
-                    print('Ajustando al ruido ambiente...')
                     self.recognizer.adjust_for_ambient_noise(source, duration=2)
-                    print('Escuchando...')
+                    
                     audio = self.recognizer.listen(source, timeout=10, phrase_time_limit=5)
+                    
+                    if self.terminal:
+                        self.terminal.update_prompt_state('PROCESSING', 'Procesando audio...')
+                        self.terminal.print_thinking()
                     
                     try:
                         text = self.recognizer.recognize_google(audio, language=self.config['audio']['language'])
+                        if self.terminal:
+                            self.terminal.print_voice_detected(text)
                         return text.lower()
                     except sr.UnknownValueError:
-                        print("No se pudo entender el audio")
+                        if self.terminal:
+                            self.terminal.update_prompt_state('ERROR', "No se entendió el audio")
                     except sr.RequestError as e:
-                        print(f"Error en Google Speech Recognition: {e}")
+                        if self.terminal:
+                            self.terminal.update_prompt_state('ERROR', f"Error en Speech Recognition: {e}")
             except Exception as e:
-                print(f"Error de audio: {e}")
+                if self.terminal:
+                    self.terminal.update_prompt_state('ERROR', str(e))
+            finally:
+                # Añadir beep al terminar
+                if hasattr(self.terminal, 'beep'):
+                    self.terminal.beep()
+                if self.terminal:
+                    self.terminal.update_prompt_state('IDLE', '')
         return None
 
     def cleanup(self):

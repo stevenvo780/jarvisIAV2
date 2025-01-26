@@ -177,15 +177,10 @@ class ModelManager:
         try:
             # Verificar si es comando de stop
             if query.lower().strip() in ['stop', 'para', 'detente', 'silencio']:
-                if self.tts:
-                    self.tts.stop_speaking()
                 return "He detenido la reproducción.", "system"
 
             if not self._validate_query(query):
-                response = "Lo siento, tu consulta no puede ser procesada por razones de seguridad."
-                if self.tts:
-                    self.tts.speak(response)
-                return response, "error"
+                return "Lo siento, tu consulta no puede ser procesada por razones de seguridad.", "error"
             
             # Analizar dificultad
             difficulty = self._analyze_query_difficulty(query)
@@ -211,10 +206,6 @@ class ModelManager:
             # Actualizar contexto
             self._update_context(query, response)
             
-            # Leer la respuesta en voz alta
-            if self.tts:
-                self.tts.speak(response)
-            
             # Guardar en historial
             self.conversation_history.append({
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -224,15 +215,11 @@ class ModelManager:
                 "response": response
             })
             
-            # Retornar tupla con respuesta y nombre del modelo
             return response, model_name
             
         except Exception as e:
-            error_msg = "Lo siento, ha ocurrido un error procesando tu consulta."
-            if self.tts:
-                self.tts.speak(error_msg)
             logging.error(f"Error procesando consulta: {e}")
-            return error_msg, "error"
+            return "Lo siento, ha ocurrido un error procesando tu consulta.", "error"
 
     def _update_context(self, query: str, response: str):
         """Actualiza el contexto con la nueva interacción."""

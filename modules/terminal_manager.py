@@ -1,6 +1,7 @@
 import sys
 import os
 import logging
+import time
 from typing import Optional, List, Tuple
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit import print_formatted_text
@@ -22,8 +23,14 @@ class TerminalManager:
             'response_google': '#4285F4',  # Azul Google
             'response_openai': '#10a37f',  # Verde OpenAI
             'response_local': '#FF6B6B',   # Rojo suave
-            'response_default': '#00aaaa'   # Color por defecto
+            'response_default': '#00aaaa',   # Color por defecto
+            'voice_detected': '#00ff00 bold',  # Verde brillante para voz detectada
+            'listening': '#4169E1',  # Azul real para escuchando
+            'processing': '#FFA500'  # Naranja para procesando
         })
+        self.current_state = "🎤"
+        self._last_state = None
+        self._last_time = 0.0
 
     def _setup_colors(self):
         """Configures ANSI color codes."""
@@ -40,9 +47,12 @@ class TerminalManager:
     def _setup_states(self):
         """Visual states for the system."""
         self.STATES = {
-            'LISTENING': f"{self.COLORS['GREEN']}🟢{self.COLORS['RESET']}",
-            'IDLE': f"{self.COLORS['RED']}🔴{self.COLORS['RESET']}",
-            'THINKING': f"{self.COLORS['BLUE']}💭{self.COLORS['RESET']}"
+            'LISTENING': "🎤",
+            'PROCESSING': "⚡",
+            'THINKING': "💭",
+            'SPEAKING': "🗣️",
+            'ERROR': "❌",
+            'IDLE': "⏸️"
         }
 
     def setup_logging(self):
@@ -101,3 +111,26 @@ class TerminalManager:
                 style=self.style
             )
         sys.stdout.flush()
+
+    def update_prompt_state(self, state: str, message: str = ""):
+        """Actualiza el estado del prompt"""
+        now = time.time()
+        if state == self._last_state and (now - self._last_time < 1.0):
+            return
+        self._last_state = state
+        self._last_time = now
+        state_icon = self.STATES.get(state, "🎤")
+        if message:
+            print(f"\r{state_icon} {message}", end="", flush=True)
+        else:
+            print(f"\r{state_icon}", end="", flush=True)
+
+    def print_user_input(self, text: str):
+        print_formatted_text(
+            HTML(f"<command>USR> {text}</command>"), 
+            style=self.style
+        )
+
+    def print_voice_detected(self, text: str):
+        """Muestra el texto detectado por voz"""
+        print(f"\r🎤 Detectado: {text}")

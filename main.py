@@ -102,19 +102,22 @@ class Jarvis:
         t.start()
 
     def _async_audio_init(self):
-        """Inicializa el sistema de audio de forma asíncrona"""
         try:
-            self.audio = SimplifiedAudioHandler()  # Ya no necesita parámetros
+            self.audio = SimplifiedAudioHandler(terminal_manager=self.terminal)
             
             def audio_processor():
                 while self.state['running']:
-                    text = self.audio.listen()
-                    if text:
-                        self.input_queue.put(('voice', text))
+                    try:
+                        text = self.audio.listen()
+                        if text and len(text.strip()) > 0:
+                            beep()  # Indicador sonoro de que se detectó voz
+                            self.terminal.update_prompt_state('THINKING')
+                            self.input_queue.put(('voice', text))
+                    except Exception as e:
+                        logging.error(f"Error en procesamiento de audio: {e}")
                     time.sleep(0.1)
             
             threading.Thread(target=audio_processor, daemon=True).start()
-            
             self.state['audio_initialized'] = True
             self.state['voice_active'] = True
             self.terminal.print_success("Voice system initialized")
@@ -160,13 +163,22 @@ class Jarvis:
     def _process_inputs(self):
         try:
             t, content = self.input_queue.get_nowait()
-            self.terminal.print_thinking()
-            response, model_name = self.model.get_response(content)
-            self.terminal.print_response(response, model_name)
-            if t == 'voice' or self.state['voice_active']:
-                if hasattr(self, 'tts'):
-                    self.tts.speak(response)
+            
+            if content.strip():
+                # No mostrar thinking para voz ya que audio_handler lo maneja
+                if t == 'text':
+                    self.terminal.print_thinking()
+                
+                response, model_name = self.model.get_response(content)
+                self.terminal.print_response(response, model_name)
+                
+                # Solo usar TTS para respuestas de voz o si está activo el modo voz
+                if t == 'voice' or self.state['voice_active']:
+                    if hasattr(self, 'tts'):
+                        self.tts.speak(response)
+            
             self.input_queue.task_done()
+            
         except Empty:
             pass
         except Exception as e:
@@ -192,7 +204,11 @@ class Jarvis:
         m.start()
         p = threading.Thread(target=self._process_inputs_loop, daemon=True)
         p.start()
+        
         self.terminal.print_header("Operating System")
+        self.terminal.print_status("Jarvis Text Interface - Escribe 'help' para ver los comandos")
+        print("\n🎤 > ", end='', flush=True)  # Prompt inicial
+        
         if self.text_handler:
             self.text_handler.run_interactive()
 

@@ -37,14 +37,14 @@
     "learned_topics": []
   },
   "interaction_stats": {
-    "total_interactions": 61,
-    "last_interaction": "2025-01-25T18:49:17.%f",
+    "total_interactions": 80,
+    "last_interaction": "2025-01-25T19:09:42.%f",
     "frequent_topics": {
-      "hola": 36,
+      "hola": 43,
       "cual": 7,
       "y": 1,
       "cuentame": 3,
-      "que": 2,
+      "que": 3,
       "dame": 2,
       "como": 3,
       "explicale": 1,
@@ -52,7 +52,10 @@
       "algo": 1,
       "config": 1,
       "jarvis": 1,
-      "cuál": 1
+      "cuál": 6,
+      "cómo": 2,
+      "cuéntame": 3,
+      "mmm": 1
     }
   }
 }
