@@ -37,25 +37,30 @@
     "learned_topics": []
   },
   "interaction_stats": {
-    "total_interactions": 80,
-    "last_interaction": "2025-01-25T19:09:42.%f",
+    "total_interactions": 100,
+    "last_interaction": "2025-01-25T19:21:46.%f",
     "frequent_topics": {
-      "hola": 43,
+      "hola": 44,
       "cual": 7,
       "y": 1,
       "cuentame": 3,
-      "que": 3,
+      "que": 4,
       "dame": 2,
       "como": 3,
       "explicale": 1,
       "bien": 2,
       "algo": 1,
       "config": 1,
-      "jarvis": 1,
-      "cuál": 6,
-      "cómo": 2,
-      "cuéntame": 3,
-      "mmm": 1
+      "jarvis": 9,
+      "cuál": 8,
+      "cómo": 3,
+      "cuéntame": 5,
+      "mmm": 1,
+      "pero": 1,
+      "explícame": 1,
+      "eso": 1,
+      "capital": 1,
+      "dónde": 1
     }
   }
 }

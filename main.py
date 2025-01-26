@@ -108,11 +108,13 @@ class Jarvis:
             def audio_processor():
                 while self.state['running']:
                     try:
-                        text = self.audio.listen()
-                        if text and len(text.strip()) > 0:
-                            beep()  # Indicador sonoro de que se detectó voz
-                            self.terminal.update_prompt_state('THINKING')
-                            self.input_queue.put(('voice', text))
+                        if self.audio.listen_for_trigger("jarvis"):
+                            beep()
+                            self.terminal.update_prompt_state('LISTENING', 'Escuchando comando...')
+                            command_text = self.audio.listen_command()
+                            if command_text:
+                                self.terminal.update_prompt_state('THINKING')
+                                self.input_queue.put(('voice', command_text))
                     except Exception as e:
                         logging.error(f"Error en procesamiento de audio: {e}")
                     time.sleep(0.1)
