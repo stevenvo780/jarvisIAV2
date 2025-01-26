@@ -5,6 +5,8 @@ import os
 import sys
 import json
 import logging
+import time
+from typing import Optional, Tuple
 from contextlib import contextmanager
 from modules.command_manager import CommandManager
 from utils.audio_utils import AudioEffects
@@ -44,6 +46,14 @@ class AudioHandler:
         except Exception as e:
             logging.error(f"Error inicializando audio: {e}")
             raise AudioError(f"Error de inicialización: {e}")
+
+        self.max_retries = 3
+        self.retry_delay = 1.0
+        self.mic_state = {
+            'is_active': False,
+            'last_successful': 0,
+            'consecutive_failures': 0
+        }
 
     def _load_config(self, config_path):
         try:
@@ -132,22 +142,93 @@ class AudioHandler:
 
     def cleanup(self):
         self.running = False
+        self.mic_state['is_active'] = False
+
+    def _reset_mic(self) -> bool:
+        try:
+            if self.mic_state['consecutive_failures'] > 3:
+                logging.info("Reiniciando micrófono debido a fallos consecutivos")
+                self.mic = sr.Microphone(device_index=self.config['audio']['device_index'])
+                with self.mic as source:
+                    self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                self.mic_state['consecutive_failures'] = 0
+                return True
+            return False
+        except Exception as e:
+            logging.error(f"Error reseteando micrófono: {e}")
+            return False
+
+    def _dynamic_timeout_adjustment(self) -> Tuple[float, float]:
+        base_timeout = 5
+        base_phrase_timeout = 3
+        
+        if self.mic_state['consecutive_failures'] > 0:
+            timeout = min(base_timeout + self.mic_state['consecutive_failures'], 10)
+            phrase_timeout = min(base_phrase_timeout + (self.mic_state['consecutive_failures'] * 0.5), 7)
+        else:
+            timeout = base_timeout
+            phrase_timeout = base_phrase_timeout
+            
+        return timeout, phrase_timeout
 
     def listen_audio_once(self) -> str:
-        try:
-            with self.mic as source:
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
-                audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=5)
-                try:
-                    text = self.recognizer.recognize_google(audio, language=self.config['audio']['language'])
-                    return text.lower()
-                except sr.UnknownValueError:
-                    return ""
-                except sr.RequestError:
-                    return ""
-        except Exception as e:
-            logging.error(f"Error en listen_audio_once: {e}")
-            return ""
+        attempts = 0
+        last_error = None
+
+        while attempts < self.max_retries:
+            try:
+                if self._reset_mic():
+                    self.audio_effects.play('ready', volume=0.3)
+                
+                timeout, phrase_timeout = self._dynamic_timeout_adjustment()
+                
+                with self.mic as source:
+                    if time.time() - self.mic_state['last_successful'] > 30:
+                        self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                    
+                    try:
+                        self.mic_state['is_active'] = True
+                        audio = self.recognizer.listen(
+                            source,
+                            timeout=timeout,
+                            phrase_time_limit=phrase_timeout
+                        )
+                        
+                        text = self.recognizer.recognize_google(
+                            audio,
+                            language=self.config['audio']['language']
+                        )
+                        
+                        # Éxito en el reconocimiento
+                        self.mic_state.update({
+                            'last_successful': time.time(),
+                            'consecutive_failures': 0
+                        })
+                        return text.lower()
+                        
+                    except sr.WaitTimeoutError:
+                        last_error = "Timeout esperando audio"
+                        self.mic_state['consecutive_failures'] += 1
+                    except sr.UnknownValueError:
+                        last_error = "No se pudo entender el audio"
+                        if attempts == self.max_retries - 1:
+                            self.audio_effects.play('error', volume=0.3)
+                    except sr.RequestError as e:
+                        last_error = f"Error en el servicio de reconocimiento: {e}"
+                        
+            except Exception as e:
+                last_error = str(e)
+                logging.error(f"Error en listen_audio_once: {e}")
+            finally:
+                self.mic_state['is_active'] = False
+            
+            attempts += 1
+            if attempts < self.max_retries:
+                time.sleep(self.retry_delay)
+                
+        if last_error:
+            logging.warning(f"Audio recognition failed after {attempts} attempts: {last_error}")
+        return ""
 
     def detect_jarvis_command(self, trigger: str) -> str:
         try:
@@ -161,19 +242,25 @@ class AudioHandler:
             if trigger.lower() in recognized_text.lower():
                 if self.terminal:
                     self.terminal.update_prompt_state('LISTENING')
+                    self.audio_effects.play('command', volume=0.4)
                 
                 parts = recognized_text.lower().split(trigger.lower(), 1)
                 if len(parts) > 1 and parts[1].strip():
+                    command = parts[1].strip()
                     if self.terminal:
-                        self.terminal.print_voice_detected(parts[1].strip())
+                        self.terminal.print_voice_detected(command)
                         self.terminal.update_prompt_state('VOICE_IDLE')
-                    return parts[1].strip()
+                    return command
                 
+                time.sleep(0.5)  # Pequeña pausa antes de escuchar el comando
+                self.audio_effects.play('listening', volume=0.3)
                 additional_text = self.listen_audio_once()
+                
                 if additional_text:
-                    self.terminal.print_voice_detected(additional_text)
-                    self.terminal.update_prompt_state('VOICE_IDLE')
-                return additional_text.strip() if additional_text else ""
+                    if self.terminal:
+                        self.terminal.print_voice_detected(additional_text)
+                        self.terminal.update_prompt_state('VOICE_IDLE')
+                    return additional_text.strip()
 
             return ""
             

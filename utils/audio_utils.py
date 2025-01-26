@@ -17,8 +17,8 @@ class AudioEffects:
                 logging.error(f"Could not initialize audio: {e}")
                 
         self.sounds: Dict[str, Optional[pygame.mixer.Sound]] = {}
-        self.base_path = os.path.join(os.path.dirname(__file__), '..', 'assets', 'sounds')
-        self.config_file = os.path.join(os.path.dirname(__file__), '..', 'config.json')
+        self.base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'assets', 'sounds'))
+        self.config_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config.json'))
         self._load_sounds()
 
     def _get_config(self) -> bool:
@@ -34,13 +34,16 @@ class AudioEffects:
         sound_files = {
             'startup': 'startup.mp3',
             'error': 'error.mp3',
-            'notification': 'notification.mp3',
-            'listening': 'listening.mp3',
+            'ready': 'ready.mp3',
             'thinking': 'thinking.mp3',
-            'command': 'command.mp3'
+            'command': 'ready.mp3',
+            'notification': 'ready.mp3',
+            'listening': 'thinking.mp3'
         }
 
-        os.makedirs(self.base_path, exist_ok=True)
+        if not os.path.exists(self.base_path):
+            logging.error(f"Directory not found: {self.base_path}")
+            return
 
         for sound_name, filename in sound_files.items():
             try:
@@ -48,17 +51,13 @@ class AudioEffects:
                 if os.path.exists(filepath):
                     self.sounds[sound_name] = pygame.mixer.Sound(filepath)
                 else:
-                    logging.warning(f"Archivo de sonido no encontrado: {filepath}")
+                    logging.warning(f"Sound file not found: {filepath}")
                     self.sounds[sound_name] = None
             except Exception as e:
-                logging.error(f"Error cargando sonido {sound_name}: {e}")
+                logging.error(f"Error loading sound {sound_name}: {e}")
                 self.sounds[sound_name] = None
 
     def play(self, sound_name: str, volume: float = 0.5) -> None:
-        """Reproduce un efecto de sonido por nombre"""
-        if not self._get_config():
-            return
-            
         try:
             sound = self.sounds.get(sound_name)
             if sound:
@@ -68,14 +67,12 @@ class AudioEffects:
             logging.error(f"Error reproduciendo sonido {sound_name}: {e}")
 
     def stop_all(self) -> None:
-        """Detiene todos los sonidos en reproducción"""
         try:
             pygame.mixer.stop()
         except Exception as e:
             logging.error(f"Error deteniendo sonidos: {e}")
 
     def __del__(self):
-        """Limpieza al destruir la instancia"""
         try:
             pygame.mixer.quit()
         except:
