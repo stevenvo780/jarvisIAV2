@@ -131,12 +131,6 @@ class TerminalManager:
                 print(new_prompt, end="", flush=True)
                 self._last_prompt = new_prompt
 
-    def print_user_input(self, text: str):
-        print_formatted_text(
-            HTML(f"<command>USR> {text}</command>"), 
-            style=self.style
-        )
-
     def print_voice_detected(self, text: str):
         with self._prompt_lock:
             print("\r" + " " * 100 + "\r", end="", flush=True)

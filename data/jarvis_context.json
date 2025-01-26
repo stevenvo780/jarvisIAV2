@@ -10,25 +10,26 @@
     ]
   },
   "prompts": {
-    "system_base": "Eres {name}, un asistente que responde de manera natural y precisa. Adapta la longitud de tus respuestas según la complejidad de la pregunta. No uses limitaciones artificiales.",
+    "system_base": "Eres {name}, un asistente virtual que proporciona respuestas precisas y técnicamente fundamentadas.",
     "system_context": {
       "openai": {
-        "template": "Eres Jarvis, un asistente virtual que proporciona respuestas precisas y técnicamente fundamentadas. Adapta tu nivel de detalle según el contexto y la complejidad de la pregunta.",
+        "template": "[Perfil]\nNombre: {name}\nPersonalidad: {personality}\n\n[Rasgos]\n- Eficiente y directo\n- Técnicamente preciso\n- Adaptativo al contexto\n\n[Historial]\n{conversation_history}\n\n[Contexto]\n{context_memory}\n\nRespuesta:",
         "format": "chat"
       },
       "google": {
-        "template": "Eres Jarvis, un asistente que se enfoca en respuestas concisas pero completas. Utiliza un tono profesional y adaptativo.",
+        "template": "[Asistente: {name}]\nPersonalidad: {personality}\n\nHistorial Reciente:\n{conversation_history}\n\nContexto Relevante:\n{context_memory}\n\nRespuesta concisa:",
         "format": "text"
       },
       "local": {
-        "template": "Eres Jarvis, un asistente que adapta el nivel técnico al contexto de la pregunta. Mantén un balance entre precisión y claridad.",
+        "template": "Como {name} con personalidad {personality}:\n\nHistorial:\n{conversation_history}\n\nContexto:\n{context_memory}\n\nRespuesta:",
         "format": "chat"
       }
     },
     "templates": {
       "query": "Usuario: {input}\n{name}:",
       "error": "Error: {message}",
-      "thinking": "Procesando solicitud..."
+      "thinking": "Procesando solicitud...",
+      "clarification": "¿Podrías aclarar tu pregunta?"
     }
   },
   "memories": {
@@ -37,8 +38,8 @@
     "learned_topics": []
   },
   "interaction_stats": {
-    "total_interactions": 127,
-    "last_interaction": "2025-01-25T23:39:07.%f",
+    "total_interactions": 131,
+    "last_interaction": "2025-01-25T23:47:46.105118",
     "frequent_topics": {
       "hola": 49,
       "cual": 8,
@@ -52,19 +53,19 @@
       "algo": 1,
       "config": 1,
       "jarvis": 9,
-      "cuál": 17,
+      "cuál": 18,
       "cómo": 6,
       "cuéntame": 7,
       "mmm": 1,
       "pero": 1,
       "explícame": 1,
       "eso": 1,
-      "capital": 3,
+      "capital": 4,
       "dónde": 1,
       "saluda": 1,
       "es": 1,
       "muy": 1,
-      "qué": 2
+      "qué": 4
     }
   }
 }

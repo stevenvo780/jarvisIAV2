@@ -4,7 +4,7 @@ import threading
 import os
 import json
 from pathlib import Path
-from typing import List, Dict, Optional, Deque
+from typing import List, Dict, Optional, Deque, Tuple
 from collections import deque
 from .google_model import GoogleModel
 from .openai_model import OpenAIModel
@@ -24,26 +24,14 @@ class ModelManager:
         "log_level": "INFO"
     }
 
-    def __init__(self, config_path: str = "config.json"):
-        self.context = self._load_context()
+    def __init__(self, storage_manager, config_path: str = "config.json"):
+        self.storage = storage_manager
         self.config = self._load_config(config_path)
         self._validate_config(self.config)
         self.models = self._initialize_models()
-        self._setup_logging()
-        self.conversation_history = deque(maxlen=self.config["max_history"])
-        self.processing_lock = threading.Lock()
         self.difficulty_analyzer = self.models.get('google')
         self.tts = None
         logging.info("ModelManager inicializado")
-
-    def _load_context(self) -> Dict:
-        context_path = Path(__file__).parent.parent.parent / "data" / "jarvis_context.json"
-        try:
-            with open(context_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            logging.error(f"Error cargando contexto: {e}")
-            return {}
 
     def _load_config(self, config_path: str) -> Dict:
         if not os.path.exists(config_path):
@@ -81,19 +69,19 @@ class ModelManager:
         instantiated = {}
         for model_name in self.config['models']:
             try:
-                if model_name == "google":
+                if (model_name == "google"):
                     try:
                         instantiated[model_name] = GoogleModel()
                     except Exception as e:
                         logging.error(f"Error inicializando Google: {e}")
                         continue
-                elif model_name == "openai":
+                elif (model_name == "openai"):
                     try:
                         instantiated[model_name] = OpenAIModel()
                     except Exception as e:
                         logging.error(f"Error inicializando OpenAI: {e}")
                         continue
-                elif model_name == "local":
+                elif (model_name == "local"):
                     try:
                         instantiated[model_name] = LocalModel()
                     except Exception as e:
@@ -158,7 +146,7 @@ class ModelManager:
     def set_tts_manager(self, tts_manager):
         self.tts = tts_manager
 
-    def get_response(self, query: str) -> str:
+    def get_response(self, query: str) -> Tuple[str, str]:
         try:
             if query.lower().strip() in ['stop', 'para', 'detente', 'silencio']:
                 return "He detenido la reproducción.", "system"
@@ -167,29 +155,26 @@ class ModelManager:
                 return "Lo siento, tu consulta no puede ser procesada por razones de seguridad.", "error"
             
             difficulty = self._analyze_query_difficulty(query)
-            logging.info(f"Dificultad detectada: {difficulty}/10")
-            
             model_name = self._select_appropriate_model(difficulty)
-            logging.info(f"Modelo seleccionado: {model_name}")
             
-            system_prompt = self._build_context_prompt()
-            user_prompt = self.context['prompts']['templates']['query'].format(
+            context = self.storage.get_context()
+            history = self.storage.get_recent_history(3)
+            
+            system_prompt = self._build_context_prompt(context, history, model_name)
+            user_prompt = context['prompts']['templates']['query'].format(
                 input=query,
-                name=self.context['assistant_profile']['name']
+                name=context['assistant_profile']['name']
             )
             
             enriched_query = f"{system_prompt}\n\n{user_prompt}"
-            
             response = self.models[model_name].get_response(enriched_query)
             
-            self._update_context(query, response)
-            
-            self.conversation_history.append({
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "model": model_name,
-                "difficulty": difficulty,
+            # Guardar la interacción
+            self.storage.add_interaction({
                 "query": query,
-                "response": response
+                "response": response,
+                "model": model_name,
+                "difficulty": difficulty
             })
             
             return response, model_name
@@ -198,34 +183,40 @@ class ModelManager:
             logging.error(f"Error procesando consulta: {e}")
             return "Lo siento, ha ocurrido un error procesando tu consulta.", "error"
 
-    def _update_context(self, query: str, response: str):
+    def _build_context_prompt(self, context: Dict, history: list, model_name: str) -> str:
         try:
-            self.context["interaction_stats"]["total_interactions"] += 1
-            self.context["interaction_stats"]["last_interaction"] = time.strftime("%Y-%m-%dT%H:%M:%S.%f")
+            if model_name not in context['prompts']['system_context']:
+                model_name = 'local'
+                
+            template = context['prompts']['system_context'][model_name]['template']
+            format_type = context['prompts']['system_context'][model_name]['format']
             
-            topic = query.split()[0].lower()
-            self.context["interaction_stats"]["frequent_topics"][topic] = \
-                self.context["interaction_stats"]["frequent_topics"].get(topic, 0) + 1
-
-            context_path = Path(__file__).parent.parent.parent / "data" / "jarvis_context.json"
-            with open(context_path, 'w', encoding='utf-8') as f:
-                json.dump(self.context, f, indent=2, ensure_ascii=False)
+            history_text = self._format_history(history, format_type)
+            memories = self.storage.get_relevant_memories(5)
+            
+            return template.format(
+                name=context['assistant_profile']['name'],
+                personality=context['assistant_profile']['personality'],
+                conversation_history=history_text,
+                context_memory=memories
+            )
         except Exception as e:
-            logging.error(f"Error actualizando contexto: {e}")
+            logging.error(f"Error building context prompt: {e}")
+            return context['prompts']['system_base'].format(
+                name=context['assistant_profile']['name']
+            )
 
-    def _build_context_prompt(self) -> str:
-        profile = self.context.get("assistant_profile", {})
-        model_name = self._select_appropriate_model(0)
-        
-        model_template = self.context['prompts']['system_context'][model_name]['template']
-        
-        traits = "\n".join(f"- {trait}" for trait in profile.get('core_traits', []))
-        
-        return model_template.format(
-            name=profile.get('name', 'Jarvis'),
-            personality=profile.get('personality', 'profesional y servicial'),
-            traits=traits
-        )
+    def _format_history(self, history: list, format_type: str) -> str:
+        if not history:
+            return "Sin historial reciente"
+            
+        entries = []
+        for entry in history:
+            if format_type == 'chat':
+                entries.append(f"Usuario: {entry['query']}\nAsistente: {entry['response']}")
+            else:
+                entries.append(f"{entry['query']} -> {entry['response']}")
+        return "\n".join(entries)
 
     def get_history(self) -> List[Dict]:
         return list(self.conversation_history)

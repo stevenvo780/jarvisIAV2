@@ -26,6 +26,7 @@ from modules.text.text_handler import TextHandler
 
 from modules.voice.audio_handler import AudioHandler
 from modules.voice.tts_manager import TTSManager
+from modules.storage_manager import StorageManager  # Añadir este import
 
 setup_logging()
 
@@ -90,7 +91,11 @@ class Jarvis:
     def _initialize_system(self):
         self.terminal.print_header("Starting Jarvis System")
         load_dotenv()
-        self.model = ModelManager()
+        
+        self.storage = StorageManager()
+        
+        self.model = ModelManager(storage_manager=self.storage)
+        
         self.tts = TTSManager()
         self.model.set_tts_manager(self.tts)
         self.terminal.print_success("Core system initialized")
@@ -121,7 +126,6 @@ class Jarvis:
                         if command_text:
                             beep()
                             self.input_queue.put(('voice', command_text))
-                            self.terminal.print_user_input(command_text)
                     except Exception as e:
                         logging.error(f"Error en procesamiento de audio: {e}")
                         time.sleep(1)
