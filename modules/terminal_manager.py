@@ -19,21 +19,19 @@ class TerminalManager:
             'error': '#aa0000',
             'info': '#0000aa',
             'thinking': '#aa00aa',
-            # Colores específicos para cada modelo
-            'response_google': '#4285F4',  # Azul Google
-            'response_openai': '#10a37f',  # Verde OpenAI
-            'response_local': '#FF6B6B',   # Rojo suave
-            'response_default': '#00aaaa',   # Color por defecto
-            'voice_detected': '#00ff00 bold',  # Verde brillante para voz detectada
-            'listening': '#4169E1',  # Azul real para escuchando
-            'processing': '#FFA500'  # Naranja para procesando
+            'response_google': '#4285F4',
+            'response_openai': '#10a37f',
+            'response_local': '#FF6B6B',
+            'response_default': '#00aaaa',
+            'voice_detected': '#00ff00 bold',
+            'listening': '#4169E1',
+            'processing': '#FFA500'
         })
         self.current_state = "🎤"
         self._last_state = None
         self._last_time = 0.0
 
     def _setup_colors(self):
-        """Configures ANSI color codes."""
         self.COLORS = {
             'GREEN': '\033[92m',
             'RED': '\033[91m',
@@ -51,11 +49,12 @@ class TerminalManager:
             'THINKING': "💭",
             'SPEAKING': "🗣️",
             'ERROR': "❌",
-            'IDLE': "🎤"
+            'IDLE': "🟢",  # Cambiado de ⌨️ a 🟢
+            'VOICE_IDLE': "🟢",  # Cambiado de 🎤 a 🟢
+            'CHAT': "💬"
         }
 
     def setup_logging(self):
-        """Sets up logging, silencing unnecessary logs."""
         os.makedirs('logs', exist_ok=True)
         logging.basicConfig(
             filename="logs/jarvis.log",
@@ -67,40 +66,31 @@ class TerminalManager:
             logging.getLogger(lib).propagate = False
 
     def print_error(self, message: str):
-        """Shows formatted error messages."""
         print_formatted_text(HTML(f"✗ <error>{message}</error>"), style=self.style)
 
     def print_success(self, message: str):
-        """Shows formatted success messages."""
         print_formatted_text(HTML(f"✓ <success>{message}</success>"), style=self.style)
 
     def print_warning(self, message: str):
-        """Shows formatted warning messages."""
         print_formatted_text(HTML(f"⚠ <warning>{message}</warning>"), style=self.style)
 
     def print_header(self, message: str):
-        """Header for important messages."""
         print_formatted_text(HTML(f"\n=== <header>{message}</header> ===\n"), style=self.style)
 
     def print_status(self, message: str):
-        """Status message."""
         print_formatted_text(HTML(f"<info>[STATUS]</info> {message}"), style=self.style)
 
     def print_goodbye(self):
-        """Farewell message."""
         print_formatted_text(HTML("\n<header>Goodbye!</header>\n"), style=self.style)
 
     def print_thinking(self):
-        """Indicator of system processing."""
         print_formatted_text(HTML("<thinking>Thinking...</thinking>"), style=self.style)
 
     def print_response(self, message: str, model_name: str = None):
-        """Prints system responses in model-specific colors."""
         style_key = f'response_{model_name.lower()}' if model_name else 'response_default'
         if style_key not in self.style.style_rules:
             style_key = 'response_default'
             
-        # Agregar prefijo del modelo
         prefix = f"[{model_name.upper()}] " if model_name else ""
         
         lines = message.split('\n')
@@ -112,20 +102,24 @@ class TerminalManager:
         sys.stdout.flush()
 
     def update_prompt_state(self, state: str, message: str = ""):
-        """Actualiza el estado del prompt"""
         now = time.time()
         if state == self._last_state and (now - self._last_time < 1.0):
             return
             
         self._last_state = state
         self._last_time = now
-        state_icon = self.STATES.get(state, "🎤")
+        state_icon = self.STATES.get(state, "🟢")
         
-        # Limpiar línea anterior antes de imprimir
+        # Limpiar línea actual
         print("\r" + " " * 100 + "\r", end="", flush=True)
         
-        if message:
+        # Estados especiales sin prompt
+        if state in ['LISTENING', 'PROCESSING', 'THINKING']:
+            print(f"{state_icon}", end="", flush=True)
+        # Estados de error con mensaje
+        elif message and state == 'ERROR':
             print(f"{state_icon} {message}", end="", flush=True)
+        # Estados normales con prompt
         else:
             print(f"{state_icon} > ", end="", flush=True)
 
@@ -136,9 +130,8 @@ class TerminalManager:
         )
 
     def print_voice_detected(self, text: str):
-        """Muestra el texto detectado por voz"""
-        # Limpiar línea anterior
+        # Limpiar línea actual
         print("\r" + " " * 100 + "\r", end="", flush=True)
-        print(f"🎤 Detectado: {text}")
-        # Restaurar prompt
-        print("🎤 > ", end="", flush=True)
+        print(f"🎤 {text}")
+        # Restaurar prompt con punto verde
+        print("🟢 > ", end="", flush=True)

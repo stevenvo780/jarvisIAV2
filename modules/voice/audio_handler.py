@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from modules.command_manager import CommandManager
 from utils.error_handler import AudioError
 
-class SimplifiedAudioHandler:
+class AudioHandler:
     def __init__(self, config_path="config/audio_config.json", terminal_manager=None, tts=None, state=None):
         self.terminal = terminal_manager
         try:
@@ -32,7 +32,6 @@ class SimplifiedAudioHandler:
             
             self.mic = sr.Microphone(device_index=self.config['audio']['device_index'])
             
-            # Verificar que el micrófono funciona
             with self.mic as source:
                 self.recognizer.adjust_for_ambient_noise(source, duration=1)
                 
@@ -49,8 +48,6 @@ class SimplifiedAudioHandler:
             with open(config_path, 'r') as f:
                 self.config = json.load(f)
         except Exception as e:
-            print(f"Error cargando configuración de audio: {e}")
-            # Configuración por defecto
             self.config = {
                 "audio": {
                     "device_index": 6,
@@ -86,14 +83,12 @@ class SimplifiedAudioHandler:
     def listen(self):
         with self.suppress_stderr():
             try:
-                # Añadir beep antes de escuchar
                 if hasattr(self.terminal, 'beep'):
                     self.terminal.beep()
                 if self.terminal:
                     self.terminal.update_prompt_state('LISTENING', '👂')
                 with self.mic as source:
                     self.recognizer.adjust_for_ambient_noise(source, duration=2)
-                    
                     audio = self.recognizer.listen(source, timeout=10, phrase_time_limit=5)
                     
                     if self.terminal:
@@ -115,7 +110,6 @@ class SimplifiedAudioHandler:
                 if self.terminal:
                     self.terminal.update_prompt_state('ERROR', str(e))
             finally:
-                # Añadir beep al terminar
                 if hasattr(self.terminal, 'beep'):
                     self.terminal.beep()
                 if self.terminal:
@@ -130,7 +124,6 @@ class SimplifiedAudioHandler:
                     audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=2)
                 text = self.recognizer.recognize_google(audio, language=self.config['audio']['language'])
                 if trigger_word.lower() in text.lower():
-                    # Simplificar actualización de estado
                     if self.terminal:
                         self.terminal.update_prompt_state('LISTENING')
                     return True
@@ -138,25 +131,56 @@ class SimplifiedAudioHandler:
             except:
                 return False
 
-    def listen_command(self):
-        import time
-        time.sleep(0.5)
-        with self.suppress_stderr():
-            try:
-                with self.mic as source:
-                    self.recognizer.adjust_for_ambient_noise(source, duration=1)
-                    audio = self.recognizer.listen(source, timeout=10, phrase_time_limit=10)
-                text = self.recognizer.recognize_google(audio, language=self.config['audio']['language'])
-                if text and self.terminal:
-                    text = text.lower()
-                    if self.command_manager.handle_command(text):
-                        return None
-                    self.terminal.print_voice_detected(text)
-                return text.lower()
-            except:
-                if self.terminal:
-                    self.terminal.update_prompt_state('ERROR')
-                return None
-
     def cleanup(self):
         self.running = False
+
+    def listen_audio_once(self) -> str:
+        try:
+            with self.mic as source:
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=5)
+                try:
+                    text = self.recognizer.recognize_google(audio, language=self.config['audio']['language'])
+                    return text.lower()
+                except sr.UnknownValueError:
+                    return ""
+                except sr.RequestError:
+                    return ""
+        except Exception as e:
+            logging.error(f"Error en listen_audio_once: {e}")
+            return ""
+
+    def detect_jarvis_command(self, trigger: str) -> str:
+        try:
+            if self.terminal:
+                self.terminal.update_prompt_state('VOICE_IDLE')
+                
+            recognized_text = self.listen_audio_once()
+            if not recognized_text:
+                return ""
+
+            if trigger.lower() in recognized_text.lower():
+                if self.terminal:
+                    self.terminal.update_prompt_state('LISTENING')
+                
+                parts = recognized_text.lower().split(trigger.lower(), 1)
+                if len(parts) > 1 and parts[1].strip():
+                    if self.terminal:
+                        self.terminal.print_voice_detected(parts[1].strip())
+                        self.terminal.update_prompt_state('VOICE_IDLE')
+                    return parts[1].strip()
+                
+                additional_text = self.listen_audio_once()
+                if additional_text:
+                    self.terminal.print_voice_detected(additional_text)
+                    self.terminal.update_prompt_state('VOICE_IDLE')
+                return additional_text.strip() if additional_text else ""
+
+            return ""
+            
+        except Exception as e:
+            logging.error(f"Error en detect_jarvis_command: {e}")
+            return ""
+        finally:
+            if self.terminal:
+                self.terminal.update_prompt_state('VOICE_IDLE')

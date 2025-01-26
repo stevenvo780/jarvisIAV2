@@ -54,15 +54,14 @@ class TextHandler:
                     continue
 
     def _get_formatted_prompt(self):
-        icon = "🎤" if self.state.get('voice_active', False) else "⌨️"
-        return HTML(f"{icon} <prompt>></prompt> ")
+        icon = "🟢"  # Cambiado de usar 🎤/⌨️ a usar siempre 🟢
+        return HTML(f"{icon} > ")
 
     def _process_input(self, text: str):
         if not text or text.isspace():
             self.terminal.print_warning("Comando vacío. Intenta de nuevo.")
             return
 
-        self.terminal.print_user_input(text)
             
         text = text.strip()
         text_lower = text.lower()
@@ -92,17 +91,16 @@ class TextHandler:
             self._show_help()
             return
 
-        # Input normal al sistema
         self.input_queue.put(('text', text))
 
     def _show_help(self):
         help_text = """
-Available commands:
-  - exit, salir, quit : Exit the system
-  - clear             : Clear the screen
-  - voz on/off       : Enable/disable voice mode
-  - help             : Show this help
-"""
+            Available commands:
+            - exit, salir, quit : Exit the system
+            - clear             : Clear the screen
+            - voz on/off       : Enable/disable voice mode
+            - help             : Show this help
+            """
         print(help_text)
     
     def stop(self):

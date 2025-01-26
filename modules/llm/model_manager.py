@@ -33,11 +33,10 @@ class ModelManager:
         self.conversation_history = deque(maxlen=self.config["max_history"])
         self.processing_lock = threading.Lock()
         self.difficulty_analyzer = self.models.get('google')
-        self.tts = None  # Se inicializará después
+        self.tts = None
         logging.info("ModelManager inicializado")
 
     def _load_context(self) -> Dict:
-        """Carga el contexto de Jarvis."""
         context_path = Path(__file__).parent.parent.parent / "data" / "jarvis_context.json"
         try:
             with open(context_path, 'r', encoding='utf-8') as f:
@@ -47,8 +46,6 @@ class ModelManager:
             return {}
 
     def _load_config(self, config_path: str) -> Dict:
-        """Loads or merges JSON config if exists."""
-        import json
         if not os.path.exists(config_path):
             return dict(self.CONFIG_DEFAULTS)
         try:
@@ -61,7 +58,6 @@ class ModelManager:
         return merged_conf
 
     def _validate_config(self, config: Dict) -> Dict:
-        """Validates essential config fields."""
         if not isinstance(config.get("models"), dict):
             raise ValueError("Configuración inválida: 'models' debe ser un diccionario")
         
@@ -82,7 +78,6 @@ class ModelManager:
         return config
 
     def _initialize_models(self) -> Dict[str, object]:
-        """Instantiates models defined in 'models' list."""
         instantiated = {}
         for model_name in self.config['models']:
             try:
@@ -113,7 +108,6 @@ class ModelManager:
         return instantiated
 
     def _setup_logging(self):
-        """Configures the logger."""
         logger = logging.getLogger('ModelManager')
         logger.setLevel(self.config.get('log_level', 'INFO'))
         if not logger.handlers:
@@ -123,7 +117,6 @@ class ModelManager:
             logger.addHandler(handler)
 
     def _validate_query(self, query: str) -> bool:
-        """Validates blocked terms. Returns True if valid."""
         lower_query = query.lower()
         for term in self.config['security']['blocked_terms']:
             if term.lower() in lower_query:
@@ -132,7 +125,6 @@ class ModelManager:
         return True
 
     def _analyze_query_difficulty(self, query: str) -> int:
-        """Analiza la dificultad de la consulta usando el modelo de Google."""
         try:
             prompt = f"""
             Por favor analiza la siguiente consulta y califica su dificultad del 1 al 10,
@@ -142,71 +134,56 @@ class ModelManager:
             """
             
             response = self.difficulty_analyzer.get_response(prompt)
-            # Extraer el número de la respuesta
             difficulty = int(''.join(filter(str.isdigit, response)))
-            return min(max(difficulty, 1), 10)  # Asegurar rango 1-10
+            return min(max(difficulty, 1), 10)
         except Exception as e:
             logging.warning(f"Error analizando dificultad: {e}")
-            return 5  # Dificultad media por defecto
+            return 5
 
     def _select_appropriate_model(self, difficulty: int) -> str:
-        """Selecciona el modelo más apropiado según la dificultad."""
         available_models = self.models.keys()
         
-        # Primero intentamos encontrar un modelo adecuado que esté disponible
         for model_name, config in self.config['models'].items():
             diff_range = config['difficulty_range']
             if diff_range[0] <= difficulty <= diff_range[1] and model_name in available_models:
                 return model_name
         
-        # Si no encontramos un modelo ideal, usamos el siguiente en orden de preferencia
         if difficulty >= 7 and "google" in available_models:
             return "google"
         elif "local" in available_models:
             return "local"
         
-        # Último recurso: usar cualquier modelo disponible
         return next(iter(available_models))
 
     def set_tts_manager(self, tts_manager):
-        """Método para establecer el TTSManager después de la inicialización"""
         self.tts = tts_manager
 
     def get_response(self, query: str) -> str:
-        """Obtiene respuesta incluyendo el contexto."""
         try:
-            # Verificar si es comando de stop
             if query.lower().strip() in ['stop', 'para', 'detente', 'silencio']:
                 return "He detenido la reproducción.", "system"
 
             if not self._validate_query(query):
                 return "Lo siento, tu consulta no puede ser procesada por razones de seguridad.", "error"
             
-            # Analizar dificultad
             difficulty = self._analyze_query_difficulty(query)
             logging.info(f"Dificultad detectada: {difficulty}/10")
             
-            # Seleccionar modelo
             model_name = self._select_appropriate_model(difficulty)
             logging.info(f"Modelo seleccionado: {model_name}")
             
-            # Construir prompt usando la plantilla correcta 'query' en lugar de 'user_template'
             system_prompt = self._build_context_prompt()
             user_prompt = self.context['prompts']['templates']['query'].format(
                 input=query,
                 name=self.context['assistant_profile']['name']
             )
             
-            # Combinar prompts
             enriched_query = f"{system_prompt}\n\n{user_prompt}"
             
-            # Obtener respuesta
             response = self.models[model_name].get_response(enriched_query)
             
-            # Actualizar contexto
             self._update_context(query, response)
             
-            # Guardar en historial
             self.conversation_history.append({
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "model": model_name,
@@ -222,17 +199,14 @@ class ModelManager:
             return "Lo siento, ha ocurrido un error procesando tu consulta.", "error"
 
     def _update_context(self, query: str, response: str):
-        """Actualiza el contexto con la nueva interacción."""
         try:
             self.context["interaction_stats"]["total_interactions"] += 1
             self.context["interaction_stats"]["last_interaction"] = time.strftime("%Y-%m-%dT%H:%M:%S.%f")
             
-            # Actualizar temas frecuentes
-            topic = query.split()[0].lower()  # Simplificación - usa primera palabra como tema
+            topic = query.split()[0].lower()
             self.context["interaction_stats"]["frequent_topics"][topic] = \
                 self.context["interaction_stats"]["frequent_topics"].get(topic, 0) + 1
 
-            # Guardar contexto
             context_path = Path(__file__).parent.parent.parent / "data" / "jarvis_context.json"
             with open(context_path, 'w', encoding='utf-8') as f:
                 json.dump(self.context, f, indent=2, ensure_ascii=False)
@@ -240,11 +214,9 @@ class ModelManager:
             logging.error(f"Error actualizando contexto: {e}")
 
     def _build_context_prompt(self) -> str:
-        """Construye el prompt del sistema de forma concisa."""
         profile = self.context.get("assistant_profile", {})
-        model_name = self._select_appropriate_model(0)  # Ejemplo: Se pasa un 0 o la dificultad real
+        model_name = self._select_appropriate_model(0)
         
-        # Tomar la plantilla del JSON según el modelo (local, openai, google)
         model_template = self.context['prompts']['system_context'][model_name]['template']
         
         traits = "\n".join(f"- {trait}" for trait in profile.get('core_traits', []))
@@ -256,5 +228,4 @@ class ModelManager:
         )
 
     def get_history(self) -> List[Dict]:
-        """Returns conversation history."""
         return list(self.conversation_history)

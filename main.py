@@ -24,7 +24,7 @@ from modules.llm.model_manager import ModelManager
 from modules.system_monitor import SystemMonitor
 from modules.text.text_handler import TextHandler
 
-from modules.voice.audio_handler import SimplifiedAudioHandler
+from modules.voice.audio_handler import AudioHandler
 from modules.voice.tts_manager import TTSManager
 
 setup_logging()
@@ -64,7 +64,7 @@ class Jarvis:
 
     def _shutdown_system(self, signum=None, frame=None):
         self.terminal.print_status("Shutting down...")
-        if not self.state['running']:  # Evitar múltiples shutdowns
+        if not self.state['running']:
             return
         try:
             self.state['running'] = False
@@ -102,45 +102,41 @@ class Jarvis:
     def _async_audio_init(self):
         try:
             logging.info("Iniciando inicialización de audio...")
-            try:
-                self.audio = SimplifiedAudioHandler(
-                    terminal_manager=self.terminal,
-                    tts=self.tts,
-                    state=self.state
-                )
-                
-                def audio_processor():
-                    while self.state['running']:
-                        try:
-                            if not self.state['audio_initialized']:
-                                logging.warning("Audio no inicializado, reintentando...")
-                                time.sleep(5)
-                                continue
-                                
-                            if self.audio.listen_for_trigger("jarvis"):
-                                beep()
-                                command_text = self.audio.listen_command()
-                                if command_text:
-                                    self.terminal.update_prompt_state('THINKING')
-                                    self.input_queue.put(('voice', command_text))
-                                self.terminal.update_prompt_state('IDLE')
-                        except Exception as e:
-                            logging.error(f"Error en procesamiento de audio: {e}")
-                            self.state['audio_initialized'] = False
-                        time.sleep(0.1)
+            self.audio = AudioHandler(
+                terminal_manager=self.terminal,
+                tts=self.tts,
+                state=self.state
+            )
+            
+            def audio_processor():
+                while self.state['running']:
+                    try:
+                        # Verificar inicialización
+                        if not self.state['audio_initialized']:
+                            self.state['audio_initialized'] = True
+                            logging.info("Audio inicializado correctamente")
+                            
+                        # Detectar comando
+                        command_text = self.audio.detect_jarvis_command("jarvis")
+                        if command_text:
+                            beep()
+                            self.terminal.update_prompt_state('THINKING')
+                            self.input_queue.put(('voice', command_text))
+                            self.terminal.print_user_input(command_text)
+                            self.terminal.update_prompt_state('IDLE')
+                    except Exception as e:
+                        logging.error(f"Error en procesamiento de audio: {e}")
+                        time.sleep(1)
+                    time.sleep(0.1)
 
-                threading.Thread(target=audio_processor, daemon=True).start()
-                self.state['audio_initialized'] = True
-                self.state['voice_active'] = True
-                self.terminal.print_success("🎤 Voice ready")
-                
-            except AudioError as e:
-                logging.error(f"Error de Audio: {e}")
-                raise
-            except Exception as e:
-                logging.error(f"Error inesperado: {e}")
-                raise
-                
+            # Iniciar el procesador de audio en un thread separado
+            self.audio_thread = threading.Thread(target=audio_processor, daemon=True)
+            self.audio_thread.start()
+            
+            self.state['audio_initialized'] = True
+            self.state['voice_active'] = True
+            self.terminal.print_success("🎤 Voice ready")
+            
         except Exception as e:
             self.state['voice_active'] = False
             self.state['audio_initialized'] = False
@@ -188,9 +184,7 @@ class Jarvis:
                 if hasattr(self, 'tts'):
                     self.tts.stop_speaking()
                 
-                if t == 'text':
-                    self.terminal.print_thinking()
-                
+                self.terminal.print_thinking()
                 response, model_name = self.model.get_response(content)
                 self.terminal.print_response(response, model_name)
                 
