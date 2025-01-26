@@ -18,6 +18,7 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT_DIR)
 
 from utils.error_handler import setup_logging, handle_errors, AudioError, ModelError
+from utils.audio_utils import AudioEffects  # Añadimos el import
 from utils import beep
 from modules.terminal_manager import TerminalManager
 from modules.llm.model_manager import ModelManager
@@ -44,18 +45,21 @@ class Jarvis:
         }
         self.system_monitor = SystemMonitor()
         self.text_handler = None
+        self.audio_effects = AudioEffects()  # Inicializamos AudioEffects
         try:
             self._setup_signal_handlers()
             self._initialize_system()
             self._start_audio_initialization()
             self._initialize_text_mode()
             self.terminal.print_status("System ready")
+            self.audio_effects.play('startup')  # Sonido de inicio
             
             self.monitor_thread = threading.Thread(target=self._system_monitor, daemon=True)
             self.processor_thread = threading.Thread(target=self._process_inputs_loop, daemon=True)
             self.monitor_thread.start()
             self.processor_thread.start()
         except Exception as e:
+            self.audio_effects.play('error')  # Sonido de error
             self.terminal.print_error(f"Initialization error: {e}")
             sys.exit(1)
 
@@ -70,6 +74,8 @@ class Jarvis:
         try:
             self.state['running'] = False
             self.terminal.print_warning("Shutdown signal received...")
+            self.audio_effects.play('shutdown')  # Sonido de apagado
+            time.sleep(0.5)  # Esperamos a que termine el sonido
             
             if hasattr(self, 'monitor_thread'):
                 self.monitor_thread.join(timeout=2)
@@ -124,10 +130,11 @@ class Jarvis:
                         # Detectar comando
                         command_text = self.audio.detect_jarvis_command("jarvis")
                         if command_text:
-                            beep()
+                            self.audio_effects.play('command')
                             self.input_queue.put(('voice', command_text))
                     except Exception as e:
                         logging.error(f"Error en procesamiento de audio: {e}")
+                        self.audio_effects.play('error')
                         time.sleep(1)
                     time.sleep(0.1)
 
@@ -138,10 +145,12 @@ class Jarvis:
             self.state['audio_initialized'] = True
             self.state['voice_active'] = True
             self.terminal.print_success("🎤 Voice ready")
+            self.audio_effects.play('success')
             
         except Exception as e:
             self.state['voice_active'] = False
             self.state['audio_initialized'] = False
+            self.audio_effects.play('error')
             self.terminal.print_warning(f"⌨️ Text mode only: {e}")
             logging.error(f"Audio init error: {e}")
 
@@ -158,6 +167,7 @@ class Jarvis:
     def _handle_critical_error(self, message):
         logging.critical(message)
         self.terminal.print_error(message)
+        self.audio_effects.play('error')  # Sonido de error crítico
         self.state['error_count'] += 1
         if self.state['error_count'] >= self.state['max_errors']:
             self.terminal.print_error("Max error limit reached")

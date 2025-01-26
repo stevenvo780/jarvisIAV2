@@ -3,7 +3,6 @@ import os
 import logging
 import time
 import threading
-from typing import Optional, List, Tuple
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit import print_formatted_text
 from prompt_toolkit.styles import Style
@@ -52,8 +51,8 @@ class TerminalManager:
             'THINKING': "💭",
             'SPEAKING': "🗣️",
             'ERROR': "❌",
-            'IDLE': "🟢",  # Cambiado de ⌨️ a 🟢
-            'VOICE_IDLE': "🟢",  # Cambiado de 🎤 a 🟢
+            'IDLE': "🟢",
+            'VOICE_IDLE': "🟢",
             'CHAT': "💬"
         }
 
@@ -109,7 +108,6 @@ class TerminalManager:
             now = time.time()
             new_prompt = None
             
-            # Evitar actualizaciones muy frecuentes del mismo estado
             if state == self._last_state and (now - self._last_time < 0.5):
                 return
                 
@@ -117,7 +115,6 @@ class TerminalManager:
             self._last_time = now
             state_icon = self.STATES.get(state, "🟢")
             
-            # Determinar el nuevo prompt
             if state in ['LISTENING', 'PROCESSING', 'THINKING']:
                 new_prompt = f"{state_icon}"
             elif message and state == 'ERROR':
@@ -125,7 +122,6 @@ class TerminalManager:
             else:
                 new_prompt = f"{state_icon} > "
             
-            # Solo actualizar si el prompt es diferente
             if new_prompt != self._last_prompt:
                 print("\r" + " " * 100 + "\r", end="", flush=True)
                 print(new_prompt, end="", flush=True)

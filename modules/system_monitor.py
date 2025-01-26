@@ -1,8 +1,6 @@
-import os
 import sys
 import psutil
 import logging
-import shutil
 import sounddevice as sd
 import pygame
 from typing import Dict

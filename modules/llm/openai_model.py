@@ -3,7 +3,7 @@ import logging
 import time
 from typing import Optional, Dict, Any
 from openai import OpenAI, APIError, APIConnectionError, RateLimitError, AuthenticationError
-from utils.prompt_builder import PromptBuilder  # Cambiado a importación absoluta
+from utils.prompt_builder import PromptBuilder
 
 class OpenAIModel:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
