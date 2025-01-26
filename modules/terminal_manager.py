@@ -45,14 +45,13 @@ class TerminalManager:
         }
 
     def _setup_states(self):
-        """Visual states for the system."""
         self.STATES = {
-            'LISTENING': "🎤",
+            'LISTENING': "👂",
             'PROCESSING': "⚡",
             'THINKING': "💭",
             'SPEAKING': "🗣️",
             'ERROR': "❌",
-            'IDLE': "⏸️"
+            'IDLE': "🎤"
         }
 
     def setup_logging(self):
@@ -117,13 +116,18 @@ class TerminalManager:
         now = time.time()
         if state == self._last_state and (now - self._last_time < 1.0):
             return
+            
         self._last_state = state
         self._last_time = now
         state_icon = self.STATES.get(state, "🎤")
+        
+        # Limpiar línea anterior antes de imprimir
+        print("\r" + " " * 100 + "\r", end="", flush=True)
+        
         if message:
-            print(f"\r{state_icon} {message}", end="", flush=True)
+            print(f"{state_icon} {message}", end="", flush=True)
         else:
-            print(f"\r{state_icon}", end="", flush=True)
+            print(f"{state_icon} > ", end="", flush=True)
 
     def print_user_input(self, text: str):
         print_formatted_text(
@@ -133,4 +137,8 @@ class TerminalManager:
 
     def print_voice_detected(self, text: str):
         """Muestra el texto detectado por voz"""
-        print(f"\r🎤 Detectado: {text}")
+        # Limpiar línea anterior
+        print("\r" + " " * 100 + "\r", end="", flush=True)
+        print(f"🎤 Detectado: {text}")
+        # Restaurar prompt
+        print("🎤 > ", end="", flush=True)

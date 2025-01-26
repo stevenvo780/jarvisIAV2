@@ -110,24 +110,26 @@ class Jarvis:
                     try:
                         if self.audio.listen_for_trigger("jarvis"):
                             beep()
-                            self.terminal.update_prompt_state('LISTENING', 'Escuchando comando...')
+                            # Eliminar estado redundante
                             command_text = self.audio.listen_command()
                             if command_text:
                                 self.terminal.update_prompt_state('THINKING')
                                 self.input_queue.put(('voice', command_text))
+                            # Restaurar estado idle con un solo icono
+                            self.terminal.update_prompt_state('IDLE')
                     except Exception as e:
                         logging.error(f"Error en procesamiento de audio: {e}")
                     time.sleep(0.1)
-            
+
             threading.Thread(target=audio_processor, daemon=True).start()
             self.state['audio_initialized'] = True
             self.state['voice_active'] = True
-            self.terminal.print_success("Voice system initialized")
+            self.terminal.print_success("🎤 Voice ready")
             
         except Exception as e:
             self.state['voice_active'] = False
             self.state['audio_initialized'] = False
-            self.terminal.print_warning(f"Fallback to text mode: {e}")
+            self.terminal.print_warning(f"⌨️ Text mode only: {e}")
             logging.error(f"Audio init error: {e}")
 
     def _initialize_text_mode(self):

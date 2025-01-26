@@ -68,14 +68,14 @@ class SimplifiedAudioHandler:
                 if hasattr(self.terminal, 'beep'):
                     self.terminal.beep()
                 if self.terminal:
-                    self.terminal.update_prompt_state('LISTENING', 'Escuchando...')
+                    self.terminal.update_prompt_state('LISTENING', '👂')
                 with self.mic as source:
                     self.recognizer.adjust_for_ambient_noise(source, duration=2)
                     
                     audio = self.recognizer.listen(source, timeout=10, phrase_time_limit=5)
                     
                     if self.terminal:
-                        self.terminal.update_prompt_state('PROCESSING', 'Procesando audio...')
+                        self.terminal.update_prompt_state('PROCESSING', '⚡')
                         self.terminal.print_thinking()
                     
                     try:
@@ -85,10 +85,10 @@ class SimplifiedAudioHandler:
                         return text.lower()
                     except sr.UnknownValueError:
                         if self.terminal:
-                            self.terminal.update_prompt_state('ERROR', "No se entendió el audio")
+                            self.terminal.update_prompt_state('ERROR', "❌ No se entendió el audio")
                     except sr.RequestError as e:
                         if self.terminal:
-                            self.terminal.update_prompt_state('ERROR', f"Error en Speech Recognition: {e}")
+                            self.terminal.update_prompt_state('ERROR', f"❌ Error en Speech Recognition: {e}")
             except Exception as e:
                 if self.terminal:
                     self.terminal.update_prompt_state('ERROR', str(e))
@@ -101,38 +101,36 @@ class SimplifiedAudioHandler:
         return None
 
     def listen_for_trigger(self, trigger_word="jarvis"):
-        """
-        Escucha brevemente en busca de la palabra de activación.
-        Retorna True si detecta el disparador.
-        """
         with self.suppress_stderr():
             try:
                 with self.mic as source:
                     self.recognizer.adjust_for_ambient_noise(source, duration=1)
                     audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=2)
                 text = self.recognizer.recognize_google(audio, language=self.config['audio']['language'])
-                return trigger_word.lower() in text.lower()
+                if trigger_word.lower() in text.lower():
+                    # Simplificar actualización de estado
+                    if self.terminal:
+                        self.terminal.update_prompt_state('LISTENING')
+                    return True
+                return False
             except:
                 return False
 
     def listen_command(self):
-        """
-        Escucha la petición completa tras detectar el disparador.
-        Retorna el texto transcrito o None.
-        """
-        # Aumentar ligeramente la pausa para dar tiempo a hablar
         import time
         time.sleep(0.5)
         with self.suppress_stderr():
             try:
-                if hasattr(self.terminal, 'beep'):
-                    self.terminal.beep()
                 with self.mic as source:
                     self.recognizer.adjust_for_ambient_noise(source, duration=1)
                     audio = self.recognizer.listen(source, timeout=10, phrase_time_limit=10)
                 text = self.recognizer.recognize_google(audio, language=self.config['audio']['language'])
+                if text and self.terminal:
+                    self.terminal.print_voice_detected(text)
                 return text.lower()
             except:
+                if self.terminal:
+                    self.terminal.update_prompt_state('ERROR')
                 return None
 
     def cleanup(self):
