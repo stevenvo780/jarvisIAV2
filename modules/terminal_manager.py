@@ -25,7 +25,6 @@ class TerminalManager:
             'response_default': '#00aaaa',
             'voice_detected': '#00ff00 bold',
             'listening': '#4169E1',
-            'processing': '#FFA500'
         })
         self.current_state = "🎤"
         self._prompt_lock = threading.Lock()

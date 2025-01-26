@@ -1,7 +1,7 @@
 import os
 import tempfile
 import pygame
-import time  # Añadido import time
+import time
 from gtts import gTTS
 import logging
 import threading
@@ -9,6 +9,7 @@ from queue import Queue
 from typing import Optional
 from contextlib import contextmanager
 from utils.error_handler import handle_errors, AudioError
+import json
 
 class TTSManager:
     def __init__(self):
@@ -19,18 +20,17 @@ class TTSManager:
         self.temp_file = os.path.join(self.temp_dir, 'jarvis_speech.mp3')
         self.speech_queue = Queue()
         self.speech_thread = None
-        self.running = True  # Flag para controlar el thread
+        self.running = True
+        self.config_file = os.path.join(os.path.dirname(__file__), '..', '..', 'config.json')
         self._setup_mixer()
         self._start_speech_thread()
     
     def _start_speech_thread(self):
-        """Inicia el hilo de procesamiento de voz"""
         self.speech_thread = threading.Thread(target=self._process_speech_queue, daemon=True)
         self.speech_thread.start()
 
     def _process_speech_queue(self):
-        """Procesa la cola de mensajes de voz"""
-        while self.running:  # Usar flag para control del loop
+        while self.running:
             try:
                 if not self.speech_queue.empty():
                     text = self.speech_queue.get()
@@ -40,13 +40,12 @@ class TTSManager:
                     self._speak_text(text)
                     self.speech_queue.task_done()
                 else:
-                    time.sleep(0.1)  # Evitar CPU alto cuando está idle
+                    time.sleep(0.1)
             except Exception as e:
                 logging.error(f"Error en thread de voz: {e}")
-                time.sleep(1)  # Esperar si hay error
+                time.sleep(1)
 
     def stop_speaking(self):
-        """Detiene la reproducción actual"""
         self.should_stop = True
         if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
             pygame.mixer.music.stop()
@@ -54,7 +53,6 @@ class TTSManager:
         self.should_stop = False
 
     def _speak_text(self, text: str) -> bool:
-        """Reproduce el texto internamente"""
         if not text or self.should_stop:
             return False
 
@@ -91,10 +89,12 @@ class TTSManager:
             self.is_speaking = False
 
     def speak(self, text: str):
-        """Añade texto a la cola de reproducción"""
+        if not self._get_config():
+            return
+            
         if isinstance(text, str) and text.strip():
             if not self.speech_thread or not self.speech_thread.is_alive():
-                self._start_speech_thread()  # Reiniciar thread si murió
+                self._start_speech_thread()
             self.speech_queue.put(text.strip())
             logging.debug(f"Texto añadido a cola: {text[:50]}...")
 
@@ -114,7 +114,6 @@ class TTSManager:
 
     @contextmanager
     def _temp_audio_file(self):
-        """Gestiona el ciclo de vida del archivo temporal de audio"""
         try:
             yield self.temp_file
         finally:
@@ -125,11 +124,10 @@ class TTSManager:
                     logging.warning(f"Error eliminando archivo temporal: {e}")
 
     def cleanup(self):
-        """Limpia recursos"""
-        self.running = False  # Señalizar threads para terminar
+        self.running = False
         self.stop_speaking()
         if self.speech_thread and self.speech_thread.is_alive():
-            self.speech_thread.join(timeout=2)  # Esperar thread
+            self.speech_thread.join(timeout=2)
         try:
             pygame.mixer.quit()
         except Exception as e:
@@ -138,6 +136,15 @@ class TTSManager:
     def configure(self, language: Optional[str] = None) -> None:
         if language:
             self.language = language
+
+    def _get_config(self) -> bool:
+        try:
+            with open(self.config_file, 'r') as f:
+                config = json.load(f)
+                return config.get('audio', {}).get('tts_enabled', True)
+        except Exception as e:
+            logging.error(f"Error reading config: {e}")
+            return True
 
     def __del__(self):
         self.cleanup()

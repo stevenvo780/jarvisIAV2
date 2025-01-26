@@ -7,15 +7,17 @@ import json
 import logging
 from contextlib import contextmanager
 from modules.command_manager import CommandManager
+from utils.audio_utils import AudioEffects
 from utils.error_handler import AudioError
+warnings.filterwarnings("ignore")
 
 class AudioHandler:
     def __init__(self, config_path="config/audio_config.json", terminal_manager=None, tts=None, state=None):
         self.terminal = terminal_manager
+        self.audio_effects = AudioEffects()
         try:
             self._load_config(config_path)
             ctypes.CDLL('libasound.so').snd_lib_error_set_handler(None)
-            warnings.filterwarnings("ignore")
             
             devices = sr.Microphone.list_microphone_names()
             if not devices:
@@ -83,10 +85,9 @@ class AudioHandler:
     def listen(self):
         with self.suppress_stderr():
             try:
-                if hasattr(self.terminal, 'beep'):
-                    self.terminal.beep()
                 if self.terminal:
                     self.terminal.update_prompt_state('LISTENING', '👂')
+                    self.audio_effects.play('thinking')
                 with self.mic as source:
                     self.recognizer.adjust_for_ambient_noise(source, duration=2)
                     audio = self.recognizer.listen(source, timeout=10, phrase_time_limit=5)
@@ -110,8 +111,6 @@ class AudioHandler:
                 if self.terminal:
                     self.terminal.update_prompt_state('ERROR', str(e))
             finally:
-                if hasattr(self.terminal, 'beep'):
-                    self.terminal.beep()
                 if self.terminal:
                     self.terminal.update_prompt_state('IDLE', '')
         return None
