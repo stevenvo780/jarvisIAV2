@@ -120,10 +120,8 @@ class Jarvis:
                         command_text = self.audio.detect_jarvis_command("jarvis")
                         if command_text:
                             beep()
-                            self.terminal.update_prompt_state('THINKING')
                             self.input_queue.put(('voice', command_text))
                             self.terminal.print_user_input(command_text)
-                            self.terminal.update_prompt_state('IDLE')
                     except Exception as e:
                         logging.error(f"Error en procesamiento de audio: {e}")
                         time.sleep(1)

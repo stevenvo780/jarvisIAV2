@@ -2,6 +2,7 @@ import sys
 import os
 import logging
 import time
+import threading
 from typing import Optional, List, Tuple
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit import print_formatted_text
@@ -28,8 +29,10 @@ class TerminalManager:
             'processing': '#FFA500'
         })
         self.current_state = "🎤"
+        self._prompt_lock = threading.Lock()
         self._last_state = None
         self._last_time = 0.0
+        self._last_prompt = None
 
     def _setup_colors(self):
         self.COLORS = {
@@ -102,26 +105,31 @@ class TerminalManager:
         sys.stdout.flush()
 
     def update_prompt_state(self, state: str, message: str = ""):
-        now = time.time()
-        if state == self._last_state and (now - self._last_time < 1.0):
-            return
+        with self._prompt_lock:
+            now = time.time()
+            new_prompt = None
             
-        self._last_state = state
-        self._last_time = now
-        state_icon = self.STATES.get(state, "🟢")
-        
-        # Limpiar línea actual
-        print("\r" + " " * 100 + "\r", end="", flush=True)
-        
-        # Estados especiales sin prompt
-        if state in ['LISTENING', 'PROCESSING', 'THINKING']:
-            print(f"{state_icon}", end="", flush=True)
-        # Estados de error con mensaje
-        elif message and state == 'ERROR':
-            print(f"{state_icon} {message}", end="", flush=True)
-        # Estados normales con prompt
-        else:
-            print(f"{state_icon} > ", end="", flush=True)
+            # Evitar actualizaciones muy frecuentes del mismo estado
+            if state == self._last_state and (now - self._last_time < 0.5):
+                return
+                
+            self._last_state = state
+            self._last_time = now
+            state_icon = self.STATES.get(state, "🟢")
+            
+            # Determinar el nuevo prompt
+            if state in ['LISTENING', 'PROCESSING', 'THINKING']:
+                new_prompt = f"{state_icon}"
+            elif message and state == 'ERROR':
+                new_prompt = f"{state_icon} {message}"
+            else:
+                new_prompt = f"{state_icon} > "
+            
+            # Solo actualizar si el prompt es diferente
+            if new_prompt != self._last_prompt:
+                print("\r" + " " * 100 + "\r", end="", flush=True)
+                print(new_prompt, end="", flush=True)
+                self._last_prompt = new_prompt
 
     def print_user_input(self, text: str):
         print_formatted_text(
@@ -130,8 +138,8 @@ class TerminalManager:
         )
 
     def print_voice_detected(self, text: str):
-        # Limpiar línea actual
-        print("\r" + " " * 100 + "\r", end="", flush=True)
-        print(f"🎤 {text}")
-        # Restaurar prompt con punto verde
-        print("🟢 > ", end="", flush=True)
+        with self._prompt_lock:
+            print("\r" + " " * 100 + "\r", end="", flush=True)
+            print(f"🎤 {text}")
+            self._last_prompt = "🟢 > "
+            print(self._last_prompt, end="", flush=True)
