@@ -23,8 +23,13 @@ class TTSManager:
         self.running = True
         self.config_file = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'config.json')
         self.config = self.load_config()
+        self.audio_buffer = Queue(maxsize=3)  
+        self.current_audio = None
+        self.preload_thread = None
+        self.temp_files = {}  
         self._setup_mixer()
         self._start_speech_thread()
+        self._start_preload_thread()
 
     def load_config(self):
         try:
@@ -38,41 +43,90 @@ class TTSManager:
         self.speech_thread = threading.Thread(target=self._process_speech_queue, daemon=True)
         self.speech_thread.start()
 
-    def _process_speech_queue(self):
+    def _start_preload_thread(self):
+        self.preload_thread = threading.Thread(target=self._preload_audio, daemon=True)
+        self.preload_thread.start()
+
+    def _preload_audio(self):
         while self.running:
             try:
-                if not self.speech_queue.empty():
+                if not self.speech_queue.empty() and self.audio_buffer.qsize() < 3:
                     text = self.speech_queue.get()
-                    
                     if text == "STOP":
                         self.stop_speaking()
                         continue
-                        
-                    if self._speak_text(text):
-                        self.speech_queue.task_done()
-                    else:
-                        self.speech_queue.task_done()
-                        break
+                    
+                    temp_file = os.path.join(self.temp_dir, f'jarvis_speech_{time.time()}.mp3')
+                    tts = gTTS(text=text, lang=self.language, slow=False)
+                    tts.save(temp_file)
+                    self.temp_files[text] = temp_file
+                    self.audio_buffer.put(text)
+                    self.speech_queue.task_done()
                 else:
                     time.sleep(0.1)
             except Exception as e:
-                logging.error(f"Error en thread de voz: {e}")
+                logging.error(f"Error en preload de audio: {e}")
                 time.sleep(1)
+
+    @handle_errors(error_type=AudioError, log_message="Error inicializando mixer")
+    def _setup_mixer(self) -> None:
+        try:
+            pygame.mixer.pre_init(44100, -16, 2, 1024)
+            pygame.mixer.init()
+            pygame.mixer.set_num_channels(32)
+            
+            if not pygame.mixer.get_init():
+                raise AudioError("Mixer no inicializado correctamente")
+            
+            self.current_channel = 0
+            logging.info("Pygame mixer inicializado correctamente")
+        except Exception as e:
+            raise AudioError(f"Error inicializando pygame mixer: {e}")
+
+    def _get_next_channel(self):
+        if not hasattr(self, 'current_channel'):
+            self.current_channel = 0
+        self.current_channel = (self.current_channel + 1) % pygame.mixer.get_num_channels()
+        return pygame.mixer.Channel(self.current_channel)
+
+    def _process_speech_queue(self):
+        while self.running:
+            try:
+                if not self.audio_buffer.empty() and not self.should_stop:
+                    text = self.audio_buffer.get()
+                    temp_file = self.temp_files.get(text)
+                    
+                    if temp_file and os.path.exists(temp_file):
+                        self.is_speaking = True
+                        sound = pygame.mixer.Sound(temp_file)
+                        channel = self._get_next_channel()
+                        channel.play(sound)
+                        
+                        # Esperar a que termine el audio actual
+                        while channel.get_busy() and not self.should_stop:
+                            time.sleep(0.1)
+                            
+                        os.remove(temp_file)
+                        del self.temp_files[text]
+                        self.audio_buffer.task_done()
+                        self.is_speaking = False
+                else:
+                    time.sleep(0.05)
+            except Exception as e:
+                logging.error(f"Error en reproducción de audio: {e}")
+                time.sleep(0.1)
+                self.is_speaking = False
 
     def stop_speaking(self):
         self.should_stop = True
-        
-        # Limpiar cola de reproducción
         while not self.speech_queue.empty():
             try:
                 self.speech_queue.get_nowait()
                 self.speech_queue.task_done()
             except Empty:
                 break
-                
-        if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
-            pygame.mixer.music.stop()
-            
+        
+        pygame.mixer.stop()
         self.is_speaking = False
         self.should_stop = False
 
@@ -119,56 +173,32 @@ class TTSManager:
             return
             
         if isinstance(text, str) and text.strip():
-            chunks = self._split_text(text.strip())
+            chunks = self._split_text(text.strip(), max_length=100)
             
             for chunk in chunks:
                 if chunk:
                     self.speech_queue.put(chunk)
-            
-            logging.debug(f"Texto dividido en {len(chunks)} fragmentos")
 
-    def _split_text(self, text: str) -> List[str]:
-        split_chars = ['.', '!', '?', ';', ',']
+    def _split_text(self, text: str, max_length: int = 80) -> List[str]:
         sentences = []
         current = []
         
-        for char in text:
-            current.append(char)
-            if char in split_chars:
-                sentence = ''.join(current).strip()
-                if sentence:
-                    sentences.append(sentence)
-                current = []
-        
-        if current:
-            sentence = ''.join(current).strip()
-            if sentence:
-                sentences.append(sentence)
-        
-        max_length = 200
-        final_sentences = []
-        for sentence in sentences:
-            if len(sentence) > max_length:
-                parts = [sentence[i:i+max_length] for i in range(0, len(sentence), max_length)]
-                final_sentences.extend(parts)
-            else:
-                final_sentences.append(sentence)
-                
-        return final_sentences
-
-    @handle_errors(error_type=AudioError, log_message="Error inicializando mixer")
-    def _setup_mixer(self) -> None:
-        try:
-            pygame.mixer.pre_init(44100, -16, 2, 2048)
-            pygame.mixer.init()
-            pygame.mixer.set_num_channels(16)
+        for word in text.split():
+            current.append(word)
+            current_text = ' '.join(current)
             
-            if not pygame.mixer.get_init():
-                raise AudioError("Mixer no inicializado correctamente")
+            if len(current_text) > max_length:
+                if current:
+                    sentences.append(' '.join(current[:-1]))
+                    current = [word]
+            elif '.' in word or ',' in word or '?' in word or '!' in word:
+                sentences.append(current_text)
+                current = []
                 
-            logging.info("Pygame mixer inicializado correctamente")
-        except Exception as e:
-            raise AudioError(f"Error inicializando pygame mixer: {e}")
+        if current:
+            sentences.append(' '.join(current))
+            
+        return sentences
 
     @contextmanager
     def _temp_audio_file(self):
@@ -184,8 +214,16 @@ class TTSManager:
     def cleanup(self):
         self.running = False
         self.stop_speaking()
+        for temp_file in self.temp_files.values():
+            if os.path.exists(temp_file):
+                try:
+                    os.remove(temp_file)
+                except OSError:
+                    pass
         if self.speech_thread and self.speech_thread.is_alive():
             self.speech_thread.join(timeout=2)
+        if self.preload_thread and self.preload_thread.is_alive():
+            self.preload_thread.join(timeout=2)
         try:
             pygame.mixer.quit()
         except Exception as e:
