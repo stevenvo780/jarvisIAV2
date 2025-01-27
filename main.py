@@ -8,6 +8,8 @@ import threading
 import signal
 from queue import Queue, Empty
 from dotenv import load_dotenv
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor, Future
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(PROJECT_ROOT, 'src')
@@ -40,9 +42,12 @@ class Jarvis:
         self.system_monitor = SystemMonitor()
         self.text_handler = None
         self.audio_effects = AudioEffects()
+        self.command_handler = None
+        self.executor = ThreadPoolExecutor(max_workers=2)
         try:
             self._setup_signal_handlers()
             self._initialize_system()
+            self._initialize_command_handler()
             self._start_audio_initialization()
             self._initialize_text_mode()
             self.terminal.print_status("System ready")
@@ -69,6 +74,8 @@ class Jarvis:
             self.state['running'] = False
             self.terminal.print_warning("Shutdown signal received...")
             
+            if hasattr(self, 'executor'):
+                self.executor.shutdown(wait=False)
             if hasattr(self, 'monitor_thread'):
                 self.monitor_thread.join(timeout=2)
             if hasattr(self, 'processor_thread'):
@@ -97,6 +104,12 @@ class Jarvis:
         self.tts = TTSManager()
         self.model.set_tts_manager(self.tts)
         self.terminal.print_success("Core system initialized")
+
+    def _initialize_command_handler(self):
+        """Inicializa el manejador de comandos"""
+        from src.modules.command_handler import CommandHandler
+        self.command_handler = CommandHandler(self.model)
+        self.terminal.print_success("Command handler initialized")
 
     def _start_audio_initialization(self):
         t = threading.Thread(target=self._async_audio_init, daemon=True)
@@ -198,12 +211,42 @@ class Jarvis:
                     self.tts.stop_speaking()
                 
                 self.terminal.print_thinking()
-                response, model_name = self.model.get_response(content)
-                self.terminal.print_response(response, model_name)
                 
-                if t == 'voice' or self.state['voice_active']:
-                    if hasattr(self, 'tts'):
-                        self.tts.speak(response)
+                command_future = self.executor.submit(
+                    self.command_handler.process_input, content
+                ) if self.command_handler else None
+                
+                model_future = self.executor.submit(
+                    self.model.get_response, content
+                )
+                
+                if command_future:
+                    try:
+                        response, response_type = command_future.result(timeout=2)
+                        if response_type == "command":
+                            if not model_future.done():
+                                model_future.cancel()
+                            
+                            self.terminal.print_response(response, "system")
+                            if t == 'voice' or self.state['voice_active']:
+                                if hasattr(self, 'tts'):
+                                    self.tts.speak(response)
+                            return
+                    except concurrent.futures.TimeoutError:
+                        logging.warning("Command handler timeout, continuing with model response")
+                    except Exception as e:
+                        logging.error(f"Error en command handler: {e}")
+                
+                try:
+                    response, model_name = model_future.result(timeout=60)
+                    self.terminal.print_response(response, model_name)
+                    if t == 'voice' or self.state['voice_active']:
+                        if hasattr(self, 'tts'):
+                            self.tts.speak(response)
+                except concurrent.futures.TimeoutError:
+                    self.terminal.print_error("Timeout esperando respuesta del modelo")
+                except Exception as e:
+                    self.terminal.print_error(f"Error del modelo: {e}")
             
             self.input_queue.task_done()
             

@@ -16,7 +16,7 @@
         "format": "chat"
       },
       "google": {
-        "template": "Como {name} ({personality}):\n\nPerfil Usuario:\n{user_context}\n\nHistorial Reciente:\n{conversation_history}\n\nContexto:\n{context_memory}\n\nRespuesta:",
+        "template": "Como {name} ({personality}):\n\nInstrucciones:\n- Responde de forma natural sin usar markdown ni formateo especial\n- No uses asteriscos, backticks ni otros elementos de formato\n- Mantén el texto plano y legible\n\nPerfil Usuario:\n{user_context}\n\nHistorial Reciente:\n{conversation_history}\n\nContexto:\n{context_memory}\n\nRespuesta:",
         "format": "text"
       },
       "local": {
@@ -41,11 +41,11 @@
     "learned_topics": []
   },
   "interaction_stats": {
-    "total_interactions": 199,
-    "last_interaction": "2025-01-27T08:16:02.327337",
+    "total_interactions": 219,
+    "last_interaction": "2025-01-27T11:18:39.194376",
     "frequent_topics": {
-      "hola": 70,
-      "cual": 12,
+      "hola": 77,
+      "cual": 14,
       "y": 1,
       "cuentame": 3,
       "que": 6,
@@ -61,7 +61,7 @@
       "cuéntame": 9,
       "mmm": 1,
       "pero": 1,
-      "explícame": 2,
+      "explícame": 5,
       "eso": 1,
       "capital": 6,
       "dónde": 1,
@@ -78,7 +78,12 @@
       "saludo": 1,
       "quien": 1,
       "hola,": 1,
-      "esto": 1
+      "esto": 1,
+      "dime": 1,
+      "limpia": 1,
+      "para": 3,
+      "cuanteme": 2,
+      "abre": 1
     }
   }
 }

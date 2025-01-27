@@ -21,7 +21,7 @@
         "format": "chat"
       },
       "google": {
-        "template": "Como {name} ({personality}):\n\nPerfil Usuario:\n{user_context}\n\nHistorial Reciente:\n{conversation_history}\n\nContexto:\n{context_memory}\n\nRespuesta:",
+        "template": "Como {name} ({personality}):\n\nInstrucciones:\n- Responde de forma natural sin usar markdown ni formateo especial\n- No uses asteriscos, backticks ni otros elementos de formato\n- Mantén el texto plano y legible\n\nPerfil Usuario:\n{user_context}\n\nHistorial Reciente:\n{conversation_history}\n\nContexto:\n{context_memory}\n\nRespuesta:",
         "format": "text"
       },
       "local": {

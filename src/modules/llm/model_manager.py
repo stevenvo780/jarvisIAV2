@@ -151,7 +151,7 @@ class ModelManager:
 
             if not self._validate_query(query):
                 return self.config['system']['error_messages']['security'], "error"
-            
+
             logging.info(f"Consulta recibida: {query}")
             difficulty = self._analyze_query_difficulty(query)
             logging.info(f"Dificultad estimada: {difficulty}")
