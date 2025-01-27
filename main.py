@@ -25,6 +25,7 @@ from src.modules.text.text_handler import TextHandler
 from src.modules.voice.audio_handler import AudioHandler
 from src.modules.voice.tts_manager import TTSManager
 from src.modules.storage_manager import StorageManager
+from src.modules.command_manager import CommandManager
 
 setup_logging()
 
@@ -109,6 +110,7 @@ class Jarvis:
         self.tts = TTSManager()
         self.model.set_tts_manager(self.tts)
         self.terminal.print_success("Core system initialized")
+        self.command_manager = CommandManager(tts=self.tts, state=self.state)
 
     def _initialize_command_handler(self):
         """Inicializa el manejador de comandos"""
@@ -212,6 +214,10 @@ class Jarvis:
             if content.strip():
                 if hasattr(self, 'tts'):
                     self.tts.stop_speaking()
+                
+                handled = self.command_manager.handle_command(content)
+                if handled:
+                    return False, ""
                 
                 self.terminal.print_thinking()
                 

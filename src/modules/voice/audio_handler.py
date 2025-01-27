@@ -7,7 +7,6 @@ import logging
 import time
 import whisper
 from typing import Tuple, Dict
-from src.modules.command_manager import CommandManager
 from src.utils.audio_utils import AudioEffects
 from src.utils.error_handler import AudioError
 
@@ -21,7 +20,7 @@ class AudioHandler:
         self.terminal = terminal_manager
         self.audio_effects = AudioEffects()
         self.running = True
-        self.command_manager = CommandManager(tts=tts, state=state)
+        
         self.model = whisper.load_model("small")
         self.recognizer = self._setup_recognizer()
         self.mic_state = self._initialize_mic_state()
@@ -140,11 +139,6 @@ class AudioHandler:
                 print(f"Texto reconocido: {text}")
                 if trigger_word.lower() in text.lower():
                     remaining_text = text.lower().replace(trigger_word.lower(), '').strip()
-                    
-                    if remaining_text in ['para', 'stop', 'detente', 'silencio']:
-                        response, handled = self.command_manager.handle_command(remaining_text)
-                        if handled:
-                            return True, ""
                     
                     if remaining_text:
                         return True, remaining_text
