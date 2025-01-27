@@ -197,14 +197,14 @@ class ModelManager:
                         context['prompts'][key] = value
                     elif isinstance(value, dict):
                         context['prompts'][key].update(value)
-            
-            self.storage.save_context(context)
+                
         except Exception as e:
             logging.error(f"Error fusionando configuración con contexto: {e}")
+            logging.debug("Continuando con el contexto actual sin fusionar cambios.")
 
     def _build_context_prompt(self, context: Dict, history: list, model_name: str) -> str:
         try:
-            if model_name not in context['prompts']['system_context']:
+            if (model_name not in context['prompts']['system_context']):
                 model_name = 'local'
                 
             template = context['prompts']['system_context'][model_name]['template']

@@ -1,7 +1,7 @@
 import logging
 import warnings
 from typing import Optional, Dict, Any
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import torch
 
 warnings.filterwarnings('ignore', message='Input type into Linear4bit.*')
@@ -13,20 +13,40 @@ class LocalModel:
         self.config = config or {}
         self.model_name = self.config.get("model_name", self.DEFAULT_MODEL_NAME)
         logging.info(f"Cargando modelo: {self.model_name}")
+        
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name,
             padding_side="left",
             add_eos_token=True
         )
         self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.model = AutoModelForCausalLM.from_pretrained(
-            self.model_name,
-            quantization_config={"load_in_4bit": True},
-            device_map="auto",
-            torch_dtype=torch.float16
+        
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=True,
+            llm_int8_enable_fp32_cpu_offload=True
         )
-        self.model.eval()
-        self.model.config.pad_token_id = self.tokenizer.pad_token_id
+        
+        device_map = "auto"
+        if not torch.cuda.is_available():
+            device_map = "cpu"
+            logging.warning("GPU no disponible, usando CPU")
+        
+        try:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.model_name,
+                quantization_config=quantization_config,
+                device_map=device_map,
+                torch_dtype=torch.float16,
+                low_cpu_mem_usage=True
+            )
+            self.model.eval()
+            self.model.config.pad_token_id = self.tokenizer.pad_token_id
+        except Exception as e:
+            logging.error(f"Error al cargar modelo: {e}")
+            raise RuntimeError(f"No se pudo inicializar el modelo: {e}")
 
     def get_response(self, query: str) -> str:
         try:
