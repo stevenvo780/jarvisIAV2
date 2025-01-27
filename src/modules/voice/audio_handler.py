@@ -9,13 +9,17 @@ import logging
 import time
 from typing import Optional, Tuple
 from contextlib import contextmanager
-from modules.command_manager import CommandManager
-from utils.audio_utils import AudioEffects
-from utils.error_handler import AudioError
+from src.modules.command_manager import CommandManager
+from src.utils.audio_utils import AudioEffects
+from src.utils.error_handler import AudioError
 warnings.filterwarnings("ignore")
 
 class AudioHandler:
-    def __init__(self, config_path="config/audio_config.json", terminal_manager=None, tts=None, state=None):
+    def __init__(self, terminal_manager, tts, state):
+        # Actualizar la ruta del archivo de configuración
+        config_path = os.path.join('src', 'config', 'audio_config.json')
+        with open(config_path, 'r') as f:
+            self.config = json.load(f)
         self.terminal = terminal_manager
         self.audio_effects = AudioEffects()
         self.running = True

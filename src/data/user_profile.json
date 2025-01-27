@@ -1,0 +1,18 @@
+{
+  "user_info": {
+    "name": "Steven Vallejo Ortiz",
+    "profession": "Informático y filósofo",
+    "philosophical_profile": {
+      "mente": "Emergentismo: propiedades mentales surgen de la complejidad cerebral",
+      "ser": "Ontología procesual (Badiou)",
+      "ética": "Existencialismo sartreano",
+      "estética": "Perspectiva kantiana"
+    },
+    "knowledge_base": [
+      "Relación filosofía-ciencia",
+      "Teoría de ontologías",
+      "Epistemología científica"
+    ],
+    "personal_site": "https://www.stevenvallejo.com/es"
+  }
+}

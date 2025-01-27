@@ -9,19 +9,22 @@ import signal
 from queue import Queue, Empty
 from dotenv import load_dotenv
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, ROOT_DIR)
+# Asegurarnos que el directorio src está en el path de Python
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+SRC_DIR = os.path.join(PROJECT_ROOT, 'src')
+sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, SRC_DIR)
 
-from utils.error_handler import setup_logging
-from utils.audio_utils import AudioEffects
-from modules.terminal_manager import TerminalManager
-from modules.llm.model_manager import ModelManager
-from modules.system_monitor import SystemMonitor
-from modules.text.text_handler import TextHandler
-
-from modules.voice.audio_handler import AudioHandler
-from modules.voice.tts_manager import TTSManager
-from modules.storage_manager import StorageManager
+# Ahora los imports deberían funcionar correctamente
+from src.utils.error_handler import setup_logging
+from src.utils.audio_utils import AudioEffects
+from src.modules.terminal_manager import TerminalManager
+from src.modules.llm.model_manager import ModelManager
+from src.modules.system_monitor import SystemMonitor
+from src.modules.text.text_handler import TextHandler
+from src.modules.voice.audio_handler import AudioHandler
+from src.modules.voice.tts_manager import TTSManager
+from src.modules.storage_manager import StorageManager
 
 setup_logging()
 
@@ -29,7 +32,6 @@ class Jarvis:
     def __init__(self):
         self.terminal = TerminalManager()
         self.input_queue = Queue()
-        self.audio_init_queue = Queue()
         self.state = {
             'running': True,
             'voice_active': True,

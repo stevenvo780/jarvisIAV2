@@ -2,9 +2,9 @@ import logging
 import os
 import json
 from typing import List, Dict, Tuple
-from .google_model import GoogleModel
-from .openai_model import OpenAIModel
-from .local_model import LocalModel
+from src.modules.llm.google_model import GoogleModel
+from src.modules.llm.openai_model import OpenAIModel
+from src.modules.llm.local_model import LocalModel
 
 class ModelManager:
     CONFIG_DEFAULTS = {
@@ -20,14 +20,49 @@ class ModelManager:
         "log_level": "INFO"
     }
 
-    def __init__(self, storage_manager, config_path: str = "config.json"):
+    def __init__(self, storage_manager, config_path: str = "src/data/config.json", user_profile_path: str = "src/data/user_profile.json"):
         self.storage = storage_manager
         self.config = self._load_config(config_path)
         self._validate_config(self.config)
         self.models = self._initialize_models()
+        self.user_profile = self._load_user_profile(user_profile_path)
         self.difficulty_analyzer = self.models.get('google')
         self.tts = None
+        self._setup_logging()
         logging.info("ModelManager inicializado")
+
+    def _load_user_profile(self, path: str) -> Dict:
+        try:
+            if os.path.exists(path):
+                with open(path, 'r') as f:
+                    return json.load(f).get('user_info', {})
+            return {}
+        except Exception as e:
+            logging.error(f"Error cargando perfil de usuario: {e}")
+            return {}
+
+    def _build_user_context(self) -> str:
+        context_lines = []
+        profile = self.user_profile
+        
+        if profile.get('name'):
+            context_lines.append(f"Usuario: {profile['name']}")
+        if profile.get('profession'):
+            context_lines.append(f"Profesión: {profile['profession']}")
+        
+        if 'knowledge_base' in profile:
+            context_lines.append("\nÁreas de conocimiento:")
+            context_lines.extend([f"- {kb}" for kb in profile['knowledge_base']])
+        
+        if 'philosophical_profile' in profile:
+            context_lines.append("\nPerfil filosófico:")
+            for key, value in profile['philosophical_profile'].items():
+                context_lines.append(f"- {key.capitalize()}: {value}")
+        
+        if profile.get('personal_site'):
+            context_lines.append(f"\nRecurso principal: {profile['personal_site']}")
+        
+        return "\n".join(context_lines) if context_lines else ""
 
     def _load_config(self, config_path: str) -> Dict:
         if not os.path.exists(config_path):
@@ -65,24 +100,12 @@ class ModelManager:
         instantiated = {}
         for model_name in self.config['models']:
             try:
-                if (model_name == "google"):
-                    try:
-                        instantiated[model_name] = GoogleModel()
-                    except Exception as e:
-                        logging.error(f"Error inicializando Google: {e}")
-                        continue
-                elif (model_name == "openai"):
-                    try:
-                        instantiated[model_name] = OpenAIModel()
-                    except Exception as e:
-                        logging.error(f"Error inicializando OpenAI: {e}")
-                        continue
-                elif (model_name == "local"):
-                    try:
-                        instantiated[model_name] = LocalModel()
-                    except Exception as e:
-                        logging.error(f"Error inicializando Local: {e}")
-                        continue
+                if model_name == "google":
+                    instantiated[model_name] = GoogleModel()
+                elif model_name == "openai":
+                    instantiated[model_name] = OpenAIModel()
+                elif model_name == "local":
+                    instantiated[model_name] = LocalModel()
                 else:
                     logging.warning(f"Modelo '{model_name}' no reconocido")
             except Exception as e:
@@ -110,12 +133,8 @@ class ModelManager:
 
     def _analyze_query_difficulty(self, query: str) -> int:
         try:
-            prompt = f"""
-            Por favor analiza la siguiente consulta y califica su dificultad del 1 al 10,
-            donde 1 es muy simple y 10 es muy compleja. Responde solo con el número.
-            
-            Consulta: {query}
-            """
+            prompt = f"""Analiza la complejidad técnica y conceptual de esta consulta, 
+            devuelve solo un número entre 1 y 10: {query}"""
             
             response = self.difficulty_analyzer.get_response(prompt)
             difficulty = int(''.join(filter(str.isdigit, response)))
@@ -165,7 +184,6 @@ class ModelManager:
             enriched_query = f"{system_prompt}\n\n{user_prompt}"
             response = self.models[model_name].get_response(enriched_query)
             
-            # Guardar la interacción
             self.storage.add_interaction({
                 "query": query,
                 "response": response,
@@ -189,12 +207,14 @@ class ModelManager:
             
             history_text = self._format_history(history, format_type)
             memories = self.storage.get_relevant_memories(5)
+            user_context = self._build_user_context()
             
             return template.format(
                 name=context['assistant_profile']['name'],
                 personality=context['assistant_profile']['personality'],
                 conversation_history=history_text,
-                context_memory=memories
+                context_memory=memories,
+                user_context=user_context
             )
         except Exception as e:
             logging.error(f"Error building context prompt: {e}")
@@ -215,4 +235,4 @@ class ModelManager:
         return "\n".join(entries)
 
     def get_history(self) -> List[Dict]:
-        return list(self.conversation_history)
+        return list(self.storage.get_recent_history(self.config['max_history']))

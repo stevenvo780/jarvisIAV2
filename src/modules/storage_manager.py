@@ -6,15 +6,18 @@ from typing import List, Dict, Any
 from pathlib import Path
 
 class StorageManager:
-    def __init__(self, data_dir: str = "data"):
-        self.data_dir = Path(data_dir)
-        self.context_file = self.data_dir / "jarvis_context.json"
-        self.history_file = self.data_dir / "conversation_history.json"
+    def __init__(self, 
+                 history_path: str = "src/data/conversation_history.json",
+                 context_path: str = "src/data/jarvis_context.json"):
+        self.history_file = Path(history_path)
+        self.context_file = Path(context_path)
         self.context = self._load_context()
         self._ensure_storage_exists()
 
     def _ensure_storage_exists(self):
-        self.data_dir.mkdir(exist_ok=True)
+        # Crear los directorios padre si no existen
+        self.history_file.parent.mkdir(parents=True, exist_ok=True)
+        self.context_file.parent.mkdir(parents=True, exist_ok=True)
 
     def _load_context(self) -> Dict:
         if self.context_file.exists():

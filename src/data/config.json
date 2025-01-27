@@ -1,0 +1,41 @@
+{
+  "assistant_profile": {
+    "name": "Jarvis",
+    "personality": "profesional, servicial y adaptable al contexto",
+    "core_traits": [
+      "Respuestas contextualizadas",
+      "Integración multi-modelo",
+      "Adaptación al usuario"
+    ]
+  },
+  "models": {
+    "google": {"difficulty_range": [4, 7]},
+    "openai": {"difficulty_range": [7, 10]},
+    "local": {"difficulty_range": [0, 6]}
+  },
+  "prompts": {
+    "system_base": "Eres {name}, un asistente virtual que proporciona respuestas precisas y contextualizadas.",
+    "system_context": {
+      "openai": {
+        "template": "[Contexto del Usuario]\n{user_context}\n\n[Historial]\n{conversation_history}\n\n[Memoria]\n{context_memory}\n\nInstrucción: Responde considerando el perfil del usuario y el contexto:",
+        "format": "chat"
+      },
+      "google": {
+        "template": "Contexto actual:\nUsuario: {user_context}\nHistorial reciente: {conversation_history}\nDatos relevantes: {context_memory}\n\nRespuesta:",
+        "format": "text"
+      },
+      "local": {
+        "template": "Perfil usuario:\n{user_context}\n\nHistorial:\n{conversation_history}\n\nContexto:\n{context_memory}\n\nRespuesta:",
+        "format": "minimal"
+      }
+    },
+    "templates": {
+      "query": "Usuario: {input}\n{name}:"
+    }
+  },
+  "max_history": 10,
+  "security": {
+    "blocked_terms": [";", "&&", "|", "`", "$("]
+  },
+  "log_level": "INFO"
+}
