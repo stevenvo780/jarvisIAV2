@@ -212,27 +212,19 @@ class Jarvis:
                 
                 self.terminal.print_thinking()
                 
-                # Iniciar el procesamiento del modelo en paralelo
                 model_future = self.executor.submit(
                     self.model.get_response, content
                 )
                 
-                # Procesar comando primero (más rápido)
                 if self.command_handler:
                     response, response_type = self.command_handler.process_input(content)
-                    if response_type == "command":
+                    if response_type in ["command", "error"]:
                         if not model_future.done():
                             model_future.cancel()
-                        self.terminal.print_response(response, "system")
-                        return
-                    elif response_type == "error":
-                        if not model_future.done():
-                            model_future.cancel()
-                        self.terminal.print_error(response)
+                        self.terminal.print_response(response, "system" if response_type == "command" else "error")
+                        self.input_queue.task_done()
                         return
                 
-                # Si no es un comando, esperar la respuesta del modelo
-                # que ya estaba procesándose en paralelo
                 try:
                     response, model_name = model_future.result(timeout=60)
                     self.terminal.print_response(response, model_name)

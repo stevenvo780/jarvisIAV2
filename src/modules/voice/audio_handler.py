@@ -26,37 +26,23 @@ class AudioHandler:
         self.recognizer = self._setup_recognizer()
         self.mic = self._setup_microphone()
         self.mic_state = self._initialize_mic_state()
-        self.speech_config = {
-            'short_phrase': {
-                'timeout': 5,
-                'phrase_timeout': 3,
-                'energy_threshold': 4000
-            },
-            'long_phrase': {
-                'timeout': 10,
-                'phrase_timeout': 15,
-                'energy_threshold': 3500
-            },
-            'adaptive': {
-                'base_timeout': 5,
-                'max_timeout': 15,
-                'timeout_increment': 0.5,
-                'energy_adjustment': 100
-            }
-        }
-        self.max_retries = 3
-        self.retry_delay = 1.0
+        
+        # Usamos valores del config.json
+        self.max_retries = self.config['triggers']['max_retries']
+        self.retry_delay = self.config['triggers']['retry_delay']
         self.last_trigger_time = 0
-        self.min_trigger_interval = 0.5  # Reducido a 0.5s ya que Whisper es más preciso
+        self.min_trigger_interval = self.config['triggers']['min_interval']
         logging.info("Audio Handler initialized")
         if self.terminal:
             self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
 
     def _setup_recognizer(self) -> sr.Recognizer:
         r = sr.Recognizer()
-        r.energy_threshold = 1000  # Umbral bajo, solo para detectar voz vs silencio
-        r.dynamic_energy_threshold = True
-        r.pause_threshold = 0.8
+        r.energy_threshold = self.config['audio']['energy_threshold']
+        r.dynamic_energy_threshold = self.config['audio']['dynamic_energy']
+        r.pause_threshold = self.config['audio']['pause_threshold']
+        r.phrase_threshold = self.config['audio']['phrase_threshold']
+        r.non_speaking_duration = self.config['audio']['non_speaking_duration']
         return r
 
     def _setup_microphone(self) -> sr.Microphone:
@@ -165,10 +151,11 @@ class AudioHandler:
         try:
             mic = self._get_mic_instance()
             with mic as source:
+                self.recognizer.energy_threshold = self.config['speech_modes']['short_phrase']['energy_threshold']
                 audio_data = self.recognizer.listen(
                     source, 
-                    timeout=3,
-                    phrase_time_limit=1
+                    timeout=self.config['speech_modes']['short_phrase']['timeout'],
+                    phrase_time_limit=self.config['speech_modes']['short_phrase']['phrase_timeout']
                 )
                 
                 text = self._transcribe_audio(audio_data)
@@ -197,11 +184,18 @@ class AudioHandler:
                 self.terminal.update_prompt_state('LISTENING', '👂 Waiting for command...')
             self.audio_effects.play('listening')
             
-            # Usar nueva instancia de micrófono
             mic = self._get_mic_instance()
             with mic as source:
-                self.recognizer.energy_threshold = 4000
-                audio_data = self.recognizer.listen(source, timeout=5, phrase_time_limit=2)
+                self.recognizer.energy_threshold = self.config['speech_modes']['long_phrase']['energy_threshold']
+                self.recognizer.pause_threshold = self.config['speech_modes']['adaptive']['silence_threshold']
+                
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                
+                audio_data = self.recognizer.listen(
+                    source,
+                    timeout=self.config['speech_modes']['long_phrase']['timeout'],
+                    phrase_time_limit=self.config['speech_modes']['long_phrase']['phrase_timeout']
+                )
                 
                 if self.terminal:
                     self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
