@@ -122,8 +122,7 @@ class AudioHandler:
                 
                 audio_data = self.recognizer.listen(
                     source, 
-                    timeout=timeout,
-                    phrase_time_limit=phrase_timeout
+                    timeout=None
                 )
                 
                 if self.terminal:
