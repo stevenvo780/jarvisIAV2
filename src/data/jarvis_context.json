@@ -37,14 +37,14 @@
     "learned_topics": []
   },
   "interaction_stats": {
-    "total_interactions": 185,
-    "last_interaction": "2025-01-26T23:35:25.054362",
+    "total_interactions": 187,
+    "last_interaction": "2025-01-26T23:36:49.004981",
     "frequent_topics": {
       "hola": 62,
       "cual": 12,
       "y": 1,
       "cuentame": 3,
-      "que": 5,
+      "que": 6,
       "dame": 2,
       "como": 6,
       "explicale": 1,
@@ -67,7 +67,7 @@
       "qué": 11,
       "10": 1,
       "√2": 1,
-      "de": 1,
+      "de": 2,
       "el": 1,
       "buenos": 1,
       "quién": 1,

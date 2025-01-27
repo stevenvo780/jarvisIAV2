@@ -7,19 +7,6 @@ from src.modules.llm.openai_model import OpenAIModel
 from src.modules.llm.local_model import LocalModel
 
 class ModelManager:
-    CONFIG_DEFAULTS = {
-        "models": {
-            "google": {"difficulty_range": [2, 8]},
-            "openai": {"difficulty_range": [8, 10]},
-            "local": {"difficulty_range": [0, 2]}
-        },
-        "max_history": 10,
-        "security": {
-            "blocked_terms": [";", "&&", "|", "`", "$("]
-        },
-        "log_level": "INFO"
-    }
-
     def __init__(self, storage_manager, config_path: str = "src/config/config.json", user_profile_path: str = "src/data/user_profile.json"):
         self.storage = storage_manager
         self.config = self._load_config(config_path)
@@ -66,16 +53,12 @@ class ModelManager:
         return "\n".join(context_lines) if context_lines else ""
 
     def _load_config(self, config_path: str) -> Dict:
-        if not os.path.exists(config_path):
-            return dict(self.CONFIG_DEFAULTS)
         try:
             with open(config_path, 'r') as f:
-                file_conf = json.load(f)
-        except (json.JSONDecodeError, ValueError):
-            file_conf = {}
-        merged_conf = dict(self.CONFIG_DEFAULTS)
-        merged_conf.update(file_conf)
-        return merged_conf
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"Error cargando configuración: {e}")
+            raise RuntimeError("No se pudo cargar la configuración necesaria")
 
     def _validate_config(self, config: Dict) -> Dict:
         if not isinstance(config.get("models"), dict):
@@ -134,19 +117,14 @@ class ModelManager:
 
     def _analyze_query_difficulty(self, query: str) -> int:
         try:
-            prompt = f"""
-            Por favor analiza la siguiente consulta y califica su dificultad del 1 al 10,
-            donde 1 es muy simple y 10 es muy compleja. Responde solo con el número.
-            
-            Consulta: {query}
-            """
-            
+            template = self.config['prompts']['difficulty_analysis']['template']
+            prompt = template.format(query=query)
             response = self.difficulty_analyzer.get_response(prompt)
             difficulty = int(''.join(filter(str.isdigit, response)))
             return min(max(difficulty, 1), 10)
         except Exception as e:
             logging.warning(f"Error analizando dificultad: {e}")
-            return 5
+            return self.config['prompts']['difficulty_analysis']['default_difficulty']
 
     def _select_appropriate_model(self, difficulty: int) -> str:
         available_models = self.models.keys()
@@ -168,11 +146,11 @@ class ModelManager:
 
     def get_response(self, query: str) -> Tuple[str, str]:
         try:
-            if query.lower().strip() in ['stop', 'para', 'detente', 'silencio']:
-                return "He detenido la reproducción.", "system"
+            if query.lower().strip() in self.config['system']['stop_commands']:
+                return "Vale", "system"
 
             if not self._validate_query(query):
-                return "Lo siento, tu consulta no puede ser procesada por razones de seguridad.", "error"
+                return self.config['system']['error_messages']['security'], "error"
             
             logging.info(f"Consulta recibida: {query}")
             difficulty = self._analyze_query_difficulty(query)
@@ -180,7 +158,7 @@ class ModelManager:
             model_name = self._select_appropriate_model(difficulty)
             
             context = self.storage.get_context()
-            history = self.storage.get_recent_history(3)
+            history = self.storage.get_recent_history(self.config['system']['history']['default_size'])
             
             system_prompt = self._build_context_prompt(context, history, model_name)
             user_prompt = context['prompts']['templates']['query'].format(
@@ -202,7 +180,7 @@ class ModelManager:
             
         except Exception as e:
             logging.error(f"Error procesando consulta: {e}")
-            return "Lo siento, ha ocurrido un error procesando tu consulta.", "error"
+            return self.config['system']['error_messages']['general'], "error"
 
     def _merge_config_with_context(self):
         try:
@@ -233,7 +211,9 @@ class ModelManager:
             format_type = context['prompts']['system_context'][model_name]['format']
             
             history_text = self._format_history(history, format_type)
-            memories = self.storage.get_relevant_memories(5)
+            memories = self.storage.get_relevant_memories(
+                self.config['system']['history']['memories_size']
+            )
             user_context = self._build_user_context()
             
             prompt_data = {
@@ -254,7 +234,7 @@ class ModelManager:
 
     def _format_history(self, history: list, format_type: str) -> str:
         if not history:
-            return "Sin historial reciente"
+            return self.config['system']['history']['empty_message']
             
         entries = []
         for entry in history:

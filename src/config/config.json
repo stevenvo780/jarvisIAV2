@@ -31,11 +31,27 @@
     },
     "templates": {
       "query": "Usuario: {input}\n{name}:"
+    },
+    "difficulty_analysis": {
+      "template": "Analiza la siguiente consulta y asigna una dificultad del 1 al 10 usando estos criterios:\n\n1 - Saludos básicos y conversación casual\n(Ej: \"Hola\", \"¿Cómo estás?\", \"Gracias\")\n2 - Preguntas simples/fácticas\n(Ej: \"¿Qué hora es?\", \"Háblame del tiempo\")\n3-4 - Solicitudes básicas con contexto simple\n(Ej: \"Pon una alarma a las 5\", \"Busca en Wikipedia...\")\n5-6 - Consultas que requieren análisis o integración de datos\n(Ej: \"Compara specs de estos smartphones\")\n7-8 - Razonamiento complejo o técnico\n(Ej: \"Explica la teoría de la relatividad\")\n9-10 - Temas abstractos/filosóficos o altamente especializados\n(Ej: \"¿Cuál es el sentido de la vida?\")\n\nConsidera:\n- Complejidad lingüística\n- Conocimiento requerido\n- Profundidad de análisis necesario\n- Ambigüedad o abstracción\nSolo responde con el número correspondiente, sin formato ni explicaciones.\n\nConsulta: \"{query}\"",
+      "default_difficulty": 5
     }
   },
   "max_history": 10,
   "security": {
     "blocked_terms": [";", "&&", "|", "`", "$("]
   },
-  "log_level": "INFO"
+  "log_level": "INFO",
+  "system": {
+    "stop_commands": ["stop", "para", "detente", "silencio"],
+    "error_messages": {
+      "security": "Lo siento, tu consulta no puede ser procesada por razones de seguridad.",
+      "general": "Lo siento, ha ocurrido un error procesando tu consulta."
+    },
+    "history": {
+      "default_size": 3,
+      "memories_size": 5,
+      "empty_message": "Sin historial reciente"
+    }
+  }
 }

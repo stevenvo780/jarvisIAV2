@@ -140,13 +140,11 @@ class TTSManager:
                     sentences.append(sentence)
                 current = []
         
-        # Añadir el último fragmento si queda texto
         if current:
             sentence = ''.join(current).strip()
             if sentence:
                 sentences.append(sentence)
         
-        # Dividir fragmentos largos sin puntuación
         max_length = 200
         final_sentences = []
         for sentence in sentences:
