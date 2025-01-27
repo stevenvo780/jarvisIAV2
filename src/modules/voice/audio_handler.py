@@ -186,7 +186,7 @@ class AudioHandler:
                 
                 audio_data = self.recognizer.listen(
                     source,
-                    timeout=self.config['speech_modes']['long_phrase']['timeout'],
+                    timeout=None,
                     phrase_time_limit=self.config['speech_modes']['long_phrase']['phrase_timeout']
                 )
                 
