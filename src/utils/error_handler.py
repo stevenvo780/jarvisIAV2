@@ -2,52 +2,54 @@ import logging
 import os
 from typing import Any, Type, Callable
 from functools import wraps
+from logging.handlers import RotatingFileHandler
 
 class JarvisError(Exception):
-    """Clase base para excepciones de Jarvis"""
     pass
 
 class AudioError(JarvisError):
-    """Error relacionado con el audio"""
     pass
 
 class AudioDeviceError(AudioError):
-    """Error específico para problemas con dispositivos de audio"""
     pass
 
 class AudioServiceError(AudioError):
-    """Error específico para problemas con servicios de audio"""
     pass
 
 class AudioConfigError(AudioError):
-    """Error específico para problemas de configuración de audio"""
     pass
 
 class PortAudioError(AudioError):
-    """Error específico para problemas con PortAudio"""
     pass
 
 class ModelError(JarvisError):
-    """Error relacionado con los modelos de IA"""
     pass
 
 class ConfigError(JarvisError):
-    """Errores relacionados con la configuración"""
     pass
 
 def setup_logging(log_dir: str = "logs", level: int = logging.INFO) -> None:
-    """Configura el sistema de logging"""
     os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, "jarvis.log")
+    backup_file = os.path.join(log_dir, "jarvis.log.backup")
     
-    # Configuración básica
-    logging.basicConfig(
-        filename=os.path.join(log_dir, "jarvis.log"),
-        level=level,
-        format="%(asctime)s - %(levelname)s - %(message)s",
+    handler = RotatingFileHandler(
+        filename=log_file,
+        maxBytes=5_242_880,  # 5MB
+        backupCount=1,
+        encoding='utf-8'
+    )
+    
+    formatter = logging.Formatter(
+        fmt="%(asctime)s - %(levelname)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
     
-    # Silenciar loggers ruidosos
+    handler.setFormatter(formatter)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    root_logger.addHandler(handler)
+    
     noisy_loggers = [
         'alsa', 'ALSA', 'jack', 'JACK', 'pulse', 'pygame',
         'portaudio', 'comtypes', 'speechrecognition'

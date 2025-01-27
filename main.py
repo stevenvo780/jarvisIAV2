@@ -9,13 +9,11 @@ import signal
 from queue import Queue, Empty
 from dotenv import load_dotenv
 
-# Asegurarnos que el directorio src está en el path de Python
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(PROJECT_ROOT, 'src')
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, SRC_DIR)
 
-# Ahora los imports deberían funcionar correctamente
 from src.utils.error_handler import setup_logging
 from src.utils.audio_utils import AudioEffects
 from src.modules.terminal_manager import TerminalManager

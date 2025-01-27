@@ -189,7 +189,6 @@ class ModelManager:
             )
             
             enriched_query = f"{system_prompt}\n\n{user_prompt}"
-            print(enriched_query)
             response = self.models[model_name].get_response(enriched_query)
             
             self.storage.add_interaction({
