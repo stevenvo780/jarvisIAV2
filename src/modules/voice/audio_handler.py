@@ -168,7 +168,7 @@ class AudioHandler:
                 audio_data = self.recognizer.listen(
                     source, 
                     timeout=3,
-                    phrase_time_limit=3
+                    phrase_time_limit=1
                 )
                 
                 text = self._transcribe_audio(audio_data)
@@ -201,7 +201,7 @@ class AudioHandler:
             mic = self._get_mic_instance()
             with mic as source:
                 self.recognizer.energy_threshold = 4000
-                audio_data = self.recognizer.listen(source, timeout=5, phrase_time_limit=7)
+                audio_data = self.recognizer.listen(source, timeout=5, phrase_time_limit=2)
                 
                 if self.terminal:
                     self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')

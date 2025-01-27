@@ -102,9 +102,12 @@ class TTSManager:
                         channel = self._get_next_channel()
                         channel.play(sound)
                         
-                        # Esperar a que termine el audio actual
                         while channel.get_busy() and not self.should_stop:
                             time.sleep(0.1)
+                        
+                        if self.should_stop:
+                            self.audio_buffer.task_done()
+                            break
                             
                         os.remove(temp_file)
                         del self.temp_files[text]
@@ -123,6 +126,17 @@ class TTSManager:
             try:
                 self.speech_queue.get_nowait()
                 self.speech_queue.task_done()
+            except Empty:
+                break
+                
+        while not self.audio_buffer.empty():
+            try:
+                text = self.audio_buffer.get_nowait()
+                temp_file = self.temp_files.get(text)
+                if temp_file and os.path.exists(temp_file):
+                    os.remove(temp_file)
+                    del self.temp_files[text]
+                self.audio_buffer.task_done()
             except Empty:
                 break
         

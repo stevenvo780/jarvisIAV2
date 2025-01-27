@@ -221,7 +221,6 @@ class Jarvis:
                 if self.command_handler:
                     response, response_type = self.command_handler.process_input(content)
                     if response_type == "command":
-                        # Si es un comando, cancelar el procesamiento del modelo
                         if not model_future.done():
                             model_future.cancel()
                         self.terminal.print_response(response, "system")
