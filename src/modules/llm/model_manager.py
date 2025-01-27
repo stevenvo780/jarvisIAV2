@@ -134,8 +134,12 @@ class ModelManager:
 
     def _analyze_query_difficulty(self, query: str) -> int:
         try:
-            prompt = f"""Analiza la complejidad técnica y conceptual de esta consulta, 
-            devuelve solo un número entre 1 y 10: {query}"""
+            prompt = f"""
+            Por favor analiza la siguiente consulta y califica su dificultad del 1 al 10,
+            donde 1 es muy simple y 10 es muy compleja. Responde solo con el número.
+            
+            Consulta: {query}
+            """
             
             response = self.difficulty_analyzer.get_response(prompt)
             difficulty = int(''.join(filter(str.isdigit, response)))
