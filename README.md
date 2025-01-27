@@ -2,6 +2,8 @@
 
 Asistente virtual con capacidades de procesamiento de voz y texto.
 
+## Estructura del Proyecto
+
 ## Requisitos Previos
 
 ```bash

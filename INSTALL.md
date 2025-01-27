@@ -1,6 +1,15 @@
-# Instrucciones de Instalación
+# Instalación de Jarvis IA V2
 
-## Linux (Ubuntu/Debian)
+## Requisitos del Sistema
+
+- Python 3.10+
+- pip
+- Dispositivos de audio (micrófono/altavoces)
+- 8GB RAM mínimo
+
+## Dependencias del Sistema
+
+### Ubuntu/Debian
 
 1. Instalar dependencias del sistema:
 ```bash

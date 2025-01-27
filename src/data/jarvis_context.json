@@ -38,11 +38,11 @@
     "learned_topics": []
   },
   "interaction_stats": {
-    "total_interactions": 166,
-    "last_interaction": "2025-01-26T23:01:00.837156",
+    "total_interactions": 169,
+    "last_interaction": "2025-01-26T23:02:00.626489",
     "frequent_topics": {
       "hola": 56,
-      "cual": 8,
+      "cual": 10,
       "y": 1,
       "cuentame": 3,
       "que": 4,
@@ -55,7 +55,7 @@
       "jarvis": 9,
       "cuál": 21,
       "cómo": 13,
-      "cuéntame": 8,
+      "cuéntame": 9,
       "mmm": 1,
       "pero": 1,
       "explícame": 2,
