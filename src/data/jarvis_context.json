@@ -29,6 +29,10 @@
       "error": "Error: {message}",
       "thinking": "Procesando solicitud...",
       "clarification": "¿Podrías aclarar tu pregunta?"
+    },
+    "difficulty_analysis": {
+      "template": "Analiza la siguiente consulta y asigna una dificultad del 1 al 10 usando estos criterios:\n\n1 - Saludos básicos y conversación casual\n(Ej: \"Hola\", \"¿Cómo estás?\", \"Gracias\")\n2 - Preguntas simples/fácticas\n(Ej: \"¿Qué hora es?\", \"Háblame del tiempo\")\n3-4 - Solicitudes básicas con contexto simple\n(Ej: \"Pon una alarma a las 5\", \"Busca en Wikipedia...\")\n5-6 - Consultas que requieren análisis o integración de datos\n(Ej: \"Compara specs de estos smartphones\")\n7-8 - Razonamiento complejo o técnico\n(Ej: \"Explica la teoría de la relatividad\")\n9-10 - Temas abstractos/filosóficos o altamente especializados\n(Ej: \"¿Cuál es el sentido de la vida?\")\n\nConsidera:\n- Complejidad lingüística\n- Conocimiento requerido\n- Profundidad de análisis necesario\n- Ambigüedad o abstracción\nSolo responde con el número correspondiente, sin formato ni explicaciones.\n\nConsulta: \"{query}\"",
+      "default_difficulty": 5
     }
   },
   "memories": {
@@ -37,16 +41,16 @@
     "learned_topics": []
   },
   "interaction_stats": {
-    "total_interactions": 187,
-    "last_interaction": "2025-01-26T23:36:49.004981",
+    "total_interactions": 191,
+    "last_interaction": "2025-01-27T00:17:46.950976",
     "frequent_topics": {
-      "hola": 62,
+      "hola": 63,
       "cual": 12,
       "y": 1,
       "cuentame": 3,
       "que": 6,
       "dame": 2,
-      "como": 6,
+      "como": 9,
       "explicale": 1,
       "bien": 2,
       "algo": 1,

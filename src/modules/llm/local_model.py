@@ -8,8 +8,6 @@ warnings.filterwarnings('ignore', message='Input type into Linear4bit.*')
 
 class LocalModel:
     DEFAULT_MODEL_NAME = "meta-llama/Llama-3.2-3B"
-    SYSTEM_PROMPT = """Eres Jarvis, un asistente que responde siempre en español, de forma concisa y amable. 
-No incluyas roles ni menciones innecesarias. Contesta únicamente con el mensaje final."""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
@@ -32,7 +30,7 @@ No incluyas roles ni menciones innecesarias. Contesta únicamente con el mensaje
 
     def get_response(self, query: str) -> str:
         try:
-            prompt = f"{self.SYSTEM_PROMPT}\n\nPregunta: {query}\nRespuesta:"
+            prompt = query
             encoded = self.tokenizer(
                 prompt,
                 return_tensors="pt",
