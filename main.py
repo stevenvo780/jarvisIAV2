@@ -124,9 +124,9 @@ class Jarvis:
                         if triggered:
                             self.audio_effects.play('command')
                             
-                            if command:  # Si ya viene un comando con "jarvis"
+                            if command:
                                 self.input_queue.put(('voice', command))
-                            else:  # Si solo se dijo "jarvis", esperar comando
+                            else:
                                 command_text = self.audio.listen_command()
                                 if command_text:
                                     self.input_queue.put(('voice', command_text))

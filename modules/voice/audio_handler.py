@@ -186,7 +186,7 @@ class AudioHandler:
             if self.terminal:
                 self.terminal.update_prompt_state('LISTENING', '👂 Esperando comando...')
             
-            self.audio_effects.play('listening', volume=0.3)
+            self.audio_effects.play('listening')
             
             with self.mic as source:
                 self.recognizer.energy_threshold = 4000

@@ -36,7 +36,7 @@ class AudioEffects:
             'error': 'error.mp3',
             'ready': 'ready.mp3',
             'thinking': 'listening.mp3',
-            'command': 'ready.mp3',
+            'command': 'listening.mp3',
             'notification': 'ready.mp3',
             'listening': 'listening.mp3'
         }

@@ -38,10 +38,10 @@
     "learned_topics": []
   },
   "interaction_stats": {
-    "total_interactions": 160,
-    "last_interaction": "2025-01-26T21:05:38.080869",
+    "total_interactions": 162,
+    "last_interaction": "2025-01-26T21:07:50.636110",
     "frequent_topics": {
-      "hola": 54,
+      "hola": 55,
       "cual": 8,
       "y": 1,
       "cuentame": 3,
@@ -71,7 +71,8 @@
       "de": 1,
       "el": 1,
       "buenos": 1,
-      "quién": 1
+      "quién": 1,
+      "saludo": 1
     }
   }
 }
