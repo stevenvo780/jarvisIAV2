@@ -170,6 +170,7 @@ class ModelManager:
                 return "Lo siento, tu consulta no puede ser procesada por razones de seguridad.", "error"
             
             difficulty = self._analyze_query_difficulty(query)
+            logging.info(f"Dificultad estimada: {difficulty}")
             model_name = self._select_appropriate_model(difficulty)
             
             context = self.storage.get_context()
