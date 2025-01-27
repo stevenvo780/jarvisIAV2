@@ -80,12 +80,19 @@ class Jarvis:
                 self.monitor_thread.join(timeout=2)
             if hasattr(self, 'processor_thread'):
                 self.processor_thread.join(timeout=2)
-                
-            if self.text_handler:
+            
+            if hasattr(self, 'audio'):
+                self.audio.cleanup()
+            if hasattr(self, 'text_handler'):
                 self.text_handler.stop()
             if hasattr(self, 'tts'):
                 self.tts.cleanup()
+                
+            if hasattr(self, 'model'):
+                del self.model
+                
             self.terminal.print_goodbye()
+            
         except Exception as e:
             logging.error(f"Shutdown error: {str(e)}")
         finally:

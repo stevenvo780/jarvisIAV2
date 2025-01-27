@@ -24,8 +24,8 @@ class AudioHandler:
         self.command_manager = CommandManager(tts=tts, state=state)
         self.model = whisper.load_model("base")
         self.recognizer = self._setup_recognizer()
-        self.mic = self._setup_microphone()
         self.mic_state = self._initialize_mic_state()
+        self._setup_audio_system()
         
         self.max_retries = self.config['triggers']['max_retries']
         self.retry_delay = self.config['triggers']['retry_delay']
@@ -43,13 +43,14 @@ class AudioHandler:
         r.non_speaking_duration = self.config['audio']['non_speaking_duration']
         return r
 
-    def _setup_microphone(self) -> sr.Microphone:
-        device_index = self.config['audio'].get('device_index')
-        return sr.Microphone(device_index=device_index)
-
-    def _get_mic_instance(self) -> sr.Microphone:
-        """Crear una nueva instancia de micrófono para cada operación"""
-        return sr.Microphone(device_index=self.config['audio'].get('device_index'))
+    def _setup_audio_system(self):
+        """Configuración única del sistema de audio"""
+        self.device_index = self.config['audio'].get('device_index')
+        self.mic = sr.Microphone(device_index=self.device_index)
+        
+        with self.mic as source:
+            self.recognizer.adjust_for_ambient_noise(source, duration=1)
+            logging.info(f"Micrófono calibrado - Umbral: {self.recognizer.energy_threshold}")
 
     def _initialize_mic_state(self) -> Dict:
         return {
@@ -81,9 +82,25 @@ class AudioHandler:
             logging.error(f"Error resetting microphone: {e}")
             return False
 
-    def _transcribe_audio(self, audio_data) -> str:
+    def cleanup(self):
         try:
-            temp_wav = "temp_audio.wav"
+            if hasattr(self, 'model'):
+                del self.model
+            if hasattr(self, 'mic'):
+                del self.mic
+            if hasattr(self, 'recognizer'):
+                del self.recognizer
+            self.running = False
+            logging.info("AudioHandler recursos liberados")
+        except Exception as e:
+            logging.error(f"Error en cleanup: {e}")
+
+    def _transcribe_audio(self, audio_data) -> str:
+        if not self.running:
+            return ""
+            
+        temp_wav = os.path.join(os.getcwd(), "temp_audio.wav")
+        try:
             with open(temp_wav, "wb") as f:
                 f.write(audio_data.get_wav_data())
             
@@ -94,47 +111,37 @@ class AudioHandler:
                 fp16=False
             )
             
-            os.remove(temp_wav)
             return result["text"].strip().lower()
         except Exception as e:
             logging.error(f"Error en transcripción: {e}")
             return ""
+        finally:
+            if os.path.exists(temp_wav):
+                try:
+                    os.remove(temp_wav)
+                except:
+                    pass
 
     def listen_audio_once(self, timeout=5, phrase_timeout=3) -> str:
+        """Usar la instancia única del micrófono"""
         self.terminal.update_prompt_state('LISTENING', '👂 Listening...')
-        
         try:
-            mic = self._get_mic_instance()
-            with mic as source:
+            with self.mic as source:
                 self.mic_state['is_active'] = True
-                
-                audio_data = self.recognizer.listen(
-                    source, 
-                    timeout=None
-                )
-                
-                self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
-                
-                text = self._transcribe_audio(audio_data)
-                if text:
-                    self.terminal.print_voice_detected(text)
-                    return text.lower()
-                return ""
-
+                audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_timeout)
+                return self._transcribe_audio(audio)
         except Exception as e:
-            logging.error(f"Error in listen_audio_once: {e}")
+            logging.error(f"Error en captura de audio: {e}")
             return ""
         finally:
             self.mic_state['is_active'] = False
-            self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
 
     def listen_for_trigger(self, trigger_word="jarvis") -> Tuple[bool, str]:
         if time.time() - self.last_trigger_time < self.min_trigger_interval:
             return False, ""
             
         try:
-            mic = self._get_mic_instance()
-            with mic as source:
+            with self.mic as source:
                 self.recognizer.energy_threshold = self.config['speech_modes']['short_phrase']['energy_threshold']
                 audio_data = self.recognizer.listen(
                     source, 
@@ -166,8 +173,7 @@ class AudioHandler:
             self.terminal.update_prompt_state('LISTENING', '👂 Waiting for command...')
             self.audio_effects.play('listening')
             
-            mic = self._get_mic_instance()
-            with mic as source:
+            with self.mic as source:
                 self.recognizer.energy_threshold = self.config['speech_modes']['long_phrase']['energy_threshold']
                 self.recognizer.pause_threshold = self.config['speech_modes']['adaptive']['silence_threshold']
                 
