@@ -205,17 +205,14 @@ class ModelManager:
             return "Lo siento, ha ocurrido un error procesando tu consulta.", "error"
 
     def _merge_config_with_context(self):
-        """Fusiona la configuración con el contexto del asistente"""
         try:
             context = self.storage.get_context()
             if not context:
                 return
             
-            # Actualiza el perfil del asistente
             if 'assistant_profile' in self.config:
                 context['assistant_profile'].update(self.config['assistant_profile'])
             
-            # Actualiza prompts y templates
             if 'prompts' in self.config:
                 for key, value in self.config['prompts'].items():
                     if key not in context['prompts']:
@@ -239,7 +236,6 @@ class ModelManager:
             memories = self.storage.get_relevant_memories(5)
             user_context = self._build_user_context()
             
-            # Construye el prompt con toda la información disponible
             prompt_data = {
                 'name': context['assistant_profile']['name'],
                 'personality': context['assistant_profile']['personality'],

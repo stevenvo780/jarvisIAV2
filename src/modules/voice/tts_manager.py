@@ -5,8 +5,8 @@ import time
 from gtts import gTTS
 import logging
 import threading
-from queue import Queue
-from typing import Optional
+from queue import Queue, Empty
+from typing import Optional, List
 from contextlib import contextmanager
 from utils.error_handler import handle_errors, AudioError
 import json
@@ -43,11 +43,16 @@ class TTSManager:
             try:
                 if not self.speech_queue.empty():
                     text = self.speech_queue.get()
+                    
                     if text == "STOP":
                         self.stop_speaking()
                         continue
-                    self._speak_text(text)
-                    self.speech_queue.task_done()
+                        
+                    if self._speak_text(text):
+                        self.speech_queue.task_done()
+                    else:
+                        self.speech_queue.task_done()
+                        break
                 else:
                     time.sleep(0.1)
             except Exception as e:
@@ -56,8 +61,18 @@ class TTSManager:
 
     def stop_speaking(self):
         self.should_stop = True
+        
+        # Limpiar cola de reproducción
+        while not self.speech_queue.empty():
+            try:
+                self.speech_queue.get_nowait()
+                self.speech_queue.task_done()
+            except Empty:
+                break
+                
         if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
             pygame.mixer.music.stop()
+            
         self.is_speaking = False
         self.should_stop = False
 
@@ -79,8 +94,10 @@ class TTSManager:
                     try:
                         pygame.mixer.music.load(self.temp_file)
                         pygame.mixer.music.play()
+                        
                         while pygame.mixer.music.get_busy() and not self.should_stop:
                             pygame.time.Clock().tick(10)
+                            
                         break
                     except Exception as e:
                         retries -= 1
@@ -102,10 +119,44 @@ class TTSManager:
             return
             
         if isinstance(text, str) and text.strip():
-            if not self.speech_thread or not self.speech_thread.is_alive():
-                self._start_speech_thread()
-            self.speech_queue.put(text.strip())
-            logging.debug(f"Texto añadido a cola: {text[:50]}...")
+            chunks = self._split_text(text.strip())
+            
+            for chunk in chunks:
+                if chunk:
+                    self.speech_queue.put(chunk)
+            
+            logging.debug(f"Texto dividido en {len(chunks)} fragmentos")
+
+    def _split_text(self, text: str) -> List[str]:
+        split_chars = ['.', '!', '?', ';', ',']
+        sentences = []
+        current = []
+        
+        for char in text:
+            current.append(char)
+            if char in split_chars:
+                sentence = ''.join(current).strip()
+                if sentence:
+                    sentences.append(sentence)
+                current = []
+        
+        # Añadir el último fragmento si queda texto
+        if current:
+            sentence = ''.join(current).strip()
+            if sentence:
+                sentences.append(sentence)
+        
+        # Dividir fragmentos largos sin puntuación
+        max_length = 200
+        final_sentences = []
+        for sentence in sentences:
+            if len(sentence) > max_length:
+                parts = [sentence[i:i+max_length] for i in range(0, len(sentence), max_length)]
+                final_sentences.extend(parts)
+            else:
+                final_sentences.append(sentence)
+                
+        return final_sentences
 
     @handle_errors(error_type=AudioError, log_message="Error inicializando mixer")
     def _setup_mixer(self) -> None:
