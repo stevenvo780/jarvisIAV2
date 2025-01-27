@@ -21,10 +21,19 @@ class TTSManager:
         self.speech_queue = Queue()
         self.speech_thread = None
         self.running = True
-        self.config_file = os.path.join(os.path.dirname(__file__), '..', '..', 'config.json')
+        self.config_file = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'config.json')
+        self.config = self.load_config()
         self._setup_mixer()
         self._start_speech_thread()
-    
+
+    def load_config(self):
+        try:
+            with open(self.config_file, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"Error loading config: {e}")
+            return {"audio": {"tts_enabled": True}}
+
     def _start_speech_thread(self):
         self.speech_thread = threading.Thread(target=self._process_speech_queue, daemon=True)
         self.speech_thread.start()
@@ -138,13 +147,7 @@ class TTSManager:
             self.language = language
 
     def _get_config(self) -> bool:
-        try:
-            with open(self.config_file, 'r') as f:
-                config = json.load(f)
-                return config.get('audio', {}).get('tts_enabled', True)
-        except Exception as e:
-            logging.error(f"Error reading config: {e}")
-            return True
+        return self.config.get('audio', {}).get('tts_enabled', True)
 
     def __del__(self):
         self.cleanup()

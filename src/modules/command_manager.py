@@ -7,7 +7,7 @@ class CommandManager:
         self.tts = tts
         self.state = state or {}
         self.audio_effects = audio_effects
-        self.config_file = os.path.join(os.path.dirname(__file__), '..', 'config.json')
+        self.config_file = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.json')
         self.load_config()
 
     def load_config(self):

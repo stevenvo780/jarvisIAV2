@@ -18,7 +18,7 @@ class AudioEffects:
                 
         self.sounds: Dict[str, Optional[pygame.mixer.Sound]] = {}
         self.base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'assets', 'sounds'))
-        self.config_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config.json'))
+        self.config_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'config', 'config.json'))
         self._load_sounds()
 
     def _get_config(self) -> bool:

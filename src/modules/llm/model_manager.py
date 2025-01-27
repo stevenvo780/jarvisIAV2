@@ -20,7 +20,7 @@ class ModelManager:
         "log_level": "INFO"
     }
 
-    def __init__(self, storage_manager, config_path: str = "src/data/config.json", user_profile_path: str = "src/data/user_profile.json"):
+    def __init__(self, storage_manager, config_path: str = "src/config/config.json", user_profile_path: str = "src/data/user_profile.json"):
         self.storage = storage_manager
         self.config = self._load_config(config_path)
         self._validate_config(self.config)
