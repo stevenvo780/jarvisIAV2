@@ -1,11 +1,11 @@
 {
   "audio": {
-    "device_index": 6,
-    "device_name": "USB Microphone: Audio (hw:1,0)",
-    "sample_rate": 48000,
-    "language": "es-ES",
-    "energy_threshold": 4000,
+    "device_index": null,
+    "energy_threshold": 2000,
     "dynamic_energy": true,
-    "pause_threshold": 0.5
+    "pause_threshold": 0.5,
+    "phrase_threshold": 0.3,
+    "non_speaking_duration": 0.3,
+    "sample_rate": 16000
   }
 }
