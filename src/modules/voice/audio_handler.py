@@ -27,14 +27,12 @@ class AudioHandler:
         self.mic = self._setup_microphone()
         self.mic_state = self._initialize_mic_state()
         
-        # Usamos valores del config.json
         self.max_retries = self.config['triggers']['max_retries']
         self.retry_delay = self.config['triggers']['retry_delay']
         self.last_trigger_time = 0
         self.min_trigger_interval = self.config['triggers']['min_interval']
         logging.info("Audio Handler initialized")
-        if self.terminal:
-            self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
+        self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
 
     def _setup_recognizer(self) -> sr.Recognizer:
         r = sr.Recognizer()
@@ -83,9 +81,6 @@ class AudioHandler:
             logging.error(f"Error resetting microphone: {e}")
             return False
 
-    def _combine_audio_data(self, audio1, audio2):
-        return audio1
-
     def _transcribe_audio(self, audio_data) -> str:
         try:
             temp_wav = "temp_audio.wav"
@@ -106,8 +101,7 @@ class AudioHandler:
             return ""
 
     def listen_audio_once(self, timeout=5, phrase_timeout=3) -> str:
-        if self.terminal:
-            self.terminal.update_prompt_state('LISTENING', '👂 Listening...')
+        self.terminal.update_prompt_state('LISTENING', '👂 Listening...')
         
         try:
             mic = self._get_mic_instance()
@@ -119,13 +113,11 @@ class AudioHandler:
                     timeout=None
                 )
                 
-                if self.terminal:
-                    self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
+                self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
                 
                 text = self._transcribe_audio(audio_data)
                 if text:
-                    if self.terminal:
-                        self.terminal.print_voice_detected(text)
+                    self.terminal.print_voice_detected(text)
                     return text.lower()
                 return ""
 
@@ -134,8 +126,7 @@ class AudioHandler:
             return ""
         finally:
             self.mic_state['is_active'] = False
-            if self.terminal:
-                self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
+            self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
 
     def listen_for_trigger(self, trigger_word="jarvis") -> Tuple[bool, str]:
         if time.time() - self.last_trigger_time < self.min_trigger_interval:
@@ -157,8 +148,7 @@ class AudioHandler:
                     self.last_trigger_time = time.time()
                     remaining_text = text.lower().replace(trigger_word.lower(), '').strip()
                     
-                    if self.terminal:
-                        self.terminal.update_prompt_state('TRIGGERED', '🎯 Trigger detected')
+                    self.terminal.update_prompt_state('TRIGGERED', '🎯 Trigger detected')
                     
                     if remaining_text:
                         return True, remaining_text
@@ -173,8 +163,7 @@ class AudioHandler:
 
     def listen_command(self) -> str:
         try:
-            if self.terminal:
-                self.terminal.update_prompt_state('LISTENING', '👂 Waiting for command...')
+            self.terminal.update_prompt_state('LISTENING', '👂 Waiting for command...')
             self.audio_effects.play('listening')
             
             mic = self._get_mic_instance()
@@ -190,18 +179,15 @@ class AudioHandler:
                     phrase_time_limit=self.config['speech_modes']['long_phrase']['phrase_timeout']
                 )
                 
-                if self.terminal:
-                    self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
+                self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
                 
                 text = self._transcribe_audio(audio_data)
                 if text:
-                    if self.terminal:
-                        self.terminal.print_voice_detected(text)
+                    self.terminal.print_voice_detected(text)
                     return text
                     
         except Exception as e:
             logging.error(f"Error in listen_command: {e}")
         finally:
-            if self.terminal:
-                self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
+            self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
         return ""

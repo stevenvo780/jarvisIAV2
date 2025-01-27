@@ -129,7 +129,6 @@ class Jarvis:
                             self.state['audio_initialized'] = True
                             logging.info("Audio inicializado correctamente")
                             
-                        # Escuchar trigger y posible comando
                         triggered, command = self.audio.listen_for_trigger("jarvis")
                         
                         if triggered:
