@@ -43,10 +43,6 @@ class StorageManager:
         try:
             self.context["interaction_stats"]["total_interactions"] += 1
             self.context["interaction_stats"]["last_interaction"] = datetime.now().isoformat()
-            
-            topic = interaction["query"].split()[0].lower()
-            self.context["interaction_stats"]["frequent_topics"][topic] = \
-                self.context["interaction_stats"]["frequent_topics"].get(topic, 0) + 1
 
             self.context_file.write_text(
                 json.dumps(self.context, indent=2, ensure_ascii=False),
