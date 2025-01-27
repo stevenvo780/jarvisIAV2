@@ -22,15 +22,11 @@ class AudioHandler:
         self.audio_effects = AudioEffects()
         self.running = True
         self.command_manager = CommandManager(tts=tts, state=state)
-        self.model = whisper.load_model("base")
+        self.model = whisper.load_model("small")
         self.recognizer = self._setup_recognizer()
         self.mic_state = self._initialize_mic_state()
         self._setup_audio_system()
         
-        self.max_retries = self.config['triggers']['max_retries']
-        self.retry_delay = self.config['triggers']['retry_delay']
-        self.last_trigger_time = 0
-        self.min_trigger_interval = self.config['triggers']['min_interval']
         logging.info("Audio Handler initialized")
         self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
 
@@ -44,7 +40,6 @@ class AudioHandler:
         return r
 
     def _setup_audio_system(self):
-        """Configuración única del sistema de audio"""
         self.device_index = self.config['audio'].get('device_index')
         self.mic = sr.Microphone(device_index=self.device_index)
         
@@ -61,12 +56,6 @@ class AudioHandler:
             'speech_duration': 0,
             'last_energy_level': 0
         }
-
-    def _adjust_thresholds(self, d: float) -> None:
-        if d > 5:
-            self.recognizer.pause_threshold = min(1.5, 0.8 + (d * 0.05))
-            self.recognizer.phrase_threshold = min(0.8, 0.3 + (d * 0.03))
-            self.recognizer.non_speaking_duration = min(1.2, 0.5 + (d * 0.04))
 
     def _reset_mic(self) -> bool:
         try:
@@ -108,7 +97,8 @@ class AudioHandler:
                 temp_wav, 
                 language="es",
                 initial_prompt="Jarvis asistente virtual",
-                fp16=False
+                fp16=False,
+                temperature=0.3
             )
             
             return result["text"].strip().lower()
@@ -123,7 +113,6 @@ class AudioHandler:
                     pass
 
     def listen_audio_once(self, timeout=5, phrase_timeout=3) -> str:
-        """Usar la instancia única del micrófono"""
         self.terminal.update_prompt_state('LISTENING', '👂 Listening...')
         try:
             with self.mic as source:
@@ -137,25 +126,25 @@ class AudioHandler:
             self.mic_state['is_active'] = False
 
     def listen_for_trigger(self, trigger_word="jarvis") -> Tuple[bool, str]:
-        if time.time() - self.last_trigger_time < self.min_trigger_interval:
-            return False, ""
             
         try:
             with self.mic as source:
                 self.recognizer.energy_threshold = self.config['speech_modes']['short_phrase']['energy_threshold']
+                self.recognizer.pause_threshold = self.config['speech_modes']['short_phrase']['pause_threshold']
                 audio_data = self.recognizer.listen(
-                    source, 
-                    timeout=self.config['speech_modes']['short_phrase']['timeout'],
-                    phrase_time_limit=self.config['speech_modes']['short_phrase']['phrase_timeout']
+                    source,
+                    timeout=None,
                 )
                 
                 text = self._transcribe_audio(audio_data)
-                
+                print(f"Texto reconocido: {text}")
                 if trigger_word.lower() in text.lower():
-                    self.last_trigger_time = time.time()
                     remaining_text = text.lower().replace(trigger_word.lower(), '').strip()
                     
-                    self.terminal.update_prompt_state('TRIGGERED', '🎯 Trigger detected')
+                    if remaining_text in ['para', 'stop', 'detente', 'silencio']:
+                        response, handled = self.command_manager.handle_command(remaining_text)
+                        if handled:
+                            return True, ""
                     
                     if remaining_text:
                         return True, remaining_text
@@ -182,7 +171,6 @@ class AudioHandler:
                 audio_data = self.recognizer.listen(
                     source,
                     timeout=None,
-                    phrase_time_limit=self.config['speech_modes']['long_phrase']['phrase_timeout']
                 )
                 
                 self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')

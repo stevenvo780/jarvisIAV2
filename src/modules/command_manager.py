@@ -27,7 +27,14 @@ class CommandManager:
 
     def handle_command(self, command: str):
         try:
-            parts = command.lower().strip().split()
+            command = command.lower().strip()
+            
+            if command in ['para', 'stop', 'detente', 'silencio']:
+                if self.tts:
+                    self.tts.stop_speaking()
+                return "Comando detenido", True
+
+            parts = command.split()
             main_cmd = parts[0]
 
             if main_cmd == 'config':
@@ -66,4 +73,4 @@ class CommandManager:
 
         except Exception as e:
             logging.error(f"Error handling command: {e}")
-            return f"Error: {str(e)}"
+            return f"Error: {str(e)}", False

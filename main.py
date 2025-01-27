@@ -197,7 +197,6 @@ class Jarvis:
                 else:
                     self.state['error_count'] += 1
                     f = [k.replace('_ok','') for k,v in status.items() if not v]
-                    self.terminal.print_warning(f"Alert: {', '.join(f)} failure")
                     logging.warning(f"Compromised: {f}")
                     time.sleep(5)
             except Exception as e:
