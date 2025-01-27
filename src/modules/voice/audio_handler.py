@@ -51,15 +51,6 @@ class AudioHandler:
             'consecutive_failures': 0
         }
 
-    def _reset_mic(self):
-        if self.mic_state['consecutive_failures'] > 3:
-            self.mic = sr.Microphone(device_index=self.config['audio']['device_index'])
-            with self.mic as source:
-                self.recognizer.adjust_for_ambient_noise(source, duration=1)
-            self.mic_state['consecutive_failures'] = 0
-            return True
-        return False
-
     def cleanup(self):
         if hasattr(self, 'model'):
             del self.model
@@ -108,7 +99,7 @@ class AudioHandler:
                 )
                 
                 text = self._transcribe_audio(audio_data)
-                
+                print(f"Texto reconocido: {text}")
                 if re.search(rf'\b{re.escape(trigger_word)}\b', text, re.IGNORECASE):
                     cleaned_text = re.sub(
                         rf'\b{re.escape(trigger_word)}\b',
