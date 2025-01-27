@@ -1,27 +1,36 @@
 {
   "audio": {
     "device_index": null,
-    "energy_threshold": 200,
-    "dynamic_energy": true,
+    "energy_threshold": 400,
+    "dynamic_energy": false,
     "pause_threshold": 0.8,
-    "phrase_threshold": 0.3,
+    "phrase_threshold": 0.4,
     "non_speaking_duration": 0.5,
-    "sample_rate": 16000
+    "sample_rate": 16000,
+    "operation_timeout": 5
   },
   "speech_modes": {
     "short_phrase": {
-      "pause_threshold": 0.5,
-      "energy_threshold": 250
+      "energy_threshold": 250,
+      "dynamic_energy": true,
+      "pause_threshold": 0.55,
+      "phrase_threshold": 0.25,
+      "non_speaking_duration": 0.3,
+      "operation_timeout": 3
     },
     "long_phrase": {
-      "energy_threshold": 300
+      "energy_threshold": 300,
+      "dynamic_energy": true,
+      "pause_threshold": 1.5,
+      "phrase_threshold": 0.6,
+      "non_speaking_duration": 0.4,
+      "operation_timeout": null
     },
     "adaptive": {
       "base_timeout": 5,
-      "max_timeout": null,
-      "timeout_increment": 0.1,
-      "energy_adjustment": 100,
-      "silence_threshold": 2.0
+      "max_timeout": 15,
+      "min_command_length": 3,
+      "silence_threshold": 1.5
     }
   }
 }
