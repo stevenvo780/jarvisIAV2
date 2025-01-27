@@ -182,9 +182,12 @@ class Jarvis:
                     f = [k.replace('_ok','') for k,v in status.items() if not v]
                     self.terminal.print_warning(f"Alert: {', '.join(f)} failure")
                     logging.warning(f"Compromised: {f}")
-                time.sleep(5)
+                    time.sleep(5)
             except Exception as e:
                 logging.error(f"Monitor error: {str(e)}")
+                if self.state['error_count'] >= self.state['max_errors']:
+                    sys.exit(1)
+            time.sleep(1)
 
     def _process_inputs(self):
         try:

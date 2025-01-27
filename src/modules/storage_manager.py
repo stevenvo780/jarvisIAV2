@@ -15,7 +15,6 @@ class StorageManager:
         self._ensure_storage_exists()
 
     def _ensure_storage_exists(self):
-        # Crear los directorios padre si no existen
         self.history_file.parent.mkdir(parents=True, exist_ok=True)
         self.context_file.parent.mkdir(parents=True, exist_ok=True)
 
