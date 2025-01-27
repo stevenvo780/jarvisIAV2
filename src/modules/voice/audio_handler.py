@@ -105,12 +105,6 @@ class AudioHandler:
             logging.error(f"Error en transcripción: {e}")
             return ""
 
-    def cleanup(self):
-        self.running = False
-        self.mic_state['is_active'] = False
-        if self.terminal:
-            self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Off')
-
     def listen_audio_once(self, timeout=5, phrase_timeout=3) -> str:
         if self.terminal:
             self.terminal.update_prompt_state('LISTENING', '👂 Listening...')

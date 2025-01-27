@@ -85,8 +85,6 @@ class Jarvis:
                 self.text_handler.stop()
             if hasattr(self, 'tts'):
                 self.tts.cleanup()
-            if hasattr(self, 'audio'):
-                self.audio.cleanup()
             self.terminal.print_goodbye()
         except Exception as e:
             logging.error(f"Shutdown error: {str(e)}")
