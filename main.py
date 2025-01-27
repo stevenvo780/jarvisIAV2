@@ -114,16 +114,23 @@ class Jarvis:
             def audio_processor():
                 while self.state['running']:
                     try:
-                        # Verificar inicialización
                         if not self.state['audio_initialized']:
                             self.state['audio_initialized'] = True
                             logging.info("Audio inicializado correctamente")
                             
-                        # Detectar comando
-                        command_text = self.audio.detect_jarvis_command("jarvis")
-                        if command_text:
+                        # Escuchar trigger y posible comando
+                        triggered, command = self.audio.listen_for_trigger("jarvis")
+                        
+                        if triggered:
                             self.audio_effects.play('command')
-                            self.input_queue.put(('voice', command_text))
+                            
+                            if command:  # Si ya viene un comando con "jarvis"
+                                self.input_queue.put(('voice', command))
+                            else:  # Si solo se dijo "jarvis", esperar comando
+                                command_text = self.audio.listen_command()
+                                if command_text:
+                                    self.input_queue.put(('voice', command_text))
+                                    
                     except Exception as e:
                         logging.error(f"Error en procesamiento de audio: {e}")
                         self.audio_effects.play('error')
@@ -158,7 +165,7 @@ class Jarvis:
     def _handle_critical_error(self, message):
         logging.critical(message)
         self.terminal.print_error(message)
-        self.audio_effects.play('error')  # Sonido de error crítico
+        self.audio_effects.play('error')
         self.state['error_count'] += 1
         if self.state['error_count'] >= self.state['max_errors']:
             self.terminal.print_error("Max error limit reached")

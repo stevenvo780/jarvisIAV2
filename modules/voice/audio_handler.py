@@ -17,132 +17,43 @@ class AudioHandler:
     def __init__(self, config_path="config/audio_config.json", terminal_manager=None, tts=None, state=None):
         self.terminal = terminal_manager
         self.audio_effects = AudioEffects()
+        self.running = True
+        self.command_manager = CommandManager(tts=tts, state=state)
+        
         try:
-            self._load_config(config_path)
-            ctypes.CDLL('libasound.so').snd_lib_error_set_handler(None)
-            
-            devices = sr.Microphone.list_microphone_names()
-            if not devices:
-                raise AudioError("No se encontraron dispositivos de audio")
-                
-            if self.config['audio']['device_index'] >= len(devices):
-                logging.warning(f"Índice de dispositivo inválido {self.config['audio']['device_index']}, usando default")
-                self.config['audio']['device_index'] = None
-            
             self.recognizer = sr.Recognizer()
-            self.recognizer.energy_threshold = self.config['audio']['energy_threshold']
-            self.recognizer.dynamic_energy_threshold = self.config['audio']['dynamic_energy']
-            self.recognizer.pause_threshold = self.config['audio']['pause_threshold']
+            self.recognizer.energy_threshold = 4000
+            self.recognizer.dynamic_energy_threshold = True
+            self.recognizer.pause_threshold = 0.8
+            self.recognizer.phrase_threshold = 0.3
+            self.recognizer.non_speaking_duration = 0.5
             
-            self.mic = sr.Microphone(device_index=self.config['audio']['device_index'])
-            
+            self.mic = sr.Microphone(device_index=None)
             with self.mic as source:
                 self.recognizer.adjust_for_ambient_noise(source, duration=1)
-                
-            self.running = True
-            self.command_manager = CommandManager(tts=tts, state=state)
+            
+            self.max_retries = 3
+            self.retry_delay = 1.0
+            self.mic_state = {
+                'is_active': False,
+                'last_successful': 0,
+                'consecutive_failures': 0,
+                'waiting_for_command': False
+            }
+            
             logging.info("Audio inicializado correctamente")
+            if self.terminal:
+                self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
             
         except Exception as e:
             logging.error(f"Error inicializando audio: {e}")
             raise AudioError(f"Error de inicialización: {e}")
 
-        self.max_retries = 3
-        self.retry_delay = 1.0
-        self.mic_state = {
-            'is_active': False,
-            'last_successful': 0,
-            'consecutive_failures': 0
-        }
-
-    def _load_config(self, config_path):
-        try:
-            with open(config_path, 'r') as f:
-                self.config = json.load(f)
-        except Exception as e:
-            self.config = {
-                "audio": {
-                    "device_index": 6,
-                    "device_name": "USB Microphone",
-                    "sample_rate": 48000,
-                    "language": "es-ES",
-                    "energy_threshold": 4000,
-                    "dynamic_energy": True,
-                    "pause_threshold": 0.5
-                }
-            }
-
-    @contextmanager
-    def suppress_stderr(self):
-        devnull = os.open(os.devnull, os.O_WRONLY)
-        old_stderr = os.dup(2)
-        sys.stderr.flush()
-        os.dup2(devnull, 2)
-        os.close(devnull)
-        try:
-            yield
-        finally:
-            os.dup2(old_stderr, 2)
-            os.close(old_stderr)
-
-    def list_devices(self):
-        with self.suppress_stderr():
-            devices = sr.Microphone.list_microphone_names()
-            for idx, name in enumerate(devices):
-                print(f"[{idx}] {name}")
-        return devices
-
-    def listen(self):
-        with self.suppress_stderr():
-            try:
-                if self.terminal:
-                    self.terminal.update_prompt_state('LISTENING', '👂')
-                    self.audio_effects.play('thinking')
-                with self.mic as source:
-                    self.recognizer.adjust_for_ambient_noise(source, duration=2)
-                    audio = self.recognizer.listen(source, timeout=10, phrase_time_limit=5)
-                    
-                    if self.terminal:
-                        self.terminal.update_prompt_state('PROCESSING', '⚡')
-                        self.terminal.print_thinking()
-                    
-                    try:
-                        text = self.recognizer.recognize_google(audio, language=self.config['audio']['language'])
-                        if self.terminal:
-                            self.terminal.print_voice_detected(text)
-                        return text.lower()
-                    except sr.UnknownValueError:
-                        if self.terminal:
-                            self.terminal.update_prompt_state('ERROR', "❌ No se entendió el audio")
-                    except sr.RequestError as e:
-                        if self.terminal:
-                            self.terminal.update_prompt_state('ERROR', f"❌ Error en Speech Recognition: {e}")
-            except Exception as e:
-                if self.terminal:
-                    self.terminal.update_prompt_state('ERROR', str(e))
-            finally:
-                if self.terminal:
-                    self.terminal.update_prompt_state('IDLE', '')
-        return None
-
-    def listen_for_trigger(self, trigger_word="jarvis"):
-        with self.suppress_stderr():
-            try:
-                with self.mic as source:
-                    self.recognizer.adjust_for_ambient_noise(source, duration=1)
-                    audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=2)
-                text = self.recognizer.recognize_google(audio, language=self.config['audio']['language'])
-                if trigger_word.lower() in text.lower():
-                    if self.terminal:
-                        self.terminal.update_prompt_state('LISTENING')
-                    return True
-                return False
-            except:
-                return False
-
     def cleanup(self):
         self.running = False
         self.mic_state['is_active'] = False
+        if self.terminal:
+            self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Off')
 
     def _reset_mic(self) -> bool:
         try:
@@ -158,67 +69,67 @@ class AudioHandler:
             logging.error(f"Error reseteando micrófono: {e}")
             return False
 
-    def _dynamic_timeout_adjustment(self) -> Tuple[float, float]:
-        base_timeout = 5
-        base_phrase_timeout = 3
-        
-        if self.mic_state['consecutive_failures'] > 0:
-            timeout = min(base_timeout + self.mic_state['consecutive_failures'], 10)
-            phrase_timeout = min(base_phrase_timeout + (self.mic_state['consecutive_failures'] * 0.5), 7)
-        else:
-            timeout = base_timeout
-            phrase_timeout = base_phrase_timeout
+    def listen_audio_once(self, timeout=5, phrase_timeout=3) -> str:
+        if self.terminal:
+            status = '👂 Esperando comando...' if self.mic_state['waiting_for_command'] else '👂 Listening...'
+            self.terminal.update_prompt_state('LISTENING', status)
             
-        return timeout, phrase_timeout
-
-    def listen_audio_once(self) -> str:
         attempts = 0
         last_error = None
 
-        while attempts < self.max_retries:
+        while attempts < self.max_retries and self.running:
             try:
                 if self._reset_mic():
                     self.audio_effects.play('ready', volume=0.3)
                 
-                timeout, phrase_timeout = self._dynamic_timeout_adjustment()
+                timeout = 5 + (self.mic_state['consecutive_failures'])
+                phrase_timeout = 3 + (self.mic_state['consecutive_failures'] * 0.5)
                 
                 with self.mic as source:
                     if time.time() - self.mic_state['last_successful'] > 30:
+                        if self.terminal:
+                            self.terminal.update_prompt_state('CALIBRATING', '⚡ Calibrating...')
                         self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
                     
-                    try:
-                        self.mic_state['is_active'] = True
-                        audio = self.recognizer.listen(
-                            source,
-                            timeout=timeout,
-                            phrase_time_limit=phrase_timeout
-                        )
+                    self.mic_state['is_active'] = True
+                    if self.terminal:
+                        self.terminal.update_prompt_state('LISTENING', '👂 Listening...')
                         
-                        text = self.recognizer.recognize_google(
-                            audio,
-                            language=self.config['audio']['language']
-                        )
-                        
-                        # Éxito en el reconocimiento
-                        self.mic_state.update({
-                            'last_successful': time.time(),
-                            'consecutive_failures': 0
-                        })
-                        return text.lower()
-                        
-                    except sr.WaitTimeoutError:
-                        last_error = "Timeout esperando audio"
-                        self.mic_state['consecutive_failures'] += 1
-                    except sr.UnknownValueError:
-                        last_error = "No se pudo entender el audio"
-                        if attempts == self.max_retries - 1:
-                            self.audio_effects.play('error', volume=0.3)
-                    except sr.RequestError as e:
-                        last_error = f"Error en el servicio de reconocimiento: {e}"
-                        
-            except Exception as e:
-                last_error = str(e)
-                logging.error(f"Error en listen_audio_once: {e}")
+                    audio = self.recognizer.listen(
+                        source,
+                        timeout=min(timeout, 10),
+                        phrase_time_limit=min(phrase_timeout, 7)
+                    )
+                    
+                    if self.terminal:
+                        self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
+                    
+                    text = self.recognizer.recognize_google(
+                        audio,
+                        language='es-ES'
+                    )
+                    
+                    self.mic_state.update({
+                        'last_successful': time.time(),
+                        'consecutive_failures': 0
+                    })
+                    return text.lower()
+                    
+            except sr.WaitTimeoutError:
+                last_error = "Timeout esperando audio"
+                self.mic_state['consecutive_failures'] += 1
+                if self.terminal:
+                    self.terminal.update_prompt_state('ERROR', '❌ Timeout')
+            except sr.UnknownValueError:
+                last_error = "No se pudo entender el audio"
+                if attempts == self.max_retries - 1:
+                    self.audio_effects.play('error', volume=0.3)
+                if self.terminal:
+                    self.terminal.update_prompt_state('ERROR', '❌ No entendí')
+            except sr.RequestError as e:
+                last_error = f"Error en el servicio de reconocimiento: {e}"
+                if self.terminal:
+                    self.terminal.update_prompt_state('ERROR', '❌ Error de servicio')
             finally:
                 self.mic_state['is_active'] = False
             
@@ -228,45 +139,73 @@ class AudioHandler:
                 
         if last_error:
             logging.warning(f"Audio recognition failed after {attempts} attempts: {last_error}")
+        
+        if self.terminal:
+            self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
         return ""
 
-    def detect_jarvis_command(self, trigger: str) -> str:
+    def listen_for_trigger(self, trigger_word="jarvis") -> tuple[bool, str]:
+        try:
+            with self.mic as source:
+                self.recognizer.energy_threshold = 3000
+                audio = self.recognizer.listen(
+                    source,
+                    timeout=3,
+                    phrase_time_limit=3
+                )
+                
+                text = self.recognizer.recognize_google(audio, language='es-ES')
+                text = text.lower()
+                
+                if trigger_word.lower() in text:
+                    if self.terminal:
+                        self.terminal.update_prompt_state('TRIGGERED', '🎯 Trigger detectado')
+                    
+                    parts = text.split(trigger_word.lower(), 1)
+                    if len(parts) > 1 and parts[1].strip():
+                        command = parts[1].strip()
+                        if self.terminal:
+                            self.terminal.print_voice_detected(f"{trigger_word} {command}")
+                        return True, command
+                    
+                    return True, ""
+                    
+                return False, ""
+                
+        except (sr.WaitTimeoutError, sr.UnknownValueError):
+            return False, ""
+        except Exception as e:
+            logging.debug(f"Error en listen_for_trigger: {e}")
+            return False, ""
+
+    def listen_command(self) -> str:
         try:
             if self.terminal:
-                self.terminal.update_prompt_state('VOICE_IDLE')
-                
-            recognized_text = self.listen_audio_once()
-            if not recognized_text:
-                return ""
-
-            if trigger.lower() in recognized_text.lower():
-                if self.terminal:
-                    self.terminal.update_prompt_state('LISTENING')
-                    self.audio_effects.play('command', volume=0.4)
-                
-                parts = recognized_text.lower().split(trigger.lower(), 1)
-                if len(parts) > 1 and parts[1].strip():
-                    command = parts[1].strip()
-                    if self.terminal:
-                        self.terminal.print_voice_detected(command)
-                        self.terminal.update_prompt_state('VOICE_IDLE')
-                    return command
-                
-                time.sleep(0.5)  # Pequeña pausa antes de escuchar el comando
-                self.audio_effects.play('listening', volume=0.3)
-                additional_text = self.listen_audio_once()
-                
-                if additional_text:
-                    if self.terminal:
-                        self.terminal.print_voice_detected(additional_text)
-                        self.terminal.update_prompt_state('VOICE_IDLE')
-                    return additional_text.strip()
-
-            return ""
+                self.terminal.update_prompt_state('LISTENING', '👂 Esperando comando...')
             
+            self.audio_effects.play('listening', volume=0.3)
+            
+            with self.mic as source:
+                self.recognizer.energy_threshold = 4000
+                audio = self.recognizer.listen(
+                    source,
+                    timeout=5,
+                    phrase_time_limit=7
+                )
+                
+                if self.terminal:
+                    self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
+                
+                text = self.recognizer.recognize_google(audio, language='es-ES')
+                if text:
+                    if self.terminal:
+                        self.terminal.print_voice_detected(text)
+                    return text.lower()
+                
         except Exception as e:
-            logging.error(f"Error en detect_jarvis_command: {e}")
-            return ""
+            logging.error(f"Error en listen_command: {e}")
         finally:
             if self.terminal:
-                self.terminal.update_prompt_state('VOICE_IDLE')
+                self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
+        
+        return ""
