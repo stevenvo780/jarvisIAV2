@@ -9,9 +9,9 @@ from src.modules.llm.local_model import LocalModel
 class ModelManager:
     CONFIG_DEFAULTS = {
         "models": {
-            "google": {"difficulty_range": [4, 7]},
-            "openai": {"difficulty_range": [7, 10]},
-            "local": {"difficulty_range": [0, 6]}
+            "google": {"difficulty_range": [2, 8]},
+            "openai": {"difficulty_range": [8, 10]},
+            "local": {"difficulty_range": [0, 2]}
         },
         "max_history": 10,
         "security": {
@@ -29,6 +29,7 @@ class ModelManager:
         self.difficulty_analyzer = self.models.get('google')
         self.tts = None
         self._setup_logging()
+        self._merge_config_with_context()
         logging.info("ModelManager inicializado")
 
     def _load_user_profile(self, path: str) -> Dict:
@@ -169,6 +170,7 @@ class ModelManager:
             if not self._validate_query(query):
                 return "Lo siento, tu consulta no puede ser procesada por razones de seguridad.", "error"
             
+            logging.info(f"Consulta recibida: {query}")
             difficulty = self._analyze_query_difficulty(query)
             logging.info(f"Dificultad estimada: {difficulty}")
             model_name = self._select_appropriate_model(difficulty)
@@ -183,6 +185,7 @@ class ModelManager:
             )
             
             enriched_query = f"{system_prompt}\n\n{user_prompt}"
+            print(enriched_query)
             response = self.models[model_name].get_response(enriched_query)
             
             self.storage.add_interaction({
@@ -198,6 +201,29 @@ class ModelManager:
             logging.error(f"Error procesando consulta: {e}")
             return "Lo siento, ha ocurrido un error procesando tu consulta.", "error"
 
+    def _merge_config_with_context(self):
+        """Fusiona la configuración con el contexto del asistente"""
+        try:
+            context = self.storage.get_context()
+            if not context:
+                return
+            
+            # Actualiza el perfil del asistente
+            if 'assistant_profile' in self.config:
+                context['assistant_profile'].update(self.config['assistant_profile'])
+            
+            # Actualiza prompts y templates
+            if 'prompts' in self.config:
+                for key, value in self.config['prompts'].items():
+                    if key not in context['prompts']:
+                        context['prompts'][key] = value
+                    elif isinstance(value, dict):
+                        context['prompts'][key].update(value)
+            
+            self.storage.save_context(context)
+        except Exception as e:
+            logging.error(f"Error fusionando configuración con contexto: {e}")
+
     def _build_context_prompt(self, context: Dict, history: list, model_name: str) -> str:
         try:
             if model_name not in context['prompts']['system_context']:
@@ -210,13 +236,17 @@ class ModelManager:
             memories = self.storage.get_relevant_memories(5)
             user_context = self._build_user_context()
             
-            return template.format(
-                name=context['assistant_profile']['name'],
-                personality=context['assistant_profile']['personality'],
-                conversation_history=history_text,
-                context_memory=memories,
-                user_context=user_context
-            )
+            # Construye el prompt con toda la información disponible
+            prompt_data = {
+                'name': context['assistant_profile']['name'],
+                'personality': context['assistant_profile']['personality'],
+                'conversation_history': history_text,
+                'context_memory': memories,
+                'user_context': user_context,
+                'core_traits': '\n'.join(f"- {trait}" for trait in context['assistant_profile']['core_traits'])
+            }
+            
+            return template.format(**prompt_data)
         except Exception as e:
             logging.error(f"Error building context prompt: {e}")
             return context['prompts']['system_base'].format(
