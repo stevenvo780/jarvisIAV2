@@ -1,3 +1,4 @@
+import re  # Añadimos el import necesario
 import speech_recognition as sr
 import warnings
 import ctypes
@@ -80,7 +81,7 @@ class AudioHandler:
         while attempts < self.max_retries and self.running:
             try:
                 if self._reset_mic():
-                    self.audio_effects.play('ready', volume=0.3)
+                    self.audio_effects.play('listening', volume=0.3)
                 
                 timeout = 5 + (self.mic_state['consecutive_failures'])
                 phrase_timeout = 3 + (self.mic_state['consecutive_failures'] * 0.5)
@@ -155,21 +156,23 @@ class AudioHandler:
                 )
                 
                 text = self.recognizer.recognize_google(audio, language='es-ES')
-                text = text.lower()
+                text_lower = text.lower()
                 
-                if trigger_word.lower() in text:
+                trigger_lower = trigger_word.lower()
+                pattern = re.compile(rf'\b{re.escape(trigger_lower)}\b')
+                
+                if pattern.search(text_lower):
+                    command = pattern.sub('', text_lower).strip()
+                    command = ' '.join(command.split())
+                    
                     if self.terminal:
                         self.terminal.update_prompt_state('TRIGGERED', '🎯 Trigger detectado')
+                        if command:
+                            self.terminal.print_voice_detected(command)  # Modificado para mostrar solo el comando
+                        else:
+                            self.terminal.print_voice_detected(trigger_word)
                     
-                    parts = text.split(trigger_word.lower(), 1)
-                    if len(parts) > 1 and parts[1].strip():
-                        command = parts[1].strip()
-                        if self.terminal:
-                            self.terminal.print_voice_detected(f"{trigger_word} {command}")
-                        return True, command
-                    
-                    return True, ""
-                    
+                    return True, command
                 return False, ""
                 
         except (sr.WaitTimeoutError, sr.UnknownValueError):

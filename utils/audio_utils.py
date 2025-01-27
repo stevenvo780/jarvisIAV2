@@ -35,10 +35,10 @@ class AudioEffects:
             'startup': 'startup.mp3',
             'error': 'error.mp3',
             'ready': 'ready.mp3',
-            'thinking': 'thinking.mp3',
+            'thinking': 'listening.mp3',
             'command': 'ready.mp3',
             'notification': 'ready.mp3',
-            'listening': 'thinking.mp3'
+            'listening': 'listening.mp3'
         }
 
         if not os.path.exists(self.base_path):

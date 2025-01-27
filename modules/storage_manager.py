@@ -39,7 +39,6 @@ class StorageManager:
 
     def add_interaction(self, interaction: Dict):
         try:
-            # Actualizar estadísticas
             self.context["interaction_stats"]["total_interactions"] += 1
             self.context["interaction_stats"]["last_interaction"] = datetime.now().isoformat()
             
@@ -47,14 +46,12 @@ class StorageManager:
             self.context["interaction_stats"]["frequent_topics"][topic] = \
                 self.context["interaction_stats"]["frequent_topics"].get(topic, 0) + 1
 
-            # Guardar contexto actualizado
             self.context_file.write_text(
                 json.dumps(self.context, indent=2, ensure_ascii=False),
                 encoding='utf-8'
             )
 
-            # Añadir a historial
-            history = self.get_recent_history(100)  # Limitar a últimas 100 interacciones
+            history = self.get_recent_history(100)
             history.append({
                 "timestamp": datetime.now().isoformat(),
                 **interaction
