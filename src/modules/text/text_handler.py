@@ -74,7 +74,6 @@ class TextHandler:
                 
         if text_lower == 'clear':
             clear()
-            print("🧹 Pantalla limpiada")
             return
                 
         if text_lower == 'voz off':

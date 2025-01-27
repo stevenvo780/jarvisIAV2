@@ -16,7 +16,7 @@ class CommandHandler:
             raise ValueError("GOOGLE_API_KEY no encontrada en variables de entorno")
         
         genai.configure(api_key=self.api_key)
-        self.ai_model = genai.GenerativeModel("gemini-pro")
+        self.ai_model = genai.GenerativeModel("gemini-2.0-flash-exp")
         
         self._update_command_prompt()
         self.valid_commands = self.ubuntu_commander.get_commands_info().keys()
