@@ -212,37 +212,33 @@ class Jarvis:
                 
                 self.terminal.print_thinking()
                 
-                command_future = self.executor.submit(
-                    self.command_handler.process_input, content
-                ) if self.command_handler else None
-                
+                # Iniciar el procesamiento del modelo en paralelo
                 model_future = self.executor.submit(
                     self.model.get_response, content
                 )
                 
-                if command_future:
-                    try:
-                        response, response_type = command_future.result(timeout=2)
-                        if response_type == "command":
-                            if not model_future.done():
-                                model_future.cancel()
-                            
-                            self.terminal.print_response(response, "system")
-                            if t == 'voice' or self.state['voice_active']:
-                                if hasattr(self, 'tts'):
-                                    self.tts.speak(response)
-                            return
-                    except concurrent.futures.TimeoutError:
-                        logging.warning("Command handler timeout, continuing with model response")
-                    except Exception as e:
-                        logging.error(f"Error en command handler: {e}")
+                # Procesar comando primero (más rápido)
+                if self.command_handler:
+                    response, response_type = self.command_handler.process_input(content)
+                    if response_type == "command":
+                        # Si es un comando, cancelar el procesamiento del modelo
+                        if not model_future.done():
+                            model_future.cancel()
+                        self.terminal.print_response(response, "system")
+                        return
+                    elif response_type == "error":
+                        if not model_future.done():
+                            model_future.cancel()
+                        self.terminal.print_error(response)
+                        return
                 
+                # Si no es un comando, esperar la respuesta del modelo
+                # que ya estaba procesándose en paralelo
                 try:
                     response, model_name = model_future.result(timeout=60)
                     self.terminal.print_response(response, model_name)
-                    if t == 'voice' or self.state['voice_active']:
-                        if hasattr(self, 'tts'):
-                            self.tts.speak(response)
+                    if (t == 'voice' or self.state['voice_active']) and hasattr(self, 'tts'):
+                        self.tts.speak(response)
                 except concurrent.futures.TimeoutError:
                     self.terminal.print_error("Timeout esperando respuesta del modelo")
                 except Exception as e:

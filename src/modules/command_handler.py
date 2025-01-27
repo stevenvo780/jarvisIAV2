@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict
 import google.generativeai as genai
 from src.modules.system.ubuntu_commander import UbuntuCommander
 
@@ -18,32 +18,43 @@ class CommandHandler:
         genai.configure(api_key=self.api_key)
         self.ai_model = genai.GenerativeModel("gemini-pro")
         
-        self.command_prompt_template = """
+        self._update_command_prompt()
+        self.valid_commands = self.ubuntu_commander.get_commands_info().keys()
+
+    def _update_command_prompt(self):
+        commands_info = self.ubuntu_commander.get_commands_info()
+        commands_description = "\n".join([
+            f"- {cmd}: {info['description']}" 
+            for cmd, info in commands_info.items()
+        ])
+        
+        self.command_prompt_template = f"""
         Eres un analizador de comandos para un asistente virtual. Analiza la siguiente entrada y determina:
         1. Si es un comando de sistema o una consulta general
-        2. Si es un comando, identifica qué comando específico es
+        2. Si es un comando, identifica cuál de los siguientes comandos debe ejecutarse basado en el contexto y la intención del usuario:
 
         Comandos disponibles:
-        - abrir_calculadora: para abrir la calculadora
-        - abrir_navegador: para abrir el navegador web
-        - reproducir_musica: para abrir el reproductor de música
-        - abrir_terminal: para abrir una terminal
-        - abrir_configuracion: para abrir la configuración del sistema
+        {self._format_commands(self.ubuntu_commander.get_commands_info())}
 
-        Formato de respuesta:
+        Formato de respuesta esperado:
         Si es un comando: "COMMAND:nombre_comando"
         Si es consulta general: "QUERY"
 
-        Entrada del usuario: "{input}"
+        Entrada del usuario: "{{input}}"
         """
-        
-        self.valid_commands = {
-            'abrir_calculadora',
-            'abrir_navegador',
-            'reproducir_musica',
-            'abrir_terminal',
-            'abrir_configuracion'
-        }
+
+    def _format_triggers(self, commands_info):
+        return "\n".join([
+            f"- {cmd}: {', '.join(info['triggers'])}"
+            for cmd, info in commands_info.items()
+            if 'triggers' in info
+        ])
+
+    def _format_commands(self, commands_info):
+        return "\n".join([
+            f"- {cmd}: {info['description']}" 
+            for cmd, info in commands_info.items()
+        ])
 
     def process_input(self, user_input: str) -> Tuple[str, str]:
         try:
@@ -57,8 +68,7 @@ class CommandHandler:
                     "command"
                 )
 
-            response, model = self.model_manager.get_response(user_input)
-            return response, "conversation"
+            return None, "query"
             
         except Exception as e:
             logger.error(f"Error en process_input: {e}")
@@ -73,7 +83,6 @@ class CommandHandler:
                 return False, None
             
             result = response.text.strip()
-            print(f"Resultado de la respuesta de la IA: {result}")
             if result.startswith("COMMAND:"):
                 command = result.replace("COMMAND:", "").strip()
                 return True, command
@@ -84,6 +93,6 @@ class CommandHandler:
             logger.error(f"Error analizando comando con IA: {e}")
             return False, None
 
-    def register_command(self, command_name: str, command_func):
-        self.ubuntu_commander.register_command(command_name, command_func)
-        self.valid_commands.add(command_name)
+    def register_command(self, command_name: str, command_func, command_config: Dict):
+        self.ubuntu_commander.register_command(command_name, command_func, command_config)
+        self._update_command_prompt()

@@ -1,0 +1,22 @@
+{
+  "system_commands": {
+    "abrir_calculadora": {
+      "description": "Abre la calculadora del sistema",
+      "type": "system",
+      "method": "_open_calculator"
+    },
+    "abrir_navegador": {
+      "description": "Abre el navegador web",
+      "type": "system",
+      "method": "_open_browser",
+      "default_params": {
+        "url": "https://www.google.com"
+      }
+    },
+    "reproducir_musica": {
+      "description": "Abre el reproductor de música",
+      "type": "system",
+      "method": "_play_music"
+    }
+  }
+}
