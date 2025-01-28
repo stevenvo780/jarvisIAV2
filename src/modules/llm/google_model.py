@@ -33,3 +33,48 @@ class GoogleModel:
         except Exception as e:
             self.logger.error(f"Error en Google API: {str(e)}")
             return self.prompt_builder.get_error_message('api_error', message=str(e))
+
+    def analyze_command(self, user_input: str, command_prompt_template: str) -> Optional[str]:
+        try:
+            model = genai.GenerativeModel(self.config['model_name'])
+            prompt = command_prompt_template.format(input=user_input)
+            response = model.generate_content(
+                prompt,
+                generation_config={
+                    'temperature': 0,
+                    'top_p': 1,
+                    'top_k': 1,
+                }
+            )
+            
+            if response.text:
+                result = response.text.strip()
+                self.logger.info(f"Command analysis response: {result}")
+                return result
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error analyzing command: {e}")
+            return None
+
+    def get_completion(self, prompt: str, temperature: float = 0.1) -> Optional[str]:
+        """Obtiene una respuesta directa del modelo para un prompt específico."""
+        try:
+            model = genai.GenerativeModel(self.config['model_name'])
+            response = model.generate_content(
+                prompt,
+                generation_config={
+                    'temperature': temperature,
+                    'top_p': 1,
+                    'top_k': 1,
+                    'max_output_tokens': 5,
+                }
+            )
+            
+            if response.text:
+                return response.text.strip()
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error getting completion: {e}")
+            return None

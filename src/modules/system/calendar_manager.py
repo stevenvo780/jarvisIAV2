@@ -19,13 +19,13 @@ CREDENTIALS_FILE = CONFIG_DIR / 'google_calendar_credentials.json'
 TOKEN_FILE = CONFIG_DIR / 'google_calendar_token.pickle'
 
 class CalendarManager(BaseCommander):
-    def __init__(self):
+    def __init__(self, model_manager=None):
         self.command_prefix = "CALENDAR"
         self.timezone = pytz.timezone('America/Bogota')
+        self.model_manager = model_manager
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         self.service = self._get_calendar_service()
         self.default_hour = 12  # Solo como fallback
-        self._setup_ai()
         super().__init__()
 
     def _setup_ai(self):
@@ -119,7 +119,8 @@ class CalendarManager(BaseCommander):
         return None, False
 
     def _predict_hour(self, text: str) -> int:
-        try:
+        """Predice la hora más apropiada para una actividad usando el modelo de IA."""
+        if self.model_manager:
             prompt = f"""
             Como asistente de calendario, necesito determinar la hora más apropiada para una actividad.
             
@@ -131,37 +132,23 @@ class CalendarManager(BaseCommander):
             3. Responde SOLO con el número de hora en formato 24h (0-23)
             4. Si no estás seguro, responde "12"
 
-            Ejemplo:
-            "sacar la basura" -> "19"
-            "ir al médico" -> "9"
-
             Por favor analiza y sugiere la hora más apropiada para esta actividad.
             """
-
-            response = self.ai_model.generate_content(
-                prompt,
-                generation_config={
-                    'temperature': 0.1,
-                    'top_p': 1,
-                    'top_k': 1,
-                    'max_output_tokens': 5,
-                }
-            )
-
-            if response.text:
-                try:
-                    hour = int(response.text.strip())
-                    if 0 <= hour <= 23:
-                        logger.info(f"IA sugirió hora {hour}:00 para: {text}")
-                        return hour
-                except ValueError:
-                    pass
-
-            return self.default_hour
-
-        except Exception as e:
-            logger.error(f"Error prediciendo hora con IA: {e}")
-            return self.default_hour
+            
+            try:
+                result = self.model_manager.models['google'].get_completion(prompt)
+                if result:
+                    try:
+                        hour = int(result.strip())
+                        if 0 <= hour <= 23:
+                            logger.info(f"Hora predicha para '{text}': {hour}:00")
+                            return hour
+                    except ValueError:
+                        pass
+            except Exception as e:
+                logger.error(f"Error prediciendo hora: {e}")
+                
+        return self.default_hour
 
     def create_event(self, text: str, title: str = None, **kwargs) -> tuple:
         try:

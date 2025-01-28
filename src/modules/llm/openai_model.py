@@ -2,139 +2,57 @@ import os
 import logging
 import time
 from typing import Optional, Dict, Any
-from openai import OpenAI, APIError, APIConnectionError, RateLimitError, AuthenticationError
+from openai import OpenAI
 from utils.prompt_builder import PromptBuilder
 
 class OpenAIModel:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.api_key = os.getenv("OPENAI_API_KEY")
-        self.config = self._merge_config(config)
-        if not self.api_key:
-            logging.error("No se encontró OPENAI_API_KEY")
-            raise ValueError("OPENAI_API_KEY no encontrada")
-        self._validate_credentials()
-        self.client = self._initialize_client()
-        self.logger = self._configure_logger()
-        self.prompt_builder = PromptBuilder()
+        if not self.api_key or not self.api_key.startswith("sk-"):
+            raise ValueError("OPENAI_API_KEY no encontrada o inválida")
         
-    def _merge_config(self, config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         default_config = {
-            'timeout': 25.0,
-            'max_retries': 3,
-            'backoff_base': 1.8,
-            'max_tokens': 1024,
-            'max_response_chars': 3000,
             'model_name': 'gpt-4o',
             'temperature': 0.7,
-            'log_level': 'INFO',
-            'system_template': "Eres Jarvis, un asistente virtual profesional y preciso."
+            'max_tokens': 1024,
+            'logging_level': logging.INFO
         }
-        return {**default_config, **(config or {})}
-
-    def _validate_credentials(self) -> None:
-        """Validates API key format."""
-        if not self.api_key:
-            raise ValueError("OPENAI_API_KEY no encontrada en variables de entorno")
-        if not self.api_key.startswith("sk-"):
-            raise ValueError("Formato de API key de OpenAI inválido")
-
-    def _initialize_client(self) -> OpenAI:
-        return OpenAI(
-            api_key=self.api_key,
-            timeout=self.config['timeout'],
-            max_retries=self.config['max_retries']
-        )
-
-    def _configure_logger(self) -> logging.Logger:
-        logger = logging.getLogger("OpenAIModel")
-        logger.setLevel(self.config['log_level'].upper())
-        return logger
+        self.config = {**default_config, **(config or {})}
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(self.config['logging_level'])
+        self.client = OpenAI(api_key=self.api_key, timeout=25.0, max_retries=3)
+        self.prompt_builder = PromptBuilder()
 
     def get_response(self, query: str) -> str:
         if not isinstance(query, str) or len(query.strip()) < 3:
-            return "Query debe ser texto no vacío (>3 caracteres)"
-
-        for attempt in range(self.config['max_retries'] + 1):
-            try:
-                return self._process_request(query)
-            except RateLimitError as e:
-                self._handle_rate_limit(attempt, e)
-            except APIConnectionError as e:
-                self._handle_connection_error(attempt, e)
-            except AuthenticationError as e:
-                return self._handle_auth_error(e)
-            except APIError as e:
-                self.logger.error(f"Error API: {str(e)}")
-                return "Error en la API de OpenAI"
-            except Exception as e:
-                self.logger.error(f"Error inesperado: {str(e)}")
-                if attempt == self.config['max_retries']:
-                    return "Error procesando la consulta"
-                
-        return "No se pudo obtener respuesta de OpenAI"
-
-    def _process_request(self, query: str) -> str:
-        start_time = time.monotonic()
+            return "La consulta debe ser un texto no vacío (>3 caracteres)"
+        
         try:
             prompt_data = self.prompt_builder.build_prompt(query, 'openai')
-            
             response = self.client.chat.completions.create(
                 model=self.config['model_name'],
                 messages=prompt_data['messages'],
                 temperature=self.config['temperature'],
-                max_tokens=self.config['max_tokens'],
-                stream=False
+                max_tokens=self.config['max_tokens']
             )
-
-            if not response.choices or not response.choices[0].message:
-                raise ValueError("Respuesta vacía de OpenAI")
-
-            processing_time = time.monotonic() - start_time
-            # Si tu objeto 'response' no provee usage y total_tokens en todos los endpoints,
-            # podrías omitir este log
-            if hasattr(response, "usage"):
-                self.logger.info(f"Respuesta en {processing_time:.2f}s | Tokens: {response.usage.total_tokens}")
-            else:
-                self.logger.info(f"Respuesta en {processing_time:.2f}s (tokens no disponibles)")
-            
-            return self._sanitize_response(response.choices[0].message.content)
-
+            if response.choices and response.choices[0].message:
+                return self._sanitize_response(response.choices[0].message.content)
+            return "No se recibió una respuesta válida de OpenAI"
         except Exception as e:
-            self.logger.error(f"Error en process_request: {str(e)}")
-            raise
+            self.logger.error(f"Error al obtener respuesta de OpenAI: {e}")
+            return "Error al procesar la consulta"
 
     def _sanitize_response(self, response: str) -> str:
         clean_response = response.strip().replace('\x00', '')
-        max_len = self.config['max_response_chars']
-        return clean_response[:max_len] if len(clean_response) <= max_len else clean_response[:max_len].rsplit(' ', 1)[0] + " […]"
-
-    def _handle_rate_limit(self, attempt: int, error: RateLimitError) -> None:
-        backoff = self.config['backoff_base'] ** (attempt + 1)
-        self.logger.warning(f"Rate limit (Intento {attempt+1}): Esperando {backoff:.1f}s")
-        time.sleep(backoff)
-
-    def _handle_connection_error(self, attempt: int, error: APIConnectionError) -> None:
-        self.logger.error(f"Error conexión: {error.message}")
-        if attempt >= self.config['max_retries']:
-            raise TimeoutError("Fallo persistente de conexión") from error
-
-    def _handle_auth_error(self, error: AuthenticationError) -> str:
-        self.logger.critical("Error de autenticación irreversible")
-        # Aquí no relanzamos el error, solo lo logueamos
-        return "Error de autenticación con OpenAI"
-
-    def _handle_api_error(self, error: APIError) -> None:
-        self.logger.error(f"Error API: {error.code} - {error.message}")
-        time.sleep(2 ** self.config['max_retries'])
-
-    def _final_error_message(self) -> str:
-        self.logger.error("Máximos reintentos alcanzados")
-        return "Error: No se pudo procesar la solicitud después de múltiples intentos"
+        max_len = self.config.get('max_response_chars', 3000)
+        if len(clean_response) > max_len:
+            return clean_response[:max_len].rsplit(' ', 1)[0] + " […]"
+        return clean_response
 
     def validate_connection(self) -> bool:
         try:
             self.client.models.retrieve(self.config['model_name'], timeout=10)
             return True
         except Exception as e:
-            self.logger.error(f"Validación fallida: {str(e)}")
+            self.logger.error(f"Validación de conexión fallida: {e}")
             return False
