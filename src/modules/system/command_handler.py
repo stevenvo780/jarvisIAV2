@@ -6,9 +6,7 @@ from modules.system.base_commander import BaseCommander
 from modules.system.calendar_commander import CalendarCommander
 from src.modules.system.ubuntu_commander import UbuntuCommander
 from src.modules.system.multimedia_commander import MultimediaCommander
-from src.modules.system.ubuntu_commander import UbuntuCommander
 from src.modules.system.calendar_commander import CalendarCommander
-from src.modules.system.multimedia_commander import MultimediaCommander
 
 logger = logging.getLogger(__name__)
 
