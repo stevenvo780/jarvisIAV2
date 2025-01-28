@@ -16,7 +16,6 @@ class MultimediaCommander(BaseCommander):
         self.initialize_commands()
 
     def initialize_commands(self):
-        """Initialize available commands."""
         self.commands = {
             'VOLUME': {
                 'description': 'Adjust system volume',
@@ -55,7 +54,6 @@ class MultimediaCommander(BaseCommander):
         """
 
     def should_handle_command(self, user_input: str) -> bool:
-        """Check if this commander should handle the command."""
         lower_input = user_input.lower()
         all_triggers = []
         for cmd_info in self.commands.values():
@@ -71,7 +69,6 @@ class MultimediaCommander(BaseCommander):
 
         for command_name, command_data in self.commands.items():
             if any(t in lower_input for t in command_data['triggers']):
-                # If it's MUSIC, detect platform, then clean query
                 if command_name == 'MUSIC':
                     platform = self._detect_platform(lower_input)
                     search_terms = self._clean_search_terms(lower_input)
@@ -111,7 +108,6 @@ class MultimediaCommander(BaseCommander):
         return cleaned_text
 
     def process_command_parameters(self, command: str, user_input: str, additional_info: str) -> dict:
-        """Process command parameters and return a dict with relevant info."""
         logger.debug(f"Processing parameters: command={command}, input={user_input}, additional_info={additional_info}")
 
         if command == 'VOLUME':
@@ -208,14 +204,12 @@ class MultimediaCommander(BaseCommander):
             return "Error al reproducir en Spotify", False
 
     def _play_youtube(self, query: str) -> Tuple[str, bool]:
-        """Open a YouTube search URL with the given query."""
         search_query = quote_plus(query)
         url = f"https://www.youtube.com/results?search_query={search_query}"
         webbrowser.open(url)
         return f"Buscando '{query}' en YouTube", True
 
     def _pause_media(self, **kwargs) -> Tuple[str, bool]:
-        """Pause current playback."""
         try:
             subprocess.run(['playerctl', 'pause'], check=True)
             return "Reproducción pausada", True
@@ -224,7 +218,6 @@ class MultimediaCommander(BaseCommander):
             return str(e), False
 
     def _resume_media(self, **kwargs) -> Tuple[str, bool]:
-        """Resume current playback."""
         try:
             subprocess.run(['playerctl', 'play'], check=True)
             return "Reproducción reanudada", True
