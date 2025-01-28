@@ -98,7 +98,6 @@ class AudioHandler:
                 )
                 
                 text = self._transcribe_audio(audio_data)
-                print(f"Texto reconocido: {text}")
                 if re.search(rf'\b{re.escape(trigger_word)}\b', text, re.IGNORECASE):
                     cleaned_text = re.sub(
                         rf'\b{re.escape(trigger_word)}\b',
