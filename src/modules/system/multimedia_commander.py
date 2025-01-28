@@ -41,6 +41,18 @@ class MultimediaCommander(BaseCommander):
                 'examples': ['reanudar', 'continua', 'resume'],
                 'triggers': ['reanudar', 'continua', 'resume', 'seguir'],
                 'handler': self._resume_media
+            },
+            'NEXT_TRACK': {
+                'description': 'Ir a siguiente pista',
+                'examples': ['siguiente canción', 'next track'],
+                'triggers': ['siguiente', 'next'],
+                'handler': self._next_track
+            },
+            'PREV_TRACK': {
+                'description': 'Ir a pista anterior',
+                'examples': ['anterior canción', 'previous track'],
+                'triggers': ['anterior', 'previous'],
+                'handler': self._prev_track
             }
         }
 
@@ -214,7 +226,7 @@ class MultimediaCommander(BaseCommander):
 
     def _pause_media(self, **kwargs) -> Tuple[str, bool]:
         try:
-            subprocess.run(['playerctl', 'pause'], check=True)
+            subprocess.run(['playerctl', '-a', 'pause'], check=True)
             return "Reproducción pausada", True
         except Exception as e:
             logger.error(f"Error pausing playback: {e}")
@@ -226,4 +238,18 @@ class MultimediaCommander(BaseCommander):
             return "Reproducción reanudada", True
         except Exception as e:
             logger.error(f"Error resuming playback: {e}")
+            return str(e), False
+
+    def _next_track(self, **kwargs) -> Tuple[str, bool]:
+        try:
+            subprocess.run(['playerctl', 'next'], check=True)
+            return "Siguiente pista reproducida", True
+        except Exception as e:
+            return str(e), False
+
+    def _prev_track(self, **kwargs) -> Tuple[str, bool]:
+        try:
+            subprocess.run(['playerctl', 'previous'], check=True)
+            return "Pista anterior reproducida", True
+        except Exception as e:
             return str(e), False
