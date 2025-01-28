@@ -24,6 +24,9 @@ class BaseCommander:
             })
         return descriptions
 
+    def get_rules_text(self) -> str:
+        return ""
+
     def execute_command(self, command: str, **kwargs) -> Tuple[str, bool]:
         if command not in self.commands:
             return f"Comando {command} no encontrado", False

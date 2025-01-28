@@ -45,6 +45,12 @@ class UbuntuCommander(BaseCommander):
             }
         }
 
+    def get_rules_text(self) -> str:
+        return """
+        - Para el módulo SYSTEM (UbuntuCommander), si la entrada menciona abrir/ejecutar/iniciar aplicaciones:
+          Retornar SYSTEM_nombredelcomando
+        """
+
     def _open_calculator(self, **kwargs) -> Tuple[str, bool]:
         try:
             subprocess.Popen(['gnome-calculator'])

@@ -37,37 +37,30 @@ class CommandHandler:
             f"Comando: {cmd['command']}\n"
             f"Descripción: {cmd['description']}\n"
             f"Ejemplos: {', '.join(cmd['examples'])}\n"
-            f"Triggers: {', '.join(cmd['triggers'])}\n"  # Añadido triggers
+            f"Triggers: {', '.join(cmd['triggers'])}\n"
             for cmd in commands
         ])
-        
-        self.command_prompt_template = f"""
-        Eres un asistente experto en entender comandos e intenciones del usuario.
-        Tu tarea es analizar la entrada y mapearla al comando exacto correspondiente.
 
+        self.command_prompt_template = f"""
+        Tu tarea es identificar comandos exactos y extraer información relevante de la entrada del usuario.
+        
         Comandos disponibles:
         {commands_text}
 
-        Reglas ESTRICTAS:
-        1. Para comandos del sistema (SYSTEM):
-           - Si la entrada menciona abrir/ejecutar/iniciar aplicaciones -> SYSTEM_NOMBRE
-           - Mapeos específicos:
-             * Cualquier mención a calculadora -> SYSTEM_CALCULATOR
-             * Cualquier mención a navegador/internet -> SYSTEM_BROWSER
-             * Cualquier mención a música/reproducir -> SYSTEM_MUSIC
-             * Cualquier mención a terminal/consola -> SYSTEM_TERMINAL
-             * Cualquier mención a configuración/ajustes -> SYSTEM_SETTINGS
-
-        2. Para eventos del calendario (CALENDAR):
-           - Menciones a recordar/agendar/evento -> CALENDAR_CREATE:título
-           - Consultas de agenda -> CALENDAR_LIST
-
+        Reglas CRÍTICAS:
+        1. Para CALENDAR_CREATE: SIEMPRE incluye el título después de ':' 
+           Ejemplo: "recordar comprar pan" -> CALENDAR_CREATE:comprar pan
+           Ejemplo: "recuerdame sacar la basura" -> CALENDAR_CREATE:sacar la basura
+        2. Para otros comandos: usa el formato MODULO_COMANDO
+           Ejemplo: "abrir calculadora" -> SYSTEM_CALCULATOR
         3. Si no hay coincidencia clara -> QUERY
+        4. NO agregues explicaciones, SOLO el comando
 
-        IMPORTANTE: 
-        - Responde SOLO con el comando exacto (ej: SYSTEM_CALCULATOR, CALENDAR_CREATE:Título)
-        - No agregues explicaciones ni texto adicional
-        - Si detectas palabra clave de un comando, DEBES retornar ese comando
+        Ejemplos adicionales:
+        "recordar mañana ir al dentista" -> CALENDAR_CREATE:ir al dentista
+        "recuerdame llamar a mamá" -> CALENDAR_CREATE:llamar a mamá
+        "mostrar eventos" -> CALENDAR_LIST
+        "hola como estás" -> QUERY
 
         Analiza esta entrada: "{{input}}"
         """
@@ -78,10 +71,13 @@ class CommandHandler:
             logger.info(f"AI analysis result: {result}")
             
             if not result or result == "QUERY":
-                # Intentar fallback antes de ir a query
                 fallback_result = self._fallback_trigger_check(user_input)
                 if fallback_result:
-                    result = fallback_result
+                    if fallback_result == 'CALENDAR_CREATE':
+                        title = self._extract_title_from_input(user_input)
+                        result = f"{fallback_result}:{title}"
+                    else:
+                        result = fallback_result
                 else:
                     return None, "query"
 
@@ -124,9 +120,15 @@ class CommandHandler:
                 self.command_prompt_template
             )
             if result:
+                # Limpieza y normalización del resultado
                 result = result.strip().upper()
-                logger.info(f"AI command analysis: {result}")
-                return result
+                # Verificar formato válido (MODULO_COMANDO)
+                if '_' in result and any(prefix in result for prefix in self.modules.keys()):
+                    logger.info(f"AI command analysis: {result}")
+                    return result
+                else:
+                    logger.warning(f"Invalid command format from AI: {result}")
+            
             return self._fallback_trigger_check(user_input)
         except Exception as e:
             logger.error(f"Error in AI analysis: {e}")
@@ -135,33 +137,48 @@ class CommandHandler:
     def _fallback_trigger_check(self, user_input: str) -> Optional[str]:
         lower_input = user_input.lower()
         
-        # Primero verificar palabras clave comunes
-        common_actions = {
-            'abrir': True,
-            'ejecutar': True,
-            'iniciar': True,
-            'mostrar': True,
-            'reproducir': True
-        }
-        
-        has_action = any(action in lower_input for action in common_actions)
-        
-        for prefix, module in self.modules.items():
-            for cmd_name, cmd_info in module.commands.items():
-                # Para comandos del sistema, requerir una acción
-                if prefix == "SYSTEM" and not has_action:
-                    continue
-                    
-                if any(trigger.lower() in lower_input for trigger in cmd_info.get('triggers', [])):
-                    if prefix == "CALENDAR" and cmd_name == "CREATE":
-                        if not any(time_indicator in lower_input for time_indicator in 
-                                 ['mañana', 'hoy', ' am', ' pm', 'a las']):
-                            continue
-                    logger.info(f"Trigger match found: {prefix}_{cmd_name}")
-                    return f"{prefix}_{cmd_name}"
+        # Verificar comandos del sistema primero
+        if any(word in lower_input for word in ['abrir', 'ejecutar', 'iniciar']):
+            for cmd_name, cmd_info in self.modules['SYSTEM'].commands.items():
+                if any(trigger in lower_input for trigger in cmd_info['triggers']):
+                    return f"SYSTEM_{cmd_name}"
+
+        # Verificar comandos del calendario
+        if any(word in lower_input for word in ['recordar', 'agendar', 'evento']):
+            return 'CALENDAR_CREATE'
+        elif any(word in lower_input for word in ['mostrar eventos', 'pendiente']):
+            return 'CALENDAR_LIST'
+
         return None
 
     def register_command(self, command_name: str, command_func, command_config: Dict):
         if 'SYSTEM' in self.modules:
             self.modules['SYSTEM'].register_command(command_name, command_func, command_config)
             self._update_command_prompt()
+
+    def _extract_title_from_input(self, user_input: str) -> str:
+        """Extrae el título de la tarea del texto de entrada."""
+        words_to_remove = ['recordar', 'recuerdame', 'agendar', 'crear evento', 'mañana', 'hoy']
+        time_patterns = [
+            r'a las \d{1,2}(?::\d{2})?(?:\s*[ap]m)?',
+            r'para las \d{1,2}(?::\d{2})?(?:\s*[ap]m)?',
+            r'(\d{1,2})(?::\d{2})?(?:\s*[ap]m)?'
+        ]
+        
+        text = user_input.lower()
+        
+        # Eliminar palabras clave
+        for word in words_to_remove:
+            text = text.replace(word, '')
+            
+        # Eliminar patrones de tiempo
+        for pattern in time_patterns:
+            text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+            
+        # Limpiar y normalizar
+        title = text.strip()
+        # Convertir primera letra a mayúscula
+        if title:
+            title = title[0].upper() + title[1:]
+            
+        return title if title else "Recordatorio"

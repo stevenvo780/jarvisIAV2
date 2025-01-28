@@ -152,8 +152,14 @@ class CalendarManager(BaseCommander):
 
     def create_event(self, text: str, title: str = None, **kwargs) -> tuple:
         try:
+            # Si no hay título explícito, intentar extraerlo del texto
+            if not title or title == "Jarvis recordatorio":
+                title = text.replace("recordar", "").replace("recuerdame", "").strip()
+                # Eliminar referencias temporales comunes
+                title = re.sub(r'mañana|hoy|a las.*|para.*', '', title, flags=re.IGNORECASE).strip()
+                
             if not title:
-                title = "Jarvis recordatorio"
+                title = "Recordatorio"
                 
             date, success = self.parse_event_date(text)
             if not success:
@@ -213,3 +219,10 @@ class CalendarManager(BaseCommander):
         except Exception as e:
             logger.error(f"Error leyendo eventos: {e}")
             return f"Error al leer eventos: {str(e)}", False
+
+    def get_rules_text(self) -> str:
+        return """
+        - Para el módulo CALENDAR (CalendarManager):
+          * Menciones a recordar/agendar/evento -> CALENDAR_CREATE:título
+          * Consultas de agenda -> CALENDAR_LIST
+        """
