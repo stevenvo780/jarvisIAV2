@@ -1,36 +1,16 @@
-# Core dependencies
-setuptools>=69.0.3
-wheel>=0.42.0
-numpy==1.26.2  # Versión más nueva compatible con Python 3.12
-numba  # Versión compatible con Python 3.12
-torch==2.1.1
-torchaudio>=2.2.0
-torchvision>=0.17.0
-
-# Audio y Voz
-SpeechRecognition==3.10.0
-PyAudio==0.2.14
+google_api_python_client==2.159.0
+google_auth_oauthlib==1.2.1
+gTTS==2.5.4
+openai==1.60.2
+openai_whisper==20240930
+prompt_toolkit==3.0.50
+protobuf==5.29.3
+psutil==6.1.1
+pygame==2.6.1
+python-dotenv==1.0.1
+pytz==2024.2
 sounddevice==0.4.6
-openai-whisper
-pygame==2.5.2
-gTTS==2.4.0
-
-# LLMs y API
-openai==1.3.7
-llama-cpp-python
-google-generativeai>=0.3.0
-google-cloud-speech==2.21.0
-transformers==4.35.2
-accelerate
-
-# Utilidades
-python-dotenv==1.0.0
-requests==2.31.0
-psutil>=5.9.8
-tqdm==4.66.1
-prompt_toolkit>=3.0.0
-
-# Desarrollo
-black==23.11.0
-pylint==3.0.2
-pytest==7.4.3
+SpeechRecognition==3.14.0
+sympy==1.13.1
+torch==2.5.1
+transformers==4.48.1
