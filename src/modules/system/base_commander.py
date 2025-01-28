@@ -37,3 +37,19 @@ class BaseCommander:
         except Exception as e:
             logger.error(f"Error executing {command}: {e}")
             return f"Error ejecutando {command}: {str(e)}", False
+
+    def process_command_parameters(self, command: str, user_input: str, additional_info: str) -> dict:
+        """Procesa los parámetros específicos para cada comando"""
+        return {}
+
+    def should_handle_command(self, user_input: str) -> bool:
+        """Determina si este commander debe manejar el comando"""
+        return False
+
+    def extract_command_info(self, user_input: str) -> tuple:
+        """Extrae información específica del comando (ej: títulos, fechas, etc)"""
+        return None, None
+
+    def format_command_response(self, command: str, additional_info: str = "") -> str:
+        """Formatea el comando para la respuesta del AI"""
+        return f"{self.command_prefix}_{command}"

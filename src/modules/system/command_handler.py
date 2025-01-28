@@ -3,7 +3,7 @@ import os
 from typing import Tuple, Optional, Dict
 import google.generativeai as genai
 from modules.system.base_commander import BaseCommander
-from modules.system.calendar_manager import CalendarManager
+from modules.system.calendar_commander import CalendarCommander
 from src.modules.system.ubuntu_commander import UbuntuCommander
 
 logger = logging.getLogger(__name__)
@@ -14,11 +14,10 @@ class CommandHandler:
         self.modules = {}
         self._register_default_modules()
         self._update_command_prompt()
-        self.calendar_manager = CalendarManager(model_manager)
 
     def _register_default_modules(self):
         self.register_module('SYSTEM', UbuntuCommander())
-        self.register_module('CALENDAR', CalendarManager())
+        self.register_module('CALENDAR', CalendarCommander())
 
     def register_module(self, name: str, module: BaseCommander):
         self.modules[name] = module
@@ -71,14 +70,8 @@ class CommandHandler:
             logger.info(f"AI analysis result: {result}")
             
             if not result or result == "QUERY":
-                fallback_result = self._fallback_trigger_check(user_input)
-                if fallback_result:
-                    if fallback_result == 'CALENDAR_CREATE':
-                        title = self._extract_title_from_input(user_input)
-                        result = f"{fallback_result}:{title}"
-                    else:
-                        result = fallback_result
-                else:
+                result = self._fallback_trigger_check(user_input)
+                if not result:
                     return None, "query"
 
             try:
@@ -92,14 +85,7 @@ class CommandHandler:
                     
                     if prefix in self.modules:
                         module = self.modules[prefix]
-                        kwargs = {}
-                        
-                        if prefix == "CALENDAR":
-                            kwargs = {
-                                "text": user_input,
-                                "title": additional_info
-                            }
-                        
+                        kwargs = module.process_command_parameters(command, user_input, additional_info)
                         response, success = module.execute_command(command, **kwargs)
                         logger.info(f"Command executed: {prefix}_{command} -> {success}")
                         return response, "command" if success else "error"
@@ -135,20 +121,11 @@ class CommandHandler:
             return self._fallback_trigger_check(user_input)
 
     def _fallback_trigger_check(self, user_input: str) -> Optional[str]:
-        lower_input = user_input.lower()
-        
-        # Verificar comandos del sistema primero
-        if any(word in lower_input for word in ['abrir', 'ejecutar', 'iniciar']):
-            for cmd_name, cmd_info in self.modules['SYSTEM'].commands.items():
-                if any(trigger in lower_input for trigger in cmd_info['triggers']):
-                    return f"SYSTEM_{cmd_name}"
-
-        # Verificar comandos del calendario
-        if any(word in lower_input for word in ['recordar', 'agendar', 'evento']):
-            return 'CALENDAR_CREATE'
-        elif any(word in lower_input for word in ['mostrar eventos', 'pendiente']):
-            return 'CALENDAR_LIST'
-
+        for module in self.modules.values():
+            if module.should_handle_command(user_input):
+                command, additional_info = module.extract_command_info(user_input)
+                if command:
+                    return module.format_command_response(command, additional_info)
         return None
 
     def register_command(self, command_name: str, command_func, command_config: Dict):

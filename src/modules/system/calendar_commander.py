@@ -18,7 +18,7 @@ CONFIG_DIR = Path(__file__).parent.parent.parent / 'config' / 'credentials'
 CREDENTIALS_FILE = CONFIG_DIR / 'google_calendar_credentials.json'
 TOKEN_FILE = CONFIG_DIR / 'google_calendar_token.pickle'
 
-class CalendarManager(BaseCommander):
+class CalendarCommander(BaseCommander):
     def __init__(self, model_manager=None):
         self.command_prefix = "CALENDAR"
         self.timezone = pytz.timezone('America/Bogota')
@@ -222,7 +222,26 @@ class CalendarManager(BaseCommander):
 
     def get_rules_text(self) -> str:
         return """
-        - Para el módulo CALENDAR (CalendarManager):
+        - Para el módulo CALENDAR (CalendarCommander):
           * Menciones a recordar/agendar/evento -> CALENDAR_CREATE:título
           * Consultas de agenda -> CALENDAR_LIST
         """
+
+    def process_command_parameters(self, command: str, user_input: str, additional_info: str) -> dict:
+        return {
+            "text": user_input,
+            "title": additional_info if additional_info else self._extract_title_from_input(user_input)
+        }
+
+    def should_handle_command(self, user_input: str) -> bool:
+        return any(word in user_input.lower() for word in 
+                  ['recordar', 'agendar', 'evento', 'calendario'])
+
+    def extract_command_info(self, user_input: str) -> tuple:
+        title = self._extract_title_from_input(user_input)
+        return 'CREATE', title
+
+    def format_command_response(self, command: str, additional_info: str = "") -> str:
+        if command == 'CREATE' and additional_info:
+            return f"{self.command_prefix}_{command}:{additional_info}"
+        return f"{self.command_prefix}_{command}"

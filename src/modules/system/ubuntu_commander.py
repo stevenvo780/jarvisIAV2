@@ -91,3 +91,16 @@ class UbuntuCommander(BaseCommander):
         except Exception as e:
             logger.error(f"Error abriendo configuración: {e}")
             return f"Error abriendo configuración: {str(e)}", False
+
+    def process_command_parameters(self, command: str, user_input: str, additional_info: str) -> dict:
+        return {}  # No necesita parámetros adicionales
+
+    def should_handle_command(self, user_input: str) -> bool:
+        return any(word in user_input.lower() for word in 
+                  ['abrir', 'ejecutar', 'iniciar', 'mostrar'])
+
+    def extract_command_info(self, user_input: str) -> tuple:
+        for cmd_name, cmd_info in self.commands.items():
+            if any(trigger in user_input.lower() for trigger in cmd_info['triggers']):
+                return cmd_name, None
+        return None, None
