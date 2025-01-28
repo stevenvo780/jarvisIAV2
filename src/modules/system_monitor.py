@@ -8,10 +8,10 @@ from typing import Dict
 class SystemMonitor:
     def __init__(self):
         self.resource_thresholds = {
-            'cpu': 90.0,
+            'cpu': 99.0,
             'memory': 85.0,
             'disk': 90.0,
-            'temp': 80.0,
+            'temp': 87.0,
             'battery': 10.0
         }
 

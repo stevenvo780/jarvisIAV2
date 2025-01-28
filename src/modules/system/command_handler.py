@@ -2,6 +2,7 @@ import logging
 import os
 from typing import Tuple, Optional, Dict
 import google.generativeai as genai
+from sympy import re
 from modules.system.base_commander import BaseCommander
 from modules.system.calendar_commander import CalendarCommander
 from src.modules.system.ubuntu_commander import UbuntuCommander
@@ -19,8 +20,8 @@ class CommandHandler:
 
     def _register_default_modules(self):
         self.register_module('SYSTEM', UbuntuCommander())
-        self.register_module('CALENDAR', CalendarCommander())
-        self.register_module('MEDIA', MultimediaCommander())
+        self.register_module('CALENDAR', CalendarCommander(self.model_manager))
+        self.register_module('MEDIA', MultimediaCommander(self.model_manager))
 
     def register_module(self, name: str, module: BaseCommander):
         self.modules[name] = module
@@ -109,9 +110,7 @@ class CommandHandler:
                 self.command_prompt_template
             )
             if result:
-                # Limpieza y normalización del resultado
                 result = result.strip().upper()
-                # Verificar formato válido (MODULO_COMANDO)
                 if '_' in result and any(prefix in result for prefix in self.modules.keys()):
                     logger.info(f"AI command analysis: {result}")
                     return result
@@ -147,17 +146,13 @@ class CommandHandler:
         
         text = user_input.lower()
         
-        # Eliminar palabras clave
         for word in words_to_remove:
             text = text.replace(word, '')
             
-        # Eliminar patrones de tiempo
         for pattern in time_patterns:
             text = re.sub(pattern, '', text, flags=re.IGNORECASE)
             
-        # Limpiar y normalizar
         title = text.strip()
-        # Convertir primera letra a mayúscula
         if title:
             title = title[0].upper() + title[1:]
             

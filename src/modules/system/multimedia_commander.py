@@ -7,40 +7,19 @@ from .base_commander import BaseCommander
 logger = logging.getLogger(__name__)
 
 class MultimediaCommander(BaseCommander):
-    def __init__(self):
+    def __init__(self, model_manager=None):
+        super().__init__()  # Llamar a super() primero
         self.command_prefix = "MEDIA"
-        super().__init__()
+        self.model_manager = model_manager
+        self.initialize_commands()  # Asegurarnos que los comandos se inicializan
 
     def initialize_commands(self):
+        """Inicializa los comandos disponibles."""
         self.commands = {
-            'PLAY': {
-                'description': 'Reproduce música o video',
-                'examples': ['reproducir música en spotify', 'poner video en youtube'],
-                'triggers': ['reproducir', 'poner', 'play', 'escuchar', 'ver video'],
-                'handler': self._play_media
-            },
-            'PAUSE': {
-                'description': 'Pausa la reproducción actual',
-                'examples': ['pausar música', 'detener reproducción'],
-                'triggers': ['pausar', 'pausa', 'detener', 'stop'],
-                'handler': self._pause_media
-            },
-            'NEXT': {
-                'description': 'Siguiente canción o video',
-                'examples': ['siguiente canción', 'pasar canción'],
-                'triggers': ['siguiente', 'próxima', 'pasar'],
-                'handler': self._next_track
-            },
-            'PREVIOUS': {
-                'description': 'Canción o video anterior',
-                'examples': ['canción anterior', 'regresar canción'],
-                'triggers': ['anterior', 'regresar', 'previo'],
-                'handler': self._previous_track
-            },
             'VOLUME': {
-                'description': 'Ajusta el volumen',
-                'examples': ['subir volumen', 'bajar volumen', 'volumen 50'],
-                'triggers': ['volumen', 'subir volumen', 'bajar volumen'],
+                'description': 'Ajusta el volumen del sistema',
+                'examples': ['subir volumen', 'bajar volumen'],
+                'triggers': ['volumen', 'subir', 'bajar', 'sube', 'baja'],
                 'handler': self._adjust_volume
             }
         }
@@ -48,14 +27,49 @@ class MultimediaCommander(BaseCommander):
     def get_rules_text(self) -> str:
         return """
         - Para el módulo MEDIA (MultimediaCommander):
+          * Control de volumen -> MEDIA_VOLUME
           * Reproducir contenido -> MEDIA_PLAY:plataforma:búsqueda
-          * Control de reproducción -> MEDIA_COMANDO
-          Ejemplos:
-          "reproducir música en spotify" -> MEDIA_PLAY:spotify:nombre_canción
-          "ver video en youtube" -> MEDIA_PLAY:youtube:nombre_video
-          "subir volumen" -> MEDIA_VOLUME:up
-          "bajar volumen" -> MEDIA_VOLUME:down
         """
+
+    def process_command_parameters(self, command: str, user_input: str, additional_info: str) -> dict:
+        """Procesa los parámetros del comando."""
+        logger.debug(f"Procesando parámetros: command={command}, input={user_input}")
+        if command == 'VOLUME':
+            lower_input = user_input.lower()
+            if any(w in lower_input for w in ['subir', 'sube', 'más', 'aumenta']):
+                return {'direction': 'up'}
+            return {'direction': 'down'}
+        return {}
+
+    def should_handle_command(self, user_input: str) -> bool:
+        """Verifica si debe manejar el comando."""
+        lower_input = user_input.lower()
+        volume_keywords = ['volumen', 'subir', 'bajar', 'sube', 'baja']
+        result = any(k in lower_input for k in volume_keywords)
+        logger.debug(f"Should handle '{user_input}': {result}")
+        return result
+
+    def extract_command_info(self, user_input: str) -> tuple:
+        """Extrae la información del comando."""
+        logger.debug(f"Extrayendo comando de: {user_input}")
+        if self.should_handle_command(user_input):
+            return 'VOLUME', None
+        return None, None
+
+    def _adjust_volume(self, direction: str = None, **kwargs) -> Tuple[str, bool]:
+        """Ajusta el volumen del sistema."""
+        try:
+            logger.debug(f"Ajustando volumen: direction={direction}")
+            if direction == 'up':
+                subprocess.run(['amixer', 'set', 'Master', '10%+'])
+                return "Volumen aumentado", True
+            elif direction == 'down':
+                subprocess.run(['amixer', 'set', 'Master', '10%-'])
+                return "Volumen disminuido", True
+            return "Dirección no especificada", False
+        except Exception as e:
+            logger.error(f"Error ajustando volumen: {e}")
+            return str(e), False
 
     def _play_media(self, platform: str = None, query: str = None, **kwargs) -> Tuple[str, bool]:
         try:
@@ -102,73 +116,17 @@ class MultimediaCommander(BaseCommander):
             logger.error(f"Error regresando pista: {e}")
             return str(e), False
 
-    def _adjust_volume(self, direction: str = None, level: int = None, **kwargs) -> Tuple[str, bool]:
-        try:
-            if direction == 'up':
-                subprocess.run(['amixer', 'set', 'Master', '10%+'])
-                return "Volumen aumentado", True
-            elif direction == 'down':
-                subprocess.run(['amixer', 'set', 'Master', '10%-'])
-                return "Volumen disminuido", True
-            elif level is not None:
-                subprocess.run(['amixer', 'set', 'Master', f'{level}%'])
-                return f"Volumen ajustado a {level}%", True
-            return "Dirección no especificada", False
-        except Exception as e:
-            logger.error(f"Error ajustando volumen: {e}")
-            return str(e), False
-
-    def process_command_parameters(self, command: str, user_input: str, additional_info: str) -> dict:
-        params = {}
-        if command == 'PLAY' and additional_info:
-            platform, *query_parts = additional_info.split(':')
-            params['platform'] = platform.lower()
-            params['query'] = ':'.join(query_parts) if query_parts else None
-        elif command == 'VOLUME':
-            if 'subir' in user_input.lower():
-                params['direction'] = 'up'
-            elif 'bajar' in user_input.lower():
-                params['direction'] = 'down'
-            else:
-                # Intentar extraer nivel numérico
-                import re
-                if match := re.search(r'(\d+)', user_input):
-                    params['level'] = int(match.group(1))
-        return params
-
-    def should_handle_command(self, user_input: str) -> bool:
-        media_keywords = ['reproducir', 'pausar', 'siguiente', 'anterior', 'volumen', 
-                         'spotify', 'youtube', 'música', 'video']
-        return any(keyword in user_input.lower() for keyword in media_keywords)
-
-    def extract_command_info(self, user_input: str) -> tuple:
-        lower_input = user_input.lower()
-        
-        # Detectar plataforma y búsqueda para PLAY
-        if any(word in lower_input for word in ['reproducir', 'poner', 'escuchar']):
-            platform = 'spotify' if 'spotify' in lower_input else 'youtube'
-            # Extraer texto de búsqueda después de "en spotify/youtube"
-            import re
-            if match := re.search(rf'(?:en {platform})\s+(.+)', lower_input):
-                query = match.group(1)
-                return 'PLAY', f"{platform}:{query}"
-            return 'PLAY', platform
-
-        # Mapeo directo para otros comandos
-        command_mapping = {
-            'pausar': 'PAUSE',
-            'siguiente': 'NEXT',
-            'anterior': 'PREVIOUS',
-            'volumen': 'VOLUME'
-        }
-        
-        for key, cmd in command_mapping.items():
-            if key in lower_input:
-                return cmd, None
-        
-        return None, None
-
     def format_command_response(self, command: str, additional_info: str = "") -> str:
-        if command == 'PLAY' and additional_info:
-            return f"{self.command_prefix}_{command}:{additional_info}"
-        return f"{self.command_prefix}_{command}"
+        formatted = f"{self.command_prefix}_{command}"
+        logger.debug(f"Formato de respuesta: {formatted}")
+        return formatted
+
+    def execute_command(self, command: str, **kwargs) -> Tuple[str, bool]:
+        """Sobrescribir método de BaseCommander para debugging."""
+        logger.debug(f"Ejecutando comando: {command} con kwargs: {kwargs}")
+        if command not in self.commands:
+            logger.error(f"Comando {command} no encontrado en {self.commands.keys()}")
+            return f"Comando {command} no encontrado", False
+            
+        handler = self.commands[command]['handler']
+        return handler(**kwargs)
