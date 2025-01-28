@@ -181,27 +181,30 @@ class MultimediaCommander(BaseCommander):
 
     def _play_spotify(self, query: str) -> Tuple[str, bool]:
         try:
-            methods = [
-                lambda: subprocess.run(['spotify', '--uri', f'spotify:search:{query}'], check=True),
-                lambda: subprocess.run(['xdg-open', f'spotify:search:{query}'], check=True),
-                lambda: (
-                    subprocess.run(['spotify'], check=True),
-                    time.sleep(2),
-                    subprocess.run(['playerctl', '-p', 'spotify', 'play'], check=True)
-                )
-            ]
-            for method in methods:
-                try:
-                    method()
-                    return f"Reproduciendo '{query}' en Spotify", True
-                except Exception as e:
-                    logger.debug(f"Spotify method failed: {e}")
-                    continue
-            return "No se pudo abrir Spotify", False
+            subprocess.run(['spotify'], check=False)
+            time.sleep(2)
+
+            search_uri = f'spotify:search:{quote_plus(query)}'
+            try:
+                subprocess.run(['playerctl', '-p', 'spotify', 'open', search_uri], check=True)
+                time.sleep(1)
+                subprocess.run(['playerctl', '-p', 'spotify', 'play'], check=True)
+                return f"Reproduciendo '{query}' en Spotify", True
+            except subprocess.CalledProcessError as e:
+                logger.warning(f"Playerctl falló: {e}")
+
+            xdg_open_command = ['xdg-open', search_uri]
+            try:
+                subprocess.run(xdg_open_command, check=True)
+                return f"Buscando y reproduciendo '{query}' en Spotify", True
+            except subprocess.CalledProcessError as e:
+                logger.warning(f"xdg-open falló: {e}")
+
+            return "No se pudo reproducir el contenido en Spotify automáticamente", False
 
         except Exception as e:
-            logger.error(f"Error with Spotify: {e}")
-            return "Error al reproducir en Spotify", False
+            logger.error(f"Error al reproducir en Spotify: {e}")
+            return str(e), False
 
     def _play_youtube(self, query: str) -> Tuple[str, bool]:
         search_query = quote_plus(query)
