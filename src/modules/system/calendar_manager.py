@@ -9,6 +9,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from pathlib import Path
+import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,16 @@ class CalendarManager(BaseCommander):
         self.timezone = pytz.timezone('America/Bogota')
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         self.service = self._get_calendar_service()
+        self.default_hour = 12  # Solo como fallback
+        self._setup_ai()
         super().__init__()
+
+    def _setup_ai(self):
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY no encontrada")
+        genai.configure(api_key=api_key)
+        self.ai_model = genai.GenerativeModel('gemini-2.0-flash-exp')
 
     def _get_calendar_service(self):
         creds = None
@@ -75,23 +85,27 @@ class CalendarManager(BaseCommander):
         tomorrow = today + timedelta(days=1)
         
         patterns = {
-            'mañana': (tomorrow, r'(?:para\s+)?mañana(?:\s+a\s+las?)?\s*(\d{1,2})(?::(\d{2}))?\s*(?:am|pm|horas)?'),
-            'hoy': (today, r'(?:para\s+)?hoy(?:\s+a\s+las?)?\s*(\d{1,2})(?::(\d{2}))?\s*(?:am|pm|horas)?'),
+            'mañana': (tomorrow, r'(?:para\s+)?mañana(?:\s+a\s+las?)?\s*(?:(\d{1,2})(?::(\d{2}))?)?\s*(?:am|pm|horas)?'),
+            'hoy': (today, r'(?:para\s+)?hoy(?:\s+a\s+las?)?\s*(?:(\d{1,2})(?::(\d{2}))?)?\s*(?:am|pm|horas)?'),
         }
         
         for key, (base_date, pattern) in patterns.items():
             match = re.search(pattern, text.lower())
             if match:
-                hour = int(match.group(1))
-                minutes = int(match.group(2)) if match.group(2) else 0
-                
-                # Reglas de hora inteligentes
-                if 1 <= hour <= 11 and "pm" in text.lower():
-                    hour += 12
-                elif hour == 12 and "am" in text.lower():
-                    hour = 0
-                elif 1 <= hour <= 6:  # Asumimos PM para horas entre 1-6 sin especificar
-                    hour += 12
+                if match.group(1):  # Si se especificó una hora
+                    hour = int(match.group(1))
+                    minutes = int(match.group(2)) if match.group(2) else 0
+                    
+                    # Reglas de hora inteligentes
+                    if 1 <= hour <= 11 and "pm" in text.lower():
+                        hour += 12
+                    elif hour == 12 and "am" in text.lower():
+                        hour = 0
+                    elif 1 <= hour <= 6:  # Asumimos PM para horas entre 1-6 sin especificar
+                        hour += 12
+                else:  # Si no se especificó hora, predecir según la actividad
+                    hour = self._predict_hour(text)
+                    minutes = 0
                 
                 event_date = base_date.replace(
                     hour=hour,
@@ -103,6 +117,51 @@ class CalendarManager(BaseCommander):
                 return event_date, True
                 
         return None, False
+
+    def _predict_hour(self, text: str) -> int:
+        try:
+            prompt = f"""
+            Como asistente de calendario, necesito determinar la hora más apropiada para una actividad.
+            
+            Actividad: "{text}"
+            
+            Reglas:
+            1. Considera el contexto cultural y las costumbres generales
+            2. Piensa en la hora más común para esta actividad
+            3. Responde SOLO con el número de hora en formato 24h (0-23)
+            4. Si no estás seguro, responde "12"
+
+            Ejemplo:
+            "sacar la basura" -> "19"
+            "ir al médico" -> "9"
+
+            Por favor analiza y sugiere la hora más apropiada para esta actividad.
+            """
+
+            response = self.ai_model.generate_content(
+                prompt,
+                generation_config={
+                    'temperature': 0.1,
+                    'top_p': 1,
+                    'top_k': 1,
+                    'max_output_tokens': 5,
+                }
+            )
+
+            if response.text:
+                try:
+                    hour = int(response.text.strip())
+                    if 0 <= hour <= 23:
+                        logger.info(f"IA sugirió hora {hour}:00 para: {text}")
+                        return hour
+                except ValueError:
+                    pass
+
+            return self.default_hour
+
+        except Exception as e:
+            logger.error(f"Error prediciendo hora con IA: {e}")
+            return self.default_hour
 
     def create_event(self, text: str, title: str = None, **kwargs) -> tuple:
         try:
@@ -142,7 +201,6 @@ class CalendarManager(BaseCommander):
         try:
             now = datetime.utcnow().isoformat() + 'Z'
             end = (datetime.utcnow() + timedelta(days=days)).isoformat() + 'Z'
-            
             events_result = self.service.events().list(
                 calendarId='primary',
                 timeMin=now,
@@ -153,10 +211,9 @@ class CalendarManager(BaseCommander):
             ).execute()
             
             events = events_result.get('items', [])
-
             if not events:
                 return "No hay eventos próximos programados", True
-
+                
             events_text = "Próximos eventos:\n"
             for event in events:
                 start = event['start'].get('dateTime', event['start'].get('date'))
@@ -169,21 +226,3 @@ class CalendarManager(BaseCommander):
         except Exception as e:
             logger.error(f"Error leyendo eventos: {e}")
             return f"Error al leer eventos: {str(e)}", False
-
-    def _parse_calendar_data(self, cal_data: str) -> tuple:
-        try:
-            events = []
-            cal = icalendar.Calendar.from_ical(cal_data)
-            
-            for component in cal.walk('vevent'):
-                start = component.get('dtstart').dt
-                summary = str(component.get('summary'))
-                events.append({
-                    'date': start,
-                    'title': summary
-                })
-                
-            return sorted(events, key=lambda x: x['date']), True
-        except Exception as e:
-            logger.error(f"Error parsing calendar data: {e}")
-            return [], False
