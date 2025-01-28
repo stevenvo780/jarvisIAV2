@@ -69,10 +69,10 @@ class AudioHandler:
                 temp_wav,
                 language="es",
                 initial_prompt="Jarvis asistente virtual",
-                temperature=0.1,
-                beam_size=10,
-                no_speech_threshold=0.6,
-                fp16=False
+                no_speech_threshold=0.3,
+                temperature=0.0,
+                fp16=False,
+                best_of=2
             )
             
             return result["text"].strip().lower()
@@ -98,6 +98,7 @@ class AudioHandler:
                 )
                 
                 text = self._transcribe_audio(audio_data)
+                print(f"Texto reconocido: {text}")
                 if re.search(rf'\b{re.escape(trigger_word)}\b', text, re.IGNORECASE):
                     cleaned_text = re.sub(
                         rf'\b{re.escape(trigger_word)}\b',
