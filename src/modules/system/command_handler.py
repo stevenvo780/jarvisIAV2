@@ -5,6 +5,10 @@ import google.generativeai as genai
 from modules.system.base_commander import BaseCommander
 from modules.system.calendar_commander import CalendarCommander
 from src.modules.system.ubuntu_commander import UbuntuCommander
+from src.modules.system.multimedia_commander import MultimediaCommander
+from src.modules.system.ubuntu_commander import UbuntuCommander
+from src.modules.system.calendar_commander import CalendarCommander
+from src.modules.system.multimedia_commander import MultimediaCommander
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +22,7 @@ class CommandHandler:
     def _register_default_modules(self):
         self.register_module('SYSTEM', UbuntuCommander())
         self.register_module('CALENDAR', CalendarCommander())
+        self.register_module('MEDIA', MultimediaCommander())
 
     def register_module(self, name: str, module: BaseCommander):
         self.modules[name] = module
