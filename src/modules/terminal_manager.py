@@ -31,6 +31,7 @@ class TerminalManager:
         self._last_state = None
         self._last_time = 0.0
         self._last_prompt = None
+        self._initial_prompt_shown = False
 
     def _setup_colors(self):
         self.COLORS = {
@@ -107,9 +108,17 @@ class TerminalManager:
             now = time.time()
             new_prompt = None
             
+            if state == 'VOICE_IDLE' and not self._initial_prompt_shown:
+                self._initial_prompt_shown = True
+                self._last_state = state
+                self._last_time = now
+                self._last_prompt = f"{self.STATES.get(state, '🟢')} > "
+                print(self._last_prompt, end="", flush=True)
+                return
+            
             if state == self._last_state and (now - self._last_time < 0.5):
                 return
-                
+            
             self._last_state = state
             self._last_time = now
             state_icon = self.STATES.get(state, "🟢")

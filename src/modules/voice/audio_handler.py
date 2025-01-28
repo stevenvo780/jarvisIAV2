@@ -24,7 +24,6 @@ class AudioHandler:
         self.recognizer = None
         self.mic_state = self._initialize_mic_state()
         self._setup_audio_system()
-        self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
 
     def _setup_recognizer(self, mode='base'):
         self.recognizer = sr.Recognizer()
@@ -70,9 +69,9 @@ class AudioHandler:
                 temp_wav,
                 language="es",
                 initial_prompt="Jarvis asistente virtual",
-                temperature=0.0,
-                beam_size=5,
-                no_speech_threshold=0.5,
+                temperature=0.1,
+                beam_size=10,
+                no_speech_threshold=0.6,
                 fp16=False
             )
             
@@ -95,7 +94,7 @@ class AudioHandler:
                 audio_data = self.recognizer.listen(
                     source,
                     timeout=self.config['speech_modes']['short_phrase']['operation_timeout'],
-                    phrase_time_limit=2
+                    phrase_time_limit=1
                 )
                 
                 text = self._transcribe_audio(audio_data)
