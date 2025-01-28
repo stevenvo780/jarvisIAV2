@@ -26,6 +26,7 @@ from src.modules.voice.audio_handler import AudioHandler
 from src.modules.voice.tts_manager import TTSManager
 from src.modules.storage_manager import StorageManager
 from src.modules.command_manager import CommandManager
+from src.modules.system.command_handler import CommandHandler
 
 setup_logging()
 
@@ -113,8 +114,7 @@ class Jarvis:
         self.command_manager = CommandManager(tts=self.tts, state=self.state)
 
     def _initialize_command_handler(self):
-        """Inicializa el manejador de comandos"""
-        from src.modules.command_handler import CommandHandler
+        
         self.command_handler = CommandHandler(self.model)
         self.terminal.print_success("Command handler initialized")
 
