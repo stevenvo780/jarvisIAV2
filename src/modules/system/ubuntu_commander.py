@@ -1,106 +1,87 @@
 import subprocess
 import logging
-import json
-import os
-from typing import Dict, Callable, Any
 import webbrowser
+from typing import Dict, Tuple
+from .base_commander import BaseCommander
 
 logger = logging.getLogger(__name__)
 
-class UbuntuCommander:
+class UbuntuCommander(BaseCommander):
     def __init__(self):
-        self.commands_config = self._load_commands_config()
-        self.commands = {}
-        self._register_default_commands()
+        self.command_prefix = "SYSTEM"
+        super().__init__()
 
-    def _load_commands_config(self) -> Dict:
-        config_path = os.path.join('src', 'config', 'commands_config.json')
-        try:
-            with open(config_path, 'r') as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Error loading commands config: {e}")
-            return {"system_commands": {}}
-
-    def _register_default_commands(self):
-        default_methods = {
-            '_open_calculator': self._open_calculator,
-            '_open_browser': self._open_browser,
-            '_play_music': self._play_music,
-            '_open_terminal': self._open_terminal,
-            '_open_settings': self._open_settings
+    def initialize_commands(self):
+        self.commands = {
+            'CALCULATOR': {
+                'description': 'Abre la calculadora',
+                'examples': ['abrir calculadora', 'necesito calcular algo'],
+                'triggers': ['calculadora', 'calcular'],
+                'handler': self._open_calculator
+            },
+            'BROWSER': {
+                'description': 'Abre el navegador web',
+                'examples': ['abrir navegador', 'necesito buscar algo'],
+                'triggers': ['navegador', 'internet', 'web'],
+                'handler': self._open_browser
+            },
+            'MUSIC': {
+                'description': 'Reproduce música',
+                'examples': ['reproducir música', 'poner música'],
+                'triggers': ['música', 'canciones', 'reproductor'],
+                'handler': self._play_music
+            },
+            'TERMINAL': {
+                'description': 'Abre una terminal',
+                'examples': ['abrir terminal', 'abrir consola'],
+                'triggers': ['terminal', 'consola'],
+                'handler': self._open_terminal
+            },
+            'SETTINGS': {
+                'description': 'Abre la configuración del sistema',
+                'examples': ['abrir configuración', 'ajustes del sistema'],
+                'triggers': ['configuración', 'ajustes', 'opciones'],
+                'handler': self._open_settings
+            }
         }
 
-        for cmd_name, cmd_info in self.commands_config['system_commands'].items():
-            method_name = cmd_info.get('method')
-            if method_name in default_methods:
-                self.commands[cmd_name] = {
-                    'func': default_methods[method_name],
-                    'config': cmd_info
-                }
-
-    def execute_command(self, command_name: str, **kwargs) -> bool:
-        if command_name not in self.commands:
-            logger.error(f"Command {command_name} not found")
-            return False
-
-        command = self.commands[command_name]
-        try:
-            params = {**command['config'].get('default_params', {}), **kwargs}
-            return command['func'](**params)
-        except Exception as e:
-            logger.error(f"Error executing command {command_name}: {e}")
-            return False
-
-    def register_command(self, command_name: str, command_func: Callable, command_config: Dict) -> None:
-        self.commands[command_name] = {
-            'func': command_func,
-            'config': command_config
-        }
-        # Actualizar la configuración en memoria
-        if 'system_commands' not in self.commands_config:
-            self.commands_config['system_commands'] = {}
-        self.commands_config['system_commands'][command_name] = command_config
-
-    def get_commands_info(self) -> Dict:
-        return self.commands_config['system_commands']
-
-    def _open_calculator(self) -> bool:
+    def _open_calculator(self, **kwargs) -> Tuple[str, bool]:
         try:
             subprocess.Popen(['gnome-calculator'])
-            return True
+            return "Calculadora abierta", True
         except Exception as e:
             logger.error(f"Error abriendo calculadora: {e}")
-            return False
+            return f"Error abriendo calculadora: {str(e)}", False
 
-    def _open_browser(self, url: str = "https://www.google.com") -> bool:
+    def _open_browser(self, **kwargs) -> Tuple[str, bool]:
         try:
+            url = kwargs.get('url', "https://www.google.com")
             webbrowser.open(url)
-            return True
+            return "Navegador abierto", True
         except Exception as e:
             logger.error(f"Error abriendo navegador: {e}")
-            return False
+            return f"Error abriendo navegador: {str(e)}", False
 
-    def _play_music(self) -> bool:
+    def _play_music(self, **kwargs) -> Tuple[str, bool]:
         try:
             subprocess.Popen(['rhythmbox'])
-            return True
+            return "Reproductor de música abierto", True
         except Exception as e:
-            logger.error(f"Error abriendo reproductor de música: {e}")
-            return False
+            logger.error(f"Error abriendo reproductor: {e}")
+            return f"Error abriendo reproductor: {str(e)}", False
 
-    def _open_terminal(self) -> bool:
+    def _open_terminal(self, **kwargs) -> Tuple[str, bool]:
         try:
             subprocess.Popen(['gnome-terminal'])
-            return True
+            return "Terminal abierta", True
         except Exception as e:
             logger.error(f"Error abriendo terminal: {e}")
-            return False
+            return f"Error abriendo terminal: {str(e)}", False
 
-    def _open_settings(self) -> bool:
+    def _open_settings(self, **kwargs) -> Tuple[str, bool]:
         try:
             subprocess.Popen(['gnome-control-center'])
-            return True
+            return "Configuración del sistema abierta", True
         except Exception as e:
             logger.error(f"Error abriendo configuración: {e}")
-            return False
+            return f"Error abriendo configuración: {str(e)}", False

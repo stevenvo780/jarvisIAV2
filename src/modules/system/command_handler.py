@@ -2,6 +2,8 @@ import logging
 import os
 from typing import Tuple, Optional, Dict
 import google.generativeai as genai
+from modules.system.base_commander import BaseCommander
+from modules.system.calendar_manager import CalendarManager
 from src.modules.system.ubuntu_commander import UbuntuCommander
 
 logger = logging.getLogger(__name__)
@@ -9,89 +11,139 @@ logger = logging.getLogger(__name__)
 class CommandHandler:
     def __init__(self, model_manager):
         self.model_manager = model_manager
-        self.ubuntu_commander = UbuntuCommander()
-        
         self.api_key = os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
             raise ValueError("GOOGLE_API_KEY no encontrada en variables de entorno")
         
         genai.configure(api_key=self.api_key)
-        self.ai_model = genai.GenerativeModel("gemini-2.0-flash-exp")
-        
+        self.ai_model = genai.GenerativeModel("gemini-pro")
+        self.modules = {}
+        self._register_default_modules()
         self._update_command_prompt()
-        self.valid_commands = self.ubuntu_commander.get_commands_info().keys()
+        self.calendar_manager = CalendarManager()
+
+    def _register_default_modules(self):
+        self.register_module('SYSTEM', UbuntuCommander())
+        self.register_module('CALENDAR', CalendarManager())
+
+    def register_module(self, name: str, module: BaseCommander):
+        self.modules[name] = module
+        self._update_command_prompt()
+
+    def _build_commands_description(self):
+        descriptions = []
+        for module_name, module in self.modules.items():
+            descriptions.extend(module.get_command_descriptions())
+        return descriptions
 
     def _update_command_prompt(self):
-        commands_info = self.ubuntu_commander.get_commands_info()
-        commands_description = "\n".join([
-            f"- {cmd}: {info['description']}" 
-            for cmd, info in commands_info.items()
+        commands = self._build_commands_description()
+        commands_text = "\n".join([
+            f"Módulo: {cmd['prefix']}\n"
+            f"Comando: {cmd['command']}\n"
+            f"Descripción: {cmd['description']}\n"
+            f"Ejemplos: {', '.join(cmd['examples'])}\n"
+            for cmd in commands
         ])
         
         self.command_prompt_template = f"""
-        Eres un analizador de comandos para un asistente virtual. Analiza la siguiente entrada y determina:
-        1. Si es un comando de sistema o una consulta general
-        2. Si es un comando, identifica cuál de los siguientes comandos debe ejecutarse basado en el contexto y la intención del usuario:
+        Eres un asistente experto en entender comandos e intenciones del usuario.
+        Tu tarea es mapear la entrada a uno de estos comandos específicos.
 
         Comandos disponibles:
-        {self._format_commands(self.ubuntu_commander.get_commands_info())}
+        {commands_text}
 
-        Formato de respuesta esperado:
-        Si es un comando: "COMMAND:nombre_comando"
-        Si es consulta general: "QUERY"
+        Reglas de decisión:
+        1. Para comandos del sistema (SYSTEM):
+           - Si mencionan "abrir", "iniciar", "ejecutar" -> mapear al comando correspondiente
+           - Ejemplos:
+             "abre la calculadora" -> "SYSTEM_CALCULATOR"
+             "abrir navegador" -> "SYSTEM_BROWSER"
+             "pon música" -> "SYSTEM_MUSIC"
 
-        Entrada del usuario: "{{input}}"
+        2. Para eventos del calendario (CALENDAR):
+           - Si mencionan "recordar", "agendar", "evento" -> "CALENDAR_CREATE:título"
+           - Para consultas de agenda -> "CALENDAR_LIST"
+           - Ejemplos:
+             "recuérdame llamar a mamá" -> "CALENDAR_CREATE:Llamar a mamá"
+             "qué eventos tengo" -> "CALENDAR_LIST"
+
+        3. Si no coincide con ningún comando -> "QUERY"
+
+        Instrucción: Analiza esta entrada y responde SOLO con el comando correspondiente.
+        Entrada: "{{input}}"
         """
-
-    def _format_triggers(self, commands_info):
-        return "\n".join([
-            f"- {cmd}: {', '.join(info['triggers'])}"
-            for cmd, info in commands_info.items()
-            if 'triggers' in info
-        ])
-
-    def _format_commands(self, commands_info):
-        return "\n".join([
-            f"- {cmd}: {info['description']}" 
-            for cmd, info in commands_info.items()
-        ])
 
     def process_input(self, user_input: str) -> Tuple[str, str]:
         try:
-            is_command, command_name = self._analyze_with_ai(user_input)
+            result = self._analyze_with_ai(user_input)
+            logger.info(f"AI analysis result: {result}")
             
-            if is_command and command_name in self.valid_commands:
-                success = self.ubuntu_commander.execute_command(command_name)
-                return (
-                    f"Comando {command_name} ejecutado exitosamente" if success 
-                    else f"Error ejecutando {command_name}",
-                    "command"
-                )
+            if not result or result == "QUERY":
+                return None, "query"
 
+            try:
+                if '_' in result:
+                    prefix, remainder = result.split('_', 1)
+                    command, *args = remainder.split(':', 1)
+                    
+                    prefix = prefix.upper()
+                    command = command.upper()
+                    
+                    if prefix in self.modules:
+                        module = self.modules[prefix]
+                        additional_info = args[0] if args else ""
+                        response, success = module.execute_command(
+                            command, 
+                            text=user_input,
+                            title=additional_info
+                        )
+                        logger.info(f"Command executed: {prefix}_{command} -> {success}")
+                        return response, "command" if success else "error"
+            except ValueError:
+                pass
+            
             return None, "query"
             
         except Exception as e:
             logger.error(f"Error en process_input: {e}")
             return f"Error procesando entrada: {str(e)}", "error"
 
-    def _analyze_with_ai(self, user_input: str) -> Tuple[bool, Optional[str]]:
+    def _analyze_with_ai(self, user_input: str) -> Optional[str]:
         try:
             prompt = self.command_prompt_template.format(input=user_input)
-            response = self.ai_model.generate_content(prompt)
+            response = self.ai_model.generate_content(
+                prompt,
+                generation_config={
+                    'temperature': 0,
+                    'top_p': 1,
+                    'top_k': 1,
+                }
+            )
             
-            if not response.text:
-                return False, None
+            if response.text:
+                result = response.text.strip()
+                logger.info(f"AI response: {result}")
+                return result
             
-            result = response.text.strip()
-            if result.startswith("COMMAND:"):
-                command = result.replace("COMMAND:", "").strip()
-                return True, command
-            
-            return False, None
+            return self._fallback_trigger_check(user_input)
             
         except Exception as e:
-            logger.error(f"Error analizando comando con IA: {e}")
-            return False, None
+            logger.error(f"Error analizando con IA: {e}")
+            return self._fallback_trigger_check(user_input)
+
+    def _fallback_trigger_check(self, user_input: str) -> Optional[str]:
+        lower_input = user_input.lower()
+        for prefix, module in self.modules.items():
+            for cmd_name, cmd_info in module.commands.items():
+                if any(trigger.lower() in lower_input for trigger in cmd_info.get('triggers', [])):
+                    if prefix == "CALENDAR" and cmd_name == "CREATE":
+                        if not any(time_indicator in lower_input for time_indicator in 
+                                 ['mañana', 'hoy', ' am', ' pm', 'a las']):
+                            continue
+                    logger.info(f"Trigger match found: {prefix}_{cmd_name}")
+                    return f"{prefix}_{cmd_name}"
+        return None
 
     def register_command(self, command_name: str, command_func, command_config: Dict):
         self.ubuntu_commander.register_command(command_name, command_func, command_config)

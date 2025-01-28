@@ -215,32 +215,23 @@ class Jarvis:
                 if hasattr(self, 'tts'):
                     self.tts.stop_speaking()
                 
-                handled = self.command_manager.handle_command(content)
-                if handled:
-                    return False, ""
-                
-                self.terminal.print_thinking()
-                
-                model_future = self.executor.submit(
-                    self.model.get_response, content
-                )
-                
+                # Primero intentamos procesar como comando
                 if self.command_handler:
                     response, response_type = self.command_handler.process_input(content)
-                    if response_type in ["command", "error"]:
-                        if not model_future.done():
-                            model_future.cancel()
+                    if response and response_type in ["command", "error"]:
                         self.terminal.print_response(response, "system" if response_type == "command" else "error")
                         self.input_queue.task_done()
+                        if hasattr(self, 'tts'):
+                            self.tts.speak(response)
                         return
                 
+                # Si no es comando, procesamos como consulta normal
+                self.terminal.print_thinking()
                 try:
-                    response, model_name = model_future.result(timeout=60)
+                    response, model_name = self.model.get_response(content)
                     self.terminal.print_response(response, model_name)
                     if (t == 'voice' or self.state['voice_active']) and hasattr(self, 'tts'):
                         self.tts.speak(response)
-                except concurrent.futures.TimeoutError:
-                    self.terminal.print_error("Timeout esperando respuesta del modelo")
                 except Exception as e:
                     self.terminal.print_error(f"Error del modelo: {e}")
             

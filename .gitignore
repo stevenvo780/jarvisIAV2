@@ -7,3 +7,4 @@ jarvis
 venv
 conversation_history.json
 models
+credentials*
