@@ -1,4 +1,3 @@
-# main.py
 #!/usr/bin/env python3
 import os
 import sys
@@ -34,6 +33,7 @@ class Jarvis:
     def __init__(self):
         self.terminal = TerminalManager()
         self.input_queue = Queue()
+        self.audio_ready = threading.Event()
         self.state = {
             'running': True,
             'voice_active': True,
@@ -51,6 +51,12 @@ class Jarvis:
             self._initialize_system()
             self._initialize_command_handler()
             self._start_audio_initialization()
+            
+            if self.audio_ready.wait(timeout=10):
+                self.terminal.print_success("🎤 Voice system initialized")
+            else:
+                self.terminal.print_warning("⌨️ Continuing without voice system")
+            
             self._initialize_text_mode()
             self.terminal.print_status("System ready")
             self.audio_effects.play('startup')
@@ -105,16 +111,13 @@ class Jarvis:
         load_dotenv()
         
         self.storage = StorageManager()
-        
         self.model = ModelManager(storage_manager=self.storage)
-        
         self.tts = TTSManager()
         self.model.set_tts_manager(self.tts)
         self.terminal.print_success("Core system initialized")
         self.command_manager = CommandManager(tts=self.tts, state=self.state)
 
     def _initialize_command_handler(self):
-        
         self.command_handler = CommandHandler(self.model)
         self.terminal.print_success("Command handler initialized")
 
@@ -136,6 +139,7 @@ class Jarvis:
                     try:
                         if not self.state['audio_initialized']:
                             self.state['audio_initialized'] = True
+                            self.audio_ready.set()
                             logging.info("Audio inicializado correctamente")
                             
                         triggered, command = self.audio.listen_for_trigger("jarvis")
@@ -156,13 +160,15 @@ class Jarvis:
                         time.sleep(1)
                     time.sleep(0.1)
 
-            # Iniciar el procesador de audio en un thread separado
             self.audio_thread = threading.Thread(target=audio_processor, daemon=True)
             self.audio_thread.start()
             
-            self.state['audio_initialized'] = True
-            self.state['voice_active'] = True
-            self.terminal.print_success("🎤 Voice ready")
+            if self.audio_ready.wait(timeout=10):
+                self.state['audio_initialized'] = True
+                self.state['voice_active'] = True
+                self.terminal.print_success("🎤 Voice ready")
+            else:
+                raise TimeoutError("Audio initialization timed out")
             
         except Exception as e:
             self.state['voice_active'] = False
@@ -215,7 +221,6 @@ class Jarvis:
                 if hasattr(self, 'tts'):
                     self.tts.stop_speaking()
                 
-                # Primero intentamos procesar como comando
                 if self.command_handler:
                     response, response_type = self.command_handler.process_input(content)
                     if response and response_type in ["command", "error"]:
@@ -225,7 +230,6 @@ class Jarvis:
                             self.tts.speak(response)
                         return
                 
-                # Si no es comando, procesamos como consulta normal
                 self.terminal.print_thinking()
                 try:
                     response, model_name = self.model.get_response(content)
