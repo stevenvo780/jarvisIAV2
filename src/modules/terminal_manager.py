@@ -108,14 +108,6 @@ class TerminalManager:
             now = time.time()
             new_prompt = None
             
-            if state == 'VOICE_IDLE' and not self._initial_prompt_shown:
-                self._initial_prompt_shown = True
-                self._last_state = state
-                self._last_time = now
-                self._last_prompt = f"{self.STATES.get(state, '🟢')} > "
-                print(self._last_prompt, end="", flush=True)
-                return
-            
             if state == self._last_state and (now - self._last_time < 0.5):
                 return
             

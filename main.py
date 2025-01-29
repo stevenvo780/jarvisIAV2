@@ -219,7 +219,7 @@ class Jarvis:
             if content.strip():
                 if hasattr(self, 'tts'):
                     self.tts.stop_speaking()
-                
+                self.terminal.print_thinking()
                 if self.command_handler:
                     response, response_type = self.command_handler.process_input(content)
                     if response and response_type in ["command", "error"]:
@@ -229,7 +229,7 @@ class Jarvis:
                             self.tts.speak(response)
                         return
                 
-                self.terminal.print_thinking()
+                self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
                 try:
                     response, model_name = self.model.get_response(content)
                     self.terminal.print_response(response, model_name)

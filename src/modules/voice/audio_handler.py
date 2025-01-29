@@ -150,8 +150,6 @@ class AudioHandler:
                 return text
         except Exception as e:
             logging.error(f"Command error: {e}")
-        finally:
-            self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
         return ""
 
     def run_trigger_listener(self):
