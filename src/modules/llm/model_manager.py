@@ -210,20 +210,37 @@ class ModelManager:
             template = context['prompts']['system_context'][model_name]['template']
             format_type = context['prompts']['system_context'][model_name]['format']
             
-            history_text = self._format_history(history, format_type)
-            memories = self.storage.get_relevant_memories(
-                self.config['system']['history']['memories_size']
-            )
-            user_context = self._build_user_context()
+            # Limitar el historial según el modelo
+            model_config = self.config['models'][model_name]
+            history_limit = model_config.get('history_context', 1)
+            memory_limit = model_config.get('memory_size', 0)
             
-            prompt_data = {
-                'name': context['assistant_profile']['name'],
-                'personality': context['assistant_profile']['personality'],
-                'conversation_history': history_text,
-                'context_memory': memories,
-                'user_context': user_context,
-                'core_traits': '\n'.join(f"- {trait}" for trait in context['assistant_profile']['core_traits'])
-            }
+            # Tomar solo el historial necesario para cada modelo
+            limited_history = history[-history_limit:] if history_limit > 0 else []
+            history_text = self._format_history(limited_history, format_type)
+            
+            # Limitar las memorias según el modelo
+            memories = self.storage.get_relevant_memories(memory_limit)
+            
+            # Para el modelo local, simplificar aún más si es necesario
+            if model_name == 'local':
+                prompt_data = {
+                    'name': context['assistant_profile']['name'],
+                    'personality': "asistente preciso y directo",
+                    'conversation_history': history_text,
+                    'context_memory': "",
+                    'user_context': "",
+                    'core_traits': ""
+                }
+            else:
+                prompt_data = {
+                    'name': context['assistant_profile']['name'],
+                    'personality': context['assistant_profile']['personality'],
+                    'conversation_history': history_text,
+                    'context_memory': memories,
+                    'user_context': self._build_user_context(),
+                    'core_traits': '\n'.join(f"- {trait}" for trait in context['assistant_profile']['core_traits'])
+                }
             
             return template.format(**prompt_data)
         except Exception as e:

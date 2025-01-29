@@ -20,7 +20,10 @@ class AudioHandler:
         self.terminal = terminal_manager
         self.audio_effects = AudioEffects()
         self.running = True
+        
+        # Load your Whisper model
         self.model = whisper.load_model("small")
+        
         self.recognizer = None
         self.mic_state = self._initialize_mic_state()
         self._setup_audio_system()
@@ -60,19 +63,23 @@ class AudioHandler:
         self.running = False
 
     def _transcribe_audio(self, audio_data):
+        """ Transcribe audio using Whisper with tweaked parameters to improve short-word detection. """
         temp_wav = os.path.join(os.getcwd(), "temp_audio.wav")
         try:
             with open(temp_wav, "wb") as f:
                 f.write(audio_data.get_wav_data())
-                
+            
+            # Adjusted parameters for better short-word recognition
             result = self.model.transcribe(
                 temp_wav,
                 language="es",
                 initial_prompt="Jarvis asistente virtual",
-                no_speech_threshold=0.3,
+                no_speech_threshold=0.15,  # Lower to avoid discarding short utterances
                 temperature=0.0,
-                fp16=False,
-                best_of=2
+                best_of=3,                # Slightly higher to evaluate more decoding paths
+                beam_size=5,             # Allows more exploration for short words
+                patience=1,              # Low patience to keep it fast
+                fp16=False
             )
             
             return result["text"].strip().lower()
@@ -87,6 +94,7 @@ class AudioHandler:
 
     def listen_for_trigger(self, trigger_word="jarvis"):
         try:
+            # Extend phrase_time_limit to allow the user to say "Jarvis" more comfortably
             self._setup_recognizer('short_phrase')
             with self.mic as source:
                 self.recognizer.adjust_for_ambient_noise(source, duration=0.8)
@@ -94,7 +102,7 @@ class AudioHandler:
                 audio_data = self.recognizer.listen(
                     source,
                     timeout=self.config['speech_modes']['short_phrase']['operation_timeout'],
-                    phrase_time_limit=1
+                    phrase_time_limit=2  # Was 1, extended to 2
                 )
                 
                 text = self._transcribe_audio(audio_data)
@@ -106,6 +114,7 @@ class AudioHandler:
                         flags=re.IGNORECASE
                     ).strip()
                     
+                    # If there's leftover text after the trigger, return it; else listen again
                     return True, cleaned_text if cleaned_text else self.listen_command()
                     
         except Exception as e:

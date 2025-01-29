@@ -67,27 +67,40 @@ class LocalModel:
                     attention_mask=attention_mask,
                     max_new_tokens=80,
                     num_return_sequences=1,
-                    temperature=0.2,
+                    temperature=0.3,        # Reducido para más precisión
                     do_sample=True,
-                    top_k=20,
-                    top_p=0.9,
-                    repetition_penalty=1.1,
+                    top_k=20,              # Reducido para limitar variaciones
+                    top_p=0.85,            # Reducido para mayor coherencia
+                    repetition_penalty=1.1, # Ajustado para balance
                     pad_token_id=self.tokenizer.pad_token_id,
                     eos_token_id=self.tokenizer.eos_token_id,
                     use_cache=True
                 )
+            
             response = self.tokenizer.decode(
                 outputs[0][input_ids.shape[1]:],
                 skip_special_tokens=True,
                 clean_up_tokenization_spaces=True
             ).strip()
-            for sep in ["Pregunta:", "Respuesta:", "Usuario:", "Jarvis:"]:
-                if sep in response:
-                    response = response.split(sep)[0].strip()
-            return response if response else "¿En qué puedo ayudarte?"
+
+            # Limpieza mejorada de la respuesta
+            response = response.split('\n')[0]  # Solo toma la primera línea
+            
+            # Elimina cualquier prefijo común
+            prefixes_to_remove = ["Respuesta:", "Jarvis:", "Usuario:", "Asistente:"]
+            for prefix in prefixes_to_remove:
+                if response.startswith(prefix):
+                    response = response.replace(prefix, "", 1).strip()
+            
+            # Si la respuesta está vacía o es inválida, da una respuesta por defecto
+            if not response or len(response) < 2:
+                return "¿En qué puedo ayudarte?"
+
+            return response
+
         except Exception as e:
-            logging.error(f"Error: {e}")
-            return "¿En qué puedo ayudarte?"
+            logging.error(f"Error en el modelo local: {e}")
+            return "Lo siento, hubo un error en el procesamiento. ¿Puedo ayudarte en algo más?"
 
     def __repr__(self):
         return f"<LocalModel: {self.model_name}>"
