@@ -77,6 +77,12 @@ class CalendarCommander(BaseCommander):
                 'examples': ['mostrar eventos', 'qué tengo agendado'],
                 'triggers': ['mostrar eventos', 'ver calendario', 'eventos pendientes'],
                 'handler': self.get_events
+            },
+            'QUERY': {
+                'description': 'Consulta eventos de forma dinámica',
+                'examples': ['qué tengo que hacer mañana?', 'eventos de la próxima semana'],
+                'triggers': ['que tengo', 'qué hay', 'eventos', 'agenda'],
+                'handler': self.query_events
             }
         }
 
@@ -220,6 +226,67 @@ class CalendarCommander(BaseCommander):
             logger.error(f"Error leyendo eventos: {e}")
             return f"Error al leer eventos: {str(e)}", False
 
+    def query_events(self, text: str, **kwargs) -> tuple:
+        try:
+            # Usar el LLM para interpretar la consulta temporal
+            prompt = f"""
+            Analiza esta consulta sobre eventos del calendario: "{text}"
+            
+            Determina:
+            1. Período de tiempo (en días desde hoy)
+            2. Si es una fecha específica, indica la fecha exacta
+            
+            Reglas:
+            - "mañana" = 1 día
+            - "esta semana" = 7 días
+            - "próxima semana" = 7-14 días
+            - "este mes" = 30 días
+            
+            Responde solo con el número de días o la fecha específica en formato YYYY-MM-DD.
+            """
+
+            days = 7  # valor por defecto
+            try:
+                if self.model_manager:
+                    result = self.model_manager.models['google'].get_completion(prompt)
+                    if result and result.strip().isdigit():
+                        days = int(result.strip())
+                    elif result and re.match(r'\d{4}-\d{2}-\d{2}', result.strip()):
+                        # Convertir fecha específica a número de días
+                        target_date = datetime.strptime(result.strip(), '%Y-%m-%d')
+                        days = (target_date - datetime.now()).days + 1
+            except Exception as e:
+                logger.error(f"Error interpretando período temporal: {e}")
+
+            now = datetime.utcnow().isoformat() + 'Z'
+            end = (datetime.utcnow() + timedelta(days=days)).isoformat() + 'Z'
+            
+            events_result = self.service.events().list(
+                calendarId='primary',
+                timeMin=now,
+                timeMax=end,
+                maxResults=10,
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+            
+            events = events_result.get('items', [])
+            if not events:
+                return "No hay eventos programados para ese período", True
+                
+            events_text = "Eventos encontrados:\n"
+            for event in events:
+                start = event['start'].get('dateTime', event['start'].get('date'))
+                start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                local_dt = start_dt.astimezone(self.timezone)
+                events_text += f"- {event['summary']}: {local_dt.strftime('%Y-%m-%d %H:%M')}\n"
+
+            return events_text, True
+
+        except Exception as e:
+            logger.error(f"Error en query_events: {e}")
+            return f"Error al consultar eventos: {str(e)}", False
+
     def get_rules_text(self) -> str:
         return """
         - Para el módulo CALENDAR (CalendarCommander):
@@ -245,3 +312,26 @@ class CalendarCommander(BaseCommander):
         if command == 'CREATE' and additional_info:
             return f"{self.command_prefix}_{command}:{additional_info}"
         return f"{self.command_prefix}_{command}"
+
+    def _extract_title_from_input(self, user_input: str) -> str:
+        """Extrae el título de la tarea del texto de entrada."""
+        words_to_remove = ['recordar', 'recuerdame', 'agendar', 'crear evento', 'mañana', 'hoy']
+        time_patterns = [
+            r'a las \d{1,2}(?::\d{2})?(?:\s*[ap]m)?',
+            r'para las \d{1,2}(?::\d{2})?(?:\s*[ap]m)?',
+            r'(\d{1,2})(?::\d{2})?(?:\s*[ap]m)?'
+        ]
+        
+        text = user_input.lower()
+        
+        for word in words_to_remove:
+            text = text.replace(word, '')
+            
+        for pattern in time_patterns:
+            text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+            
+        title = text.strip()
+        if title:
+            title = title[0].upper() + title[1:]
+            
+        return title if title else "Recordatorio"
