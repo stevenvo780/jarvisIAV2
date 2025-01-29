@@ -34,9 +34,17 @@ class AudioHandler:
     def _setup_audio_system(self):
         self.device_index = self.config['audio'].get('device_index')
         self.mic = sr.Microphone(device_index=self.device_index)
-        with self.mic as source:
-            self._setup_recognizer('base').adjust_for_ambient_noise(source, duration=1)
+        self.mic_context = self.mic.__enter__()
+        self.recognizer = self._setup_recognizer('base')
+        self._adjust_for_noise()
+        logging.info("Audio system initialized successfully")
+
+    def _adjust_for_noise(self):
+        try:
+            self.recognizer.adjust_for_ambient_noise(self.mic_context, duration=0.5)
             time.sleep(0.2)
+        except Exception as e:
+            logging.error(f"Error adjusting noise: {e}")
 
     def _setup_recognizer(self, mode='base'):
         self.recognizer = sr.Recognizer()
@@ -49,6 +57,8 @@ class AudioHandler:
         return self.recognizer
 
     def cleanup(self):
+        if hasattr(self, 'mic_context'):
+            self.mic.__exit__(None, None, None)
         if hasattr(self, 'model'):
             del self.model
         if hasattr(self, 'mic'):
@@ -84,40 +94,38 @@ class AudioHandler:
     def listen_for_trigger(self, trigger_word="hey jarvis"):
         try:
             self._setup_recognizer('short_phrase')
-            with self.mic as source:
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.8)
-                time.sleep(0.2)
-                audio_data = self.recognizer.listen(
-                    source,
-                    timeout=self.config['speech_modes']['short_phrase']['operation_timeout'],
-                    phrase_time_limit=3
-                )
-                text = self._transcribe_audio(audio_data)
-                if re.search(rf'\b{re.escape(trigger_word)}\b', text, re.IGNORECASE):
-                    cleaned_text = re.sub(rf'\b{re.escape(trigger_word)}\b', '', text, flags=re.IGNORECASE).strip()
-                    return True, cleaned_text if cleaned_text else self.listen_command()
+            self._adjust_for_noise()
+            audio_data = self.recognizer.listen(
+                self.mic_context,
+                timeout=self.config['speech_modes']['short_phrase']['operation_timeout'],
+                phrase_time_limit=3
+            )
+            text = self._transcribe_audio(audio_data)
+            logging.debug(f"Trigger heard: {text}")
+            if re.search(rf'\b{re.escape(trigger_word)}\b', text, re.IGNORECASE):
+                cleaned_text = re.sub(rf'\b{re.escape(trigger_word)}\b', '', text, flags=re.IGNORECASE).strip()
+                return True, cleaned_text if cleaned_text else self.listen_command()
         except Exception as e:
             logging.debug(f"Trigger error: {e}")
+            self._adjust_for_noise()
         return False, ""
 
     def listen_command(self):
         try:
             self._setup_recognizer('command_phrase')
+            self._adjust_for_noise()
             self.terminal.update_prompt_state('LISTENING', '👂 Waiting for command...')
             self.audio_effects.play('listening')
-            with self.mic as source:
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
-                time.sleep(0.2)
-                audio_data = self.recognizer.listen(
-                    source,
-                    timeout=None,
-                    phrase_time_limit=5
-                )
-                self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
-                text = self._transcribe_audio(audio_data)
-                if text and len(text.split()) >= self.config['speech_modes']['adaptive']['min_command_length']:
-                    self.terminal.print_voice_detected(text)
-                    return text
+            audio_data = self.recognizer.listen(
+                self.mic_context,
+                timeout=None,
+                phrase_time_limit=5
+            )
+            self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
+            text = self._transcribe_audio(audio_data)
+            if text and len(text.split()) >= self.config['speech_modes']['adaptive']['min_command_length']:
+                self.terminal.print_voice_detected(text)
+                return text
         except Exception as e:
             logging.error(f"Command error: {e}")
         finally:
