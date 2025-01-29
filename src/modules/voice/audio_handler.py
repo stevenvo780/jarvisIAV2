@@ -91,6 +91,21 @@ class AudioHandler:
             if os.path.exists(temp_wav):
                 os.remove(temp_wav)
 
+    def _validate_trigger(self, text: str, trigger_word: str) -> tuple[bool, str]:
+        text = text.lower().strip()
+        
+        if trigger_word not in text:
+            return False, ""
+            
+        text = ' '.join(text.split())
+        
+        command = text.replace(trigger_word, '').strip()
+        
+        if command:
+            return True, command
+            
+        return True, ""
+
     def listen_for_trigger(self, trigger_word="jarvis"):
         try:
             self._setup_recognizer('short_phrase')
@@ -102,9 +117,16 @@ class AudioHandler:
             )
             text = self._transcribe_audio(audio_data)
             logging.debug(f"Trigger heard: {text}")
-            if re.search(rf'\b{re.escape(trigger_word)}\b', text, re.IGNORECASE):
-                cleaned_text = re.sub(rf'\b{re.escape(trigger_word)}\b', '', text, flags=re.IGNORECASE).strip()
-                return True, cleaned_text if cleaned_text else self.listen_command()
+            
+            is_valid, command = self._validate_trigger(text, trigger_word)
+            
+            if is_valid:
+                if command:
+                    logging.info(f"Trigger detected with command: {command}")
+                    return True, command
+                logging.info("Trigger detected, waiting for command...")
+                return True, self.listen_command()
+                    
         except Exception as e:
             logging.debug(f"Trigger error: {e}")
             self._adjust_for_noise()
