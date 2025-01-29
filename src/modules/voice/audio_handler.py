@@ -6,11 +6,11 @@ import os
 import json
 import logging
 import whisper
+import threading
 from typing import Tuple, Dict
 from src.utils.audio_utils import AudioEffects
 
 warnings.filterwarnings("ignore")
-
 
 class AudioHandler:
     def __init__(self, terminal_manager, tts, state):
@@ -22,8 +22,21 @@ class AudioHandler:
         self.running = True
         self.model = whisper.load_model("small")
         self.recognizer = None
-        self.mic_state = self._initialize_mic_state()
+        self.mic_state = {
+            'is_active': False,
+            'consecutive_failures': 0
+        }
+        self.device_index = None
+        self.mic = None
         self._setup_audio_system()
+        self.trigger_thread = None
+
+    def _setup_audio_system(self):
+        self.device_index = self.config['audio'].get('device_index')
+        self.mic = sr.Microphone(device_index=self.device_index)
+        with self.mic as source:
+            self._setup_recognizer('base').adjust_for_ambient_noise(source, duration=1)
+            time.sleep(0.2)
 
     def _setup_recognizer(self, mode='base'):
         self.recognizer = sr.Recognizer()
@@ -34,19 +47,6 @@ class AudioHandler:
         self.recognizer.phrase_threshold = config['phrase_threshold']
         self.recognizer.non_speaking_duration = config['non_speaking_duration']
         return self.recognizer
-
-    def _setup_audio_system(self):
-        self.device_index = self.config['audio'].get('device_index')
-        self.mic = sr.Microphone(device_index=self.device_index)
-        with self.mic as source:
-            self._setup_recognizer('base').adjust_for_ambient_noise(source, duration=1)
-            time.sleep(0.2)
-
-    def _initialize_mic_state(self):
-        return {
-            'is_active': False,
-            'consecutive_failures': 0
-        }
 
     def cleanup(self):
         if hasattr(self, 'model'):
@@ -66,7 +66,7 @@ class AudioHandler:
                 temp_wav,
                 language="es",
                 initial_prompt="Jarvis asistente virtual",
-                no_speech_threshold=0.05,  # Reducido a 0.05 para captar mejor comandos cortos
+                no_speech_threshold=0.05,
                 temperature=0.0,
                 best_of=5,
                 beam_size=5,
@@ -94,12 +94,7 @@ class AudioHandler:
                 )
                 text = self._transcribe_audio(audio_data)
                 if re.search(rf'\b{re.escape(trigger_word)}\b', text, re.IGNORECASE):
-                    cleaned_text = re.sub(
-                        rf'\b{re.escape(trigger_word)}\b',
-                        '',
-                        text,
-                        flags=re.IGNORECASE
-                    ).strip()
+                    cleaned_text = re.sub(rf'\b{re.escape(trigger_word)}\b', '', text, flags=re.IGNORECASE).strip()
                     return True, cleaned_text if cleaned_text else self.listen_command()
         except Exception as e:
             logging.debug(f"Trigger error: {e}")
@@ -116,7 +111,7 @@ class AudioHandler:
                 audio_data = self.recognizer.listen(
                     source,
                     timeout=None,
-                    phrase_time_limit=5  # Ajustado para mayor flexibilidad
+                    phrase_time_limit=5
                 )
                 self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
                 text = self._transcribe_audio(audio_data)
@@ -128,3 +123,14 @@ class AudioHandler:
         finally:
             self.terminal.update_prompt_state('VOICE_IDLE', '🎤 Ready')
         return ""
+
+    def run_trigger_listener(self):
+        while self.running:
+            triggered, cleaned_text = self.listen_for_trigger()
+            if triggered:
+                command = cleaned_text if cleaned_text else self.listen_command()
+
+    def start_trigger_listener(self):
+        if not self.trigger_thread:
+            self.trigger_thread = threading.Thread(target=self.run_trigger_listener, daemon=True)
+            self.trigger_thread.start()
