@@ -11,6 +11,7 @@ from src.utils.audio_utils import AudioEffects
 
 warnings.filterwarnings("ignore")
 
+
 class AudioHandler:
     def __init__(self, terminal_manager, tts, state):
         config_path = os.path.join('src', 'config', 'audio_config.json')
@@ -65,7 +66,7 @@ class AudioHandler:
                 temp_wav,
                 language="es",
                 initial_prompt="Jarvis asistente virtual",
-                no_speech_threshold=0.1,
+                no_speech_threshold=0.05,  # Reducido a 0.05 para captar mejor comandos cortos
                 temperature=0.0,
                 best_of=5,
                 beam_size=5,
@@ -80,7 +81,7 @@ class AudioHandler:
             if os.path.exists(temp_wav):
                 os.remove(temp_wav)
 
-    def listen_for_trigger(self, trigger_word="jarvis"):
+    def listen_for_trigger(self, trigger_word="hey jarvis"):
         try:
             self._setup_recognizer('short_phrase')
             with self.mic as source:
@@ -106,16 +107,20 @@ class AudioHandler:
 
     def listen_command(self):
         try:
-            self._setup_recognizer('long_phrase')
+            self._setup_recognizer('command_phrase')
             self.terminal.update_prompt_state('LISTENING', '👂 Waiting for command...')
             self.audio_effects.play('listening')
             with self.mic as source:
                 self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
                 time.sleep(0.2)
-                audio_data = self.recognizer.listen(source, timeout=None)
+                audio_data = self.recognizer.listen(
+                    source,
+                    timeout=None,
+                    phrase_time_limit=5  # Ajustado para mayor flexibilidad
+                )
                 self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
                 text = self._transcribe_audio(audio_data)
-                if text:
+                if text and len(text.split()) >= self.config['speech_modes']['adaptive']['min_command_length']:
                     self.terminal.print_voice_detected(text)
                     return text
         except Exception as e:
