@@ -67,11 +67,11 @@ class LocalModel:
                     attention_mask=attention_mask,
                     max_new_tokens=80,
                     num_return_sequences=1,
-                    temperature=0.3,        # Reducido para más precisión
+                    temperature=0.3,
                     do_sample=True,
-                    top_k=20,              # Reducido para limitar variaciones
-                    top_p=0.85,            # Reducido para mayor coherencia
-                    repetition_penalty=1.1, # Ajustado para balance
+                    top_k=20,
+                    top_p=0.85,
+                    repetition_penalty=1.1,
                     pad_token_id=self.tokenizer.pad_token_id,
                     eos_token_id=self.tokenizer.eos_token_id,
                     use_cache=True
@@ -83,16 +83,13 @@ class LocalModel:
                 clean_up_tokenization_spaces=True
             ).strip()
 
-            # Limpieza mejorada de la respuesta
-            response = response.split('\n')[0]  # Solo toma la primera línea
+            response = response.split('\n')[0]
             
-            # Elimina cualquier prefijo común
             prefixes_to_remove = ["Respuesta:", "Jarvis:", "Usuario:", "Asistente:"]
             for prefix in prefixes_to_remove:
                 if response.startswith(prefix):
                     response = response.replace(prefix, "", 1).strip()
             
-            # Si la respuesta está vacía o es inválida, da una respuesta por defecto
             if not response or len(response) < 2:
                 return "¿En qué puedo ayudarte?"
 

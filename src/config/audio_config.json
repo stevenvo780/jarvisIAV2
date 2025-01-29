@@ -11,7 +11,7 @@
   },
   "speech_modes": {
     "short_phrase": {
-      "energy_threshold": 400,
+      "energy_threshold": 300,
       "dynamic_energy": true,
       "pause_threshold": 0.55,
       "phrase_threshold": 0.25,
@@ -29,7 +29,7 @@
     "adaptive": {
       "base_timeout": 5,
       "max_timeout": 15,
-      "min_command_length": 3,
+      "min_command_length": 1,
       "silence_threshold": 1.5
     }
   }
