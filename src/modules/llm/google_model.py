@@ -97,7 +97,6 @@ class GoogleModel:
             
             if response.text:
                 text = response.text.strip()
-                # Limpiar prefijos de forma más robusta
                 prefixes = ['Asistente:', 'Sistema:', 'Respuesta:', 'AI:', 'Bot:', 'Assistant:', 'System:']
                 text_lower = text.lower()
                 for prefix in prefixes:

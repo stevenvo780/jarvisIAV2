@@ -157,6 +157,43 @@ class CalendarCommander(BaseCommander):
                 
         return self.default_hour
 
+    def _format_events_response(self, events_data: list, context: str = None) -> str:
+        """
+        Formatea la respuesta para cualquier operación del calendario.
+        
+        Args:
+            events_data: Lista de diccionarios con información de eventos
+            context: Contexto adicional o pregunta original del usuario
+        """
+        if not events_data:
+            return "No hay eventos programados"
+
+        prompt = f"""
+        Eres un asistente personal informando sobre eventos del calendario.
+        
+        {"Contexto: " + context if context else ""}
+        
+        Eventos:
+        {events_data}
+
+        Instrucciones para presentar la respuesta:
+        1. Usa lenguaje natural y amigable
+        2. No uses emojis ni caracteres especiales
+        3. Usa 'hoy', 'mañana' o el día de la semana según corresponda
+        4. Usa formato AM/PM para las horas
+        5. Agrupa eventos del mismo día
+        6. Sé breve pero informativo
+        7. No uses asteriscos ni markdown
+        8. Si es un evento recién creado, confírmalo naturalmente
+        """
+
+        if self.model_manager and 'google' in self.model_manager.models:
+            response = self.model_manager.models['google'].format_message(prompt)
+            if response:
+                return response
+        
+        return "No pude formatear los eventos correctamente"
+
     def create_event(self, text: str, title: str = None, **kwargs) -> tuple:
         try:
             # Si no hay título explícito, intentar extraerlo del texto
@@ -191,7 +228,15 @@ class CalendarCommander(BaseCommander):
             }
 
             event = self.service.events().insert(calendarId='primary', body=event).execute()
-            return f"Evento '{title}' creado para {date.strftime('%Y-%m-%d %H:%M')}", True
+            
+            evento_formateado = [{
+                'titulo': title,
+                'fecha': date.strftime('%Y-%m-%d %H:%M'),
+                'tipo': 'nuevo'
+            }]
+            
+            response = self._format_events_response(evento_formateado, f"Creación de evento: {text}")
+            return response, True
 
         except Exception as e:
             logger.error(f"Error creando evento: {e}")
@@ -225,28 +270,8 @@ class CalendarCommander(BaseCommander):
                     'fecha': fecha.strftime('%Y-%m-%d %H:%M')
                 })
             
-            prompt = f"""
-            Eres un asistente personal informando sobre eventos del calendario.
-            
-            Eventos:
-            {eventos_formateados}
-
-            Preséntame estos eventos de forma natural y conversacional siguiendo estas reglas:
-            1. Usa lenguaje natural y amigable
-            2. No uses emojis ni caracteres especiales
-            3. Usa 'hoy', 'mañana' o el día de la semana según corresponda
-            4. Usa formato AM/PM para las horas
-            5. Agrupa eventos del mismo día
-            6. Sé breve pero informativo
-            7. No uses asteriscos ni markdown
-            """
-
-            if self.model_manager and 'google' in self.model_manager.models:
-                response = self.model_manager.models['google'].format_message(prompt)
-                if response:
-                    return response, True
-            
-            return "No pude formatear los eventos correctamente", False
+            response = self._format_events_response(eventos_formateados)
+            return response, True
 
         except Exception as e:
             logger.error(f"Error leyendo eventos: {e}")
@@ -282,36 +307,8 @@ class CalendarCommander(BaseCommander):
                     'fecha': fecha.strftime('%Y-%m-%d %H:%M')
                 })
 
-            prompt = f"""
-            El usuario preguntó sobre eventos: "{text}"
-            
-            Lista de eventos:
-            {eventos_formateados}
-
-            Instrucciones para presentar la respuesta:
-            1. Comienza con una frase introductoria natural respondiendo directamente la pregunta
-            2. Lista los eventos en orden cronológico
-            3. Para cada evento menciona:
-               - La hora en formato AM/PM
-               - El título del evento
-               - Si es para hoy/mañana, úsalo en vez de la fecha
-            4. Si hay varios eventos en el mismo día, agrúpalos
-            5. Usa lenguaje natural y conversacional
-            6. Sé conciso pero completo
-            7. No uses emojis ni caracteres especiales
-            8. Termina con una frase de cierre si es apropiado
-
-            Ejemplo de formato deseado:
-            "Para mañana tienes 3 eventos programados. Empiezas a las 9:00 AM con la reunión de equipo, 
-            luego a las 2:00 PM tienes la cita médica, y finalmente a las 6:00 PM está programado el evento familiar."
-            """
-
-            if self.model_manager and 'google' in self.model_manager.models:
-                response = self.model_manager.models['google'].format_message(prompt)
-                if response:
-                    return response, True
-
-            return "No pude formatear los eventos correctamente", False
+            response = self._format_events_response(eventos_formateados, text)
+            return response, True
 
         except Exception as e:
             logger.error(f"Error en query_events: {e}")
