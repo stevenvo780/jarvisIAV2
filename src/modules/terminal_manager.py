@@ -85,8 +85,6 @@ class TerminalManager:
     def print_goodbye(self):
         print_formatted_text(HTML("\n<header>Goodbye!</header>\n"), style=self.style)
 
-    def print_thinking(self):
-        print_formatted_text(HTML("<thinking>Thinking...</thinking>"), style=self.style)
 
     def print_response(self, message: str, model_name: str = None):
         style_key = f'response_{model_name.lower()}' if model_name else 'response_default'
