@@ -1,3 +1,4 @@
+from llama_cpp import Optional
 from .base_commander import BaseCommander
 import os
 import pickle
@@ -211,16 +212,41 @@ class CalendarCommander(BaseCommander):
             
             events = events_result.get('items', [])
             if not events:
-                return "No hay eventos próximos programados", True
-                
-            events_text = "Próximos eventos:\n"
+                return "No hay eventos programados", True
+            
+            eventos_formateados = []
             for event in events:
-                start = event['start'].get('dateTime', event['start'].get('date'))
-                start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
-                local_dt = start_dt.astimezone(self.timezone)
-                events_text += f"- {event['summary']}: {local_dt.strftime('%Y-%m-%d %H:%M')}\n"
+                fecha = datetime.fromisoformat(
+                    event['start'].get('dateTime', event['start'].get('date')).replace('Z', '+00:00')
+                ).astimezone(self.timezone)
+                
+                eventos_formateados.append({
+                    'titulo': event['summary'],
+                    'fecha': fecha.strftime('%Y-%m-%d %H:%M')
+                })
+            
+            prompt = f"""
+            Eres un asistente personal informando sobre eventos del calendario.
+            
+            Eventos:
+            {eventos_formateados}
 
-            return events_text, True
+            Preséntame estos eventos de forma natural y conversacional siguiendo estas reglas:
+            1. Usa lenguaje natural y amigable
+            2. No uses emojis ni caracteres especiales
+            3. Usa 'hoy', 'mañana' o el día de la semana según corresponda
+            4. Usa formato AM/PM para las horas
+            5. Agrupa eventos del mismo día
+            6. Sé breve pero informativo
+            7. No uses asteriscos ni markdown
+            """
+
+            if self.model_manager and 'google' in self.model_manager.models:
+                response = self.model_manager.models['google'].format_message(prompt)
+                if response:
+                    return response, True
+            
+            return "No pude formatear los eventos correctamente", False
 
         except Exception as e:
             logger.error(f"Error leyendo eventos: {e}")
@@ -228,36 +254,8 @@ class CalendarCommander(BaseCommander):
 
     def query_events(self, text: str, **kwargs) -> tuple:
         try:
-            # Usar el LLM para interpretar la consulta temporal
-            prompt = f"""
-            Analiza esta consulta sobre eventos del calendario: "{text}"
+            days = 1 if 'mañana' in text.lower() else 7  # Simplificamos la detección para consultas de mañana
             
-            Determina:
-            1. Período de tiempo (en días desde hoy)
-            2. Si es una fecha específica, indica la fecha exacta
-            
-            Reglas:
-            - "mañana" = 1 día
-            - "esta semana" = 7 días
-            - "próxima semana" = 7-14 días
-            - "este mes" = 30 días
-            
-            Responde solo con el número de días o la fecha específica en formato YYYY-MM-DD.
-            """
-
-            days = 7  # valor por defecto
-            try:
-                if self.model_manager:
-                    result = self.model_manager.models['google'].get_completion(prompt)
-                    if result and result.strip().isdigit():
-                        days = int(result.strip())
-                    elif result and re.match(r'\d{4}-\d{2}-\d{2}', result.strip()):
-                        # Convertir fecha específica a número de días
-                        target_date = datetime.strptime(result.strip(), '%Y-%m-%d')
-                        days = (target_date - datetime.now()).days + 1
-            except Exception as e:
-                logger.error(f"Error interpretando período temporal: {e}")
-
             now = datetime.utcnow().isoformat() + 'Z'
             end = (datetime.utcnow() + timedelta(days=days)).isoformat() + 'Z'
             
@@ -273,15 +271,47 @@ class CalendarCommander(BaseCommander):
             events = events_result.get('items', [])
             if not events:
                 return "No hay eventos programados para ese período", True
-                
-            events_text = "Eventos encontrados:\n"
-            for event in events:
-                start = event['start'].get('dateTime', event['start'].get('date'))
-                start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
-                local_dt = start_dt.astimezone(self.timezone)
-                events_text += f"- {event['summary']}: {local_dt.strftime('%Y-%m-%d %H:%M')}\n"
 
-            return events_text, True
+            eventos_formateados = []
+            for event in events:
+                fecha = datetime.fromisoformat(
+                    event['start'].get('dateTime', event['start'].get('date')).replace('Z', '+00:00')
+                ).astimezone(self.timezone)
+                eventos_formateados.append({
+                    'titulo': event['summary'],
+                    'fecha': fecha.strftime('%Y-%m-%d %H:%M')
+                })
+
+            prompt = f"""
+            El usuario preguntó sobre eventos: "{text}"
+            
+            Lista de eventos:
+            {eventos_formateados}
+
+            Instrucciones para presentar la respuesta:
+            1. Comienza con una frase introductoria natural respondiendo directamente la pregunta
+            2. Lista los eventos en orden cronológico
+            3. Para cada evento menciona:
+               - La hora en formato AM/PM
+               - El título del evento
+               - Si es para hoy/mañana, úsalo en vez de la fecha
+            4. Si hay varios eventos en el mismo día, agrúpalos
+            5. Usa lenguaje natural y conversacional
+            6. Sé conciso pero completo
+            7. No uses emojis ni caracteres especiales
+            8. Termina con una frase de cierre si es apropiado
+
+            Ejemplo de formato deseado:
+            "Para mañana tienes 3 eventos programados. Empiezas a las 9:00 AM con la reunión de equipo, 
+            luego a las 2:00 PM tienes la cita médica, y finalmente a las 6:00 PM está programado el evento familiar."
+            """
+
+            if self.model_manager and 'google' in self.model_manager.models:
+                response = self.model_manager.models['google'].format_message(prompt)
+                if response:
+                    return response, True
+
+            return "No pude formatear los eventos correctamente", False
 
         except Exception as e:
             logger.error(f"Error en query_events: {e}")

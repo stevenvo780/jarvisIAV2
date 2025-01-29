@@ -58,7 +58,6 @@ class GoogleModel:
             return None
 
     def get_completion(self, prompt: str, temperature: float = 0.1) -> Optional[str]:
-        """Obtiene una respuesta directa del modelo para un prompt específico."""
         try:
             model = genai.GenerativeModel(self.config['model_name'])
             response = model.generate_content(
@@ -77,4 +76,36 @@ class GoogleModel:
             
         except Exception as e:
             self.logger.error(f"Error getting completion: {e}")
+            return None
+
+    def format_message(self, prompt: str, temperature: float = 0.7) -> Optional[str]:
+        try:
+            model = genai.GenerativeModel(self.config['model_name'])
+            generation_config = {
+                'temperature': temperature,
+                'top_p': 0.95,
+                'top_k': 40,
+                'max_output_tokens': 2048,
+                'candidate_count': 1
+            }
+            
+            
+            response = model.generate_content(
+                prompt,
+                generation_config=generation_config,
+            )
+            
+            if response.text:
+                text = response.text.strip()
+                # Limpiar prefijos de forma más robusta
+                prefixes = ['Asistente:', 'Sistema:', 'Respuesta:', 'AI:', 'Bot:', 'Assistant:', 'System:']
+                text_lower = text.lower()
+                for prefix in prefixes:
+                    if text_lower.startswith(prefix.lower()):
+                        text = text[len(prefix):].strip()
+                return text
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error formateando mensaje: {e}")
             return None
