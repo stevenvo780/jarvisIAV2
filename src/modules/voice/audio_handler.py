@@ -91,7 +91,7 @@ class AudioHandler:
             if os.path.exists(temp_wav):
                 os.remove(temp_wav)
 
-    def listen_for_trigger(self, trigger_word="hey jarvis"):
+    def listen_for_trigger(self, trigger_word="jarvis"):
         try:
             self._setup_recognizer('short_phrase')
             self._adjust_for_noise()
