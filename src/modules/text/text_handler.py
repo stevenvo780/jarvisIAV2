@@ -30,7 +30,6 @@ class TextHandler:
         self.running = False
 
     def run_interactive(self):
-        print("\nJarvis Text Interface - Escribe 'help' para ver los comandos")
         
         with patch_stdout():
             while self.running and self.state.get('running', True):

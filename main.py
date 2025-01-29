@@ -53,7 +53,7 @@ class Jarvis:
             self._start_audio_initialization()
             
             if self.audio_ready.wait(timeout=10):
-                self.terminal.print_success("🎤 Voice system initialized")
+                self.terminal.print_success("Voice system initialized")
             else:
                 self.terminal.print_warning("⌨️ Continuing without voice system")
             
@@ -166,7 +166,6 @@ class Jarvis:
             if self.audio_ready.wait(timeout=10):
                 self.state['audio_initialized'] = True
                 self.state['voice_active'] = True
-                self.terminal.print_success("🎤 Voice ready")
             else:
                 raise TimeoutError("Audio initialization timed out")
             
