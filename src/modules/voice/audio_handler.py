@@ -1,4 +1,3 @@
-import re
 import time
 import speech_recognition as sr
 import warnings
@@ -7,65 +6,88 @@ import json
 import logging
 import whisper
 import threading
-from typing import Tuple, Dict
+from typing import Tuple
 from src.utils.audio_utils import AudioEffects
 
 warnings.filterwarnings("ignore")
 
 class AudioHandler:
-    def __init__(self, terminal_manager, tts, state):
+    def __init__(self, terminal_manager, tts, state, input_queue):
+        self.terminal = terminal_manager
+        self.tts = tts
+        self.state = state
+        self.input_queue = input_queue
+        self.audio_effects = AudioEffects()
+        self.trigger_word = "Jarvis"
+        self.running = True
+        self.model = whisper.load_model("small")
+        self.recognizer = sr.Recognizer()
+        self.mic_lock = threading.Lock()
         config_path = os.path.join('src', 'config', 'audio_config.json')
         with open(config_path, 'r') as f:
             self.config = json.load(f)
-        self.terminal = terminal_manager
-        self.audio_effects = AudioEffects()
-        self.running = True
-        self.model = whisper.load_model("small")
-        self.recognizer = None
-        self.mic_state = {
-            'is_active': False,
-            'consecutive_failures': 0
-        }
-        self.device_index = None
-        self.mic = None
-        self._setup_audio_system()
-        self.trigger_thread = None
-
-    def _setup_audio_system(self):
-        self.device_index = self.config['audio'].get('device_index')
+        self.device_index = self.config['audio']['device_index']
         self.mic = sr.Microphone(device_index=self.device_index)
-        self.mic_context = self.mic.__enter__()
-        self.recognizer = self._setup_recognizer('base')
-        self._adjust_for_noise()
-        logging.info("Audio system initialized successfully")
+        with self.mic_lock:
+            with self.mic as source:
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+        self.audio_thread = threading.Thread(target=self._audio_loop, daemon=True)
+        self.audio_thread.start()
 
-    def _adjust_for_noise(self):
-        try:
-            self.recognizer.adjust_for_ambient_noise(self.mic_context, duration=0.5)
-            time.sleep(0.2)
-        except Exception as e:
-            logging.error(f"Error adjusting noise: {e}")
+    def _audio_loop(self):
+        while self.running:
+            text = self._listen_short()
+            if not text:
+                continue
+            is_valid, command = self._validate_trigger(text, self.trigger_word)
+            if is_valid:
+                if command:
+                    self.input_queue.put(('voice', command))
+                else:
+                    long_text = self._listen_long()
+                    if long_text:
+                        self.input_queue.put(('voice', long_text))
 
-    def _setup_recognizer(self, mode='base'):
-        self.recognizer = sr.Recognizer()
-        config = self.config['audio'] if mode == 'base' else self.config['speech_modes'][mode]
-        self.recognizer.energy_threshold = config['energy_threshold']
-        self.recognizer.dynamic_energy_threshold = config.get('dynamic_energy', False)
-        self.recognizer.pause_threshold = config['pause_threshold']
-        self.recognizer.phrase_threshold = config['phrase_threshold']
-        self.recognizer.non_speaking_duration = config['non_speaking_duration']
-        return self.recognizer
+    def _listen_short(self):
+        c = self.config['speech_modes']['short_phrase']
+        self._set_recognizer_config(c)
+        with self.mic_lock:
+            with sr.Microphone(device_index=self.device_index) as source:
+                try:
+                    audio_data = self.recognizer.listen(
+                        source,
+                        timeout=c.get('operation_timeout', 3),
+                        phrase_time_limit=c.get('phrase_time_limit', 3)
+                    )
+                except sr.WaitTimeoutError:
+                    return ""
+        return self._transcribe_audio(audio_data)
 
-    def cleanup(self):
-        if hasattr(self, 'mic_context'):
-            self.mic.__exit__(None, None, None)
-        if hasattr(self, 'model'):
-            del self.model
-        if hasattr(self, 'mic'):
-            del self.mic
-        if hasattr(self, 'recognizer'):
-            del self.recognizer
-        self.running = False
+    def _listen_long(self):
+        c = self.config['speech_modes']['long_phrase']
+        self.audio_effects.play('listening')
+        self.terminal.update_prompt_state('LISTENING', '👂 Modo escucha extendida...')
+        self._set_recognizer_config(c)
+        with self.mic_lock:
+            with sr.Microphone(device_index=self.device_index) as source:
+                try:
+                    audio_data = self.recognizer.listen(
+                        source,
+                        timeout=c.get('operation_timeout'),
+                        phrase_time_limit=c.get('phrase_time_limit', 20)
+                    )
+                except sr.WaitTimeoutError:
+                    return ""
+        text = self._transcribe_audio(audio_data)
+        self.terminal.update_prompt_state('PROCESSING', '⚡ Procesando...')
+        return text
+
+    def _set_recognizer_config(self, cfg):
+        self.recognizer.energy_threshold = cfg['energy_threshold']
+        self.recognizer.dynamic_energy_threshold = cfg.get('dynamic_energy', False)
+        self.recognizer.pause_threshold = cfg['pause_threshold']
+        self.recognizer.phrase_threshold = cfg['phrase_threshold']
+        self.recognizer.non_speaking_duration = cfg['non_speaking_duration']
 
     def _transcribe_audio(self, audio_data):
         temp_wav = os.path.join(os.getcwd(), "temp_audio.wav")
@@ -76,7 +98,7 @@ class AudioHandler:
                 temp_wav,
                 language="es",
                 initial_prompt="Jarvis asistente virtual",
-                no_speech_threshold=0.05,
+                no_speech_threshold=self.config['speech_modes']['adaptive'].get('silence_threshold', 1.5),
                 temperature=0.0,
                 best_of=5,
                 beam_size=5,
@@ -91,74 +113,21 @@ class AudioHandler:
             if os.path.exists(temp_wav):
                 os.remove(temp_wav)
 
-    def _validate_trigger(self, text: str, trigger_word: str) -> tuple[bool, str]:
-        text = text.lower().strip()
-        
-        if trigger_word not in text:
+    def _validate_trigger(self, text: str, trigger_word: str) -> Tuple[bool, str]:
+        processed = ' '.join(text.lower().split())
+        tw = trigger_word.lower()
+        if tw not in processed and trigger_word.capitalize() not in processed:
             return False, ""
-            
-        text = ' '.join(text.split())
-        
-        command = text.replace(trigger_word, '').strip()
-        
-        if command:
-            return True, command
-            
-        return True, ""
+        cmd = processed
+        for variant in [tw, trigger_word.capitalize()]:
+            cmd = cmd.replace(variant, '').strip()
+        return True, ' '.join(cmd.split())
 
-    def listen_for_trigger(self, trigger_word="jarvis"):
-        try:
-            self._setup_recognizer('short_phrase')
-            self._adjust_for_noise()
-            audio_data = self.recognizer.listen(
-                self.mic_context,
-                timeout=self.config['speech_modes']['short_phrase']['operation_timeout'],
-                phrase_time_limit=3
-            )
-            text = self._transcribe_audio(audio_data)
-            logging.debug(f"Trigger heard: {text}")
-            
-            is_valid, command = self._validate_trigger(text, trigger_word)
-            
-            if is_valid:
-                if command:
-                    logging.info(f"Trigger detected with command: {command}")
-                    return True, command
-                logging.info("Trigger detected, waiting for command...")
-                return True, self.listen_command()
-                    
-        except Exception as e:
-            logging.debug(f"Trigger error: {e}")
-            self._adjust_for_noise()
-        return False, ""
-
-    def listen_command(self):
-        try:
-            self._setup_recognizer('command_phrase')
-            self._adjust_for_noise()
-            self.terminal.update_prompt_state('LISTENING', '👂 Waiting for command...')
-            self.audio_effects.play('listening')
-            audio_data = self.recognizer.listen(
-                self.mic_context,
-                timeout=None,
-                phrase_time_limit=5
-            )
-            self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
-            text = self._transcribe_audio(audio_data)
-            if text and len(text.split()) >= self.config['speech_modes']['adaptive']['min_command_length']:
-                self.terminal.print_voice_detected(text)
-                return text
-        except Exception as e:
-            logging.error(f"Command error: {e}")
-        return ""
-
-    def run_trigger_listener(self):
-        while self.running:
-            triggered, cleaned_text = self.listen_for_trigger()
-            if triggered:
-                command = cleaned_text if cleaned_text else self.listen_command()
-
-    def start_trigger_listener(self):
-        if not self.trigger_thread:
-            self.trigger_thread = threading.Thread(target=self.run_trigger_listener, daemon=True)
-            self.trigger_thread.start()
+    def cleanup(self):
+        self.running = False
+        if hasattr(self, 'model'):
+            del self.model
+        if hasattr(self, 'mic'):
+            del self.mic
+        if hasattr(self, 'recognizer'):
+            del self.recognizer

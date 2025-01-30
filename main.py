@@ -36,7 +36,7 @@ class Jarvis:
         self.audio_ready = threading.Event()
         self.state = {
             'running': True,
-            'voice_active': True,
+            'voice_active': False,
             'audio_initialized': False,
             'error_count': 0,
             'max_errors': 5
@@ -51,20 +51,13 @@ class Jarvis:
             self._initialize_system()
             self._initialize_command_handler()
             self._start_audio_initialization()
-            
-            if self.audio_ready.wait(timeout=10):
-                self.terminal.print_success("Voice system initialized")
-            else:
-                self.terminal.print_warning("⌨️ Continuing without voice system")
-            
             self._initialize_text_mode()
-            self.terminal.print_status("System ready")
-            self.audio_effects.play('startup')
-            
             self.monitor_thread = threading.Thread(target=self._system_monitor, daemon=True)
             self.processor_thread = threading.Thread(target=self._process_inputs_loop, daemon=True)
             self.monitor_thread.start()
             self.processor_thread.start()
+            self.terminal.print_status("System ready")
+            self.audio_effects.play('startup')
         except Exception as e:
             self.audio_effects.play('error')
             self.terminal.print_error(f"Initialization error: {e}")
@@ -113,6 +106,7 @@ class Jarvis:
         self.storage = StorageManager()
         self.model = ModelManager(storage_manager=self.storage)
         self.tts = TTSManager()
+        self.state['audio_initialized'] = True
         self.model.set_tts_manager(self.tts)
         self.terminal.print_success("Core system initialized")
         self.command_manager = CommandManager(tts=self.tts, state=self.state)
@@ -131,49 +125,17 @@ class Jarvis:
             self.audio = AudioHandler(
                 terminal_manager=self.terminal,
                 tts=self.tts,
-                state=self.state
+                state=self.state,
+                input_queue=self.input_queue
             )
-            
-            def audio_processor():
-                while self.state['running']:
-                    try:
-                        if not self.state['audio_initialized']:
-                            self.state['audio_initialized'] = True
-                            self.audio_ready.set()
-                            logging.info("Audio inicializado correctamente")
-                            
-                        triggered, command = self.audio.listen_for_trigger("jarvis")
-                        
-                        if triggered:
-                            self.audio_effects.play('command')
-                            
-                            if command:
-                                self.input_queue.put(('voice', command))
-                            else:
-                                command_text = self.audio.listen_command()
-                                if command_text:
-                                    self.input_queue.put(('voice', command_text))
-                                    
-                    except Exception as e:
-                        logging.error(f"Error en procesamiento de audio: {e}")
-                        self.audio_effects.play('error')
-                        time.sleep(1)
-                    time.sleep(0.1)
-
-            self.audio_thread = threading.Thread(target=audio_processor, daemon=True)
-            self.audio_thread.start()
-            
-            if self.audio_ready.wait(timeout=10):
-                self.state['audio_initialized'] = True
-                self.state['voice_active'] = True
-            else:
-                raise TimeoutError("Audio initialization timed out")
-            
+            self.terminal.print_success("Voice system initialized")
+            self.state['voice_active'] = True
+            pass
         except Exception as e:
-            self.state['voice_active'] = False
-            self.state['audio_initialized'] = False
-            self.audio_effects.play('error')
             self.terminal.print_warning(f"⌨️ Text mode only: {e}")
+            self.state['voice_active'] = False
+            self.terminal.print_error(f"Error inicializando audio: {e}")
+            self.audio_effects.play('error')
             logging.error(f"Audio init error: {e}")
 
     def _initialize_text_mode(self):

@@ -16,7 +16,8 @@
       "pause_threshold": 0.55,
       "phrase_threshold": 0.25,
       "non_speaking_duration": 0.3,
-      "operation_timeout": 3
+      "operation_timeout": 3,
+      "phrase_time_limit": 3
     },
     "long_phrase": {
       "energy_threshold": 300,
@@ -24,7 +25,8 @@
       "pause_threshold": 1.0,
       "phrase_threshold": 0.4,
       "non_speaking_duration": 0.4,
-      "operation_timeout": null
+      "operation_timeout": null,
+      "phrase_time_limit": 20
     },
     "command_phrase": {
       "energy_threshold": 250,
