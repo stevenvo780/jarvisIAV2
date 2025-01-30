@@ -41,7 +41,7 @@ class AudioHandler:
                 continue
             is_valid, command = self._validate_trigger(text, self.trigger_word)
             if is_valid:
-                if command:
+                if command and command != 'asistente virtual':
                     self.terminal.print_response(command, 'VOICE')
                     self.input_queue.put(('voice', command))
                 else:
@@ -68,7 +68,7 @@ class AudioHandler:
     def _listen_long(self):
         config = self.config['speech_modes']['long_phrase']
         self.audio_effects.play('listening')
-        self.terminal.update_prompt_state('LISTENING', '👂 Modo escucha extendida...')
+        self.terminal.update_prompt_state('LISTENING')
         self._set_recognizer_config(config)
         with self.mic_lock:
             with sr.Microphone(device_index=self.device_index) as source:
@@ -81,7 +81,7 @@ class AudioHandler:
                 except sr.WaitTimeoutError:
                     return ""
         text = self._transcribe_audio(audio_data)
-        self.terminal.update_prompt_state('PROCESSING', '⚡ Procesando...')
+        self.terminal.update_prompt_state('PROCESSING')
         return text
 
     def _set_recognizer_config(self, config):

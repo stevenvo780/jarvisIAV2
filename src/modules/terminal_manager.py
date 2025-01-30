@@ -1,59 +1,48 @@
-import sys
 import os
 import logging
 import time
 import threading
-from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit import print_formatted_text
-from prompt_toolkit.styles import Style
 
 class TerminalManager:
+    GREEN = '\033[32m'
+    RED = '\033[31m'
+    BLUE = '\033[34m'
+    CYAN = '\033[36m'
+    YELLOW = '\033[33m'
+    MAGENTA = '\033[35m'
+    ORANGE = '\033[38;5;208m'
+    PURPLE = '\033[38;5;141m'
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+    CLEAR_LINE = '\r\033[K'
+
+    AGENT_EMOJIS = {
+        'google': '🔍',
+        'openai': '🤖',
+        'local': '🏠',
+        'system': '⚙️',
+        'error': '🚨',
+        'voice': '🎙️'
+    }
+
+    STATES = {
+        'LISTENING': {'icon': "👂"},
+        'PROCESSING': {'icon': "⚡"},
+        'THINKING': {'icon': "💭"},
+        'SPEAKING': {'icon': "🗣️"},
+        'ERROR': {'icon': "❌"},
+        'IDLE': {'icon': "🟢"},
+        'NEUTRAL': {'icon': ""}
+    }
+
     def __init__(self):
-        self._setup_colors()
-        self._setup_states()
-        self.setup_logging()
-        self.style = Style.from_dict({
-            'header': '#00aa00 bold',
-            'success': '#00aa00',
-            'warning': '#aaaa00',
-            'error': '#aa0000',
-            'info': '#0000aa',
-            'thinking': '#aa00aa',
-            'response_google': '#4285F4',
-            'response_openai': '#10a37f',
-            'response_local': '#FF6B6B',
-            'response_default': '#00aaaa',
-            'voice_detected': '#00ff00 bold',
-            'listening': '#4169E1',
-        })
-        self.current_state = "🎤"
+        self.current_state = self.STATES['IDLE']['icon']
         self._prompt_lock = threading.Lock()
         self._last_state = None
         self._last_time = 0.0
         self._last_prompt = None
         self._initial_prompt_shown = False
-
-    def _setup_colors(self):
-        self.COLORS = {
-            'GREEN': '\033[92m',
-            'RED': '\033[91m',
-            'BLUE': '\033[94m',
-            'CYAN': '\033[96m',
-            'YELLOW': '\033[93m',
-            'RESET': '\033[0m',
-            'BOLD': '\033[1m'
-        }
-
-    def _setup_states(self):
-        self.STATES = {
-            'LISTENING': "👂",
-            'PROCESSING': "⚡",
-            'THINKING': "💭",
-            'SPEAKING': "🗣️",
-            'ERROR': "❌",
-            'IDLE': "🟢",
-            'CHAT': "💬"
-        }
+        self.setup_logging()
 
     def setup_logging(self):
         os.makedirs('logs', exist_ok=True)
@@ -67,66 +56,48 @@ class TerminalManager:
             logging.getLogger(lib).propagate = False
 
     def print_error(self, message: str):
-        print_formatted_text(HTML(f"✗ <error>{message}</error>"), style=self.style)
+        print(f"{self.RED}✗ {message}{self.RESET}")
 
     def print_success(self, message: str):
-        print_formatted_text(HTML(f"✓ <success>{message}</success>"), style=self.style)
+        print(f"{self.GREEN}✓ {message}{self.RESET}")
 
     def print_warning(self, message: str):
-        print_formatted_text(HTML(f"⚠ <warning>{message}</warning>"), style=self.style)
+        print(f"{self.YELLOW}⚠ {message}{self.RESET}")
 
     def print_header(self, message: str):
-        print_formatted_text(HTML(f"\n=== <header>{message}</header> ===\n"), style=self.style)
+        print(f"\n{self.BOLD}{self.CYAN}=== {message} ==={self.RESET}\n")
 
     def print_status(self, message: str):
-        print_formatted_text(HTML(f"<info>[STATUS]</info> {message}"), style=self.style)
+        print(f"{self.BLUE}[STATUS] {message}{self.RESET}")
 
     def print_goodbye(self):
-        print_formatted_text(HTML("\n<header>Goodbye!</header>\n"), style=self.style)
-
+        print(f"\n{self.GREEN}Goodbye!{self.RESET}\n")
 
     def print_response(self, message: str, agent_name: str = None):
-        style_key = f'response_{agent_name.lower()}' if agent_name else 'response_default'
-        if style_key not in self.style.style_rules:
-            style_key = 'response_default'
-            
-        prefix = f"[{agent_name.upper()}] " if agent_name else ""
-        
-        lines = message.split('\n')
-        for line in lines:
-            print_formatted_text(
-                HTML(f"<{style_key}>{prefix}{line}</{style_key}>"), 
-                style=self.style
-            )
-        sys.stdout.flush()
+        prefix = ""
+        if agent_name and agent_name.lower() in self.AGENT_EMOJIS:
+            emoji = self.AGENT_EMOJIS[agent_name.lower()]
+            prefix = f"{emoji} "
 
-    def update_prompt_state(self, state: str, message: str = ""):
+        print("\r", end='')
+        for line in message.split('\n'):
+            print(f"{prefix} {line}")
+
+        if self._last_prompt:
+            print(self._last_prompt, end='', flush=True)
+
+    def update_prompt_state(self, state: str):
         with self._prompt_lock:
             now = time.time()
-            new_prompt = None
-            
             if state == self._last_state and (now - self._last_time < 0.5):
                 return
             
             self._last_state = state
             self._last_time = now
-            state_icon = self.STATES.get(state, "🟢")
             
-            if state in ['LISTENING', 'PROCESSING', 'THINKING']:
-                new_prompt = f"{state_icon}"
-            elif message and state == 'ERROR':
-                new_prompt = f"{state_icon} {message}"
-            else:
-                new_prompt = f"{state_icon} > "
+            state_props = self.STATES.get(state, {'icon': '>'})
+            new_prompt = f"\r{state_props['icon']} "
             
             if new_prompt != self._last_prompt:
-                print("\r" + " " * 100 + "\r", end="", flush=True)
-                print(new_prompt, end="", flush=True)
+                print(new_prompt, end='', flush=True)
                 self._last_prompt = new_prompt
-
-    def print_voice_detected(self, text: str):
-        with self._prompt_lock:
-            print("\r" + " " * 100 + "\r", end="", flush=True)
-            print(f"🎤 {text}")
-            self._last_prompt = "🟢 > "
-            print(self._last_prompt, end="", flush=True)

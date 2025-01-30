@@ -4,7 +4,7 @@
   },
   "speech_modes": {
     "short_phrase": {
-      "energy_threshold": 250,
+      "energy_threshold": 450,
       "dynamic_energy": true,
       "pause_threshold": 0.55,
       "phrase_threshold": 0.25,
