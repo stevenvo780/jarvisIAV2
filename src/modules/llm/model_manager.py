@@ -117,14 +117,16 @@ class ModelManager:
 
     def _analyze_query_difficulty(self, query: str) -> int:
         try:
-            template = self.config['prompts']['difficulty_analysis']['template']
+            context = self.storage.get_context()
+            template = context['prompts']['difficulty_analysis']['template']
             prompt = template.format(query=query)
             response = self.difficulty_analyzer.get_response(prompt)
             difficulty = int(''.join(filter(str.isdigit, response)))
             return min(max(difficulty, 1), 10)
         except Exception as e:
             logging.warning(f"Error analizando dificultad: {e}")
-            return self.config['prompts']['difficulty_analysis']['default_difficulty']
+            context = self.storage.get_context()
+            return context['prompts']['difficulty_analysis']['default_difficulty']
 
     def _select_appropriate_model(self, difficulty: int) -> str:
         available_models = self.models.keys()
@@ -188,15 +190,7 @@ class ModelManager:
             if not context:
                 return
             
-            if 'assistant_profile' in self.config:
-                context['assistant_profile'].update(self.config['assistant_profile'])
-            
-            if 'prompts' in self.config:
-                for key, value in self.config['prompts'].items():
-                    if key not in context['prompts']:
-                        context['prompts'][key] = value
-                    elif isinstance(value, dict):
-                        context['prompts'][key].update(value)
+            # Se elimina la fusión de 'assistant_profile' y 'prompts' para evitar conflictos
                 
         except Exception as e:
             logging.error(f"Error fusionando configuración con contexto: {e}")
@@ -210,37 +204,20 @@ class ModelManager:
             template = context['prompts']['system_context'][model_name]['template']
             format_type = context['prompts']['system_context'][model_name]['format']
             
-            # Limitar el historial según el modelo
+            # Tomar solo el historial necesario para cada modelo
             model_config = self.config['models'][model_name]
             history_limit = model_config.get('history_context', 1)
-            memory_limit = model_config.get('memory_size', 0)
-            
-            # Tomar solo el historial necesario para cada modelo
             limited_history = history[-history_limit:] if history_limit > 0 else []
             history_text = self._format_history(limited_history, format_type)
             
-            # Limitar las memorias según el modelo
-            memories = self.storage.get_relevant_memories(memory_limit)
-            
-            # Para el modelo local, simplificar aún más si es necesario
-            if model_name == 'local':
-                prompt_data = {
-                    'name': context['assistant_profile']['name'],
-                    'personality': "asistente preciso y directo",
-                    'conversation_history': history_text,
-                    'context_memory': "",
-                    'user_context': "",
-                    'core_traits': ""
-                }
-            else:
-                prompt_data = {
+            prompt_data = {
                     'name': context['assistant_profile']['name'],
                     'personality': context['assistant_profile']['personality'],
                     'conversation_history': history_text,
-                    'context_memory': memories,
-                    'user_context': self._build_user_context(),
-                    'core_traits': '\n'.join(f"- {trait}" for trait in context['assistant_profile']['core_traits'])
+                    'core_traits': '\n'.join(f"- {trait}" for trait in context['assistant_profile']['core_traits']),
+                    'user_context': self._build_user_context()
                 }
+                
             
             return template.format(**prompt_data)
         except Exception as e:

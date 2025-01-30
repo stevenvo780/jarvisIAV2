@@ -41,14 +41,6 @@ class StorageManager:
 
     def add_interaction(self, interaction: Dict):
         try:
-            self.context["interaction_stats"]["total_interactions"] += 1
-            self.context["interaction_stats"]["last_interaction"] = datetime.now().isoformat()
-
-            self.context_file.write_text(
-                json.dumps(self.context, indent=2, ensure_ascii=False),
-                encoding='utf-8'
-            )
-
             history = self.get_recent_history(100)
             history.append({
                 "timestamp": datetime.now().isoformat(),

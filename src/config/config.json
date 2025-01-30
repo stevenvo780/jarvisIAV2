@@ -1,52 +1,16 @@
 {
-  "assistant_profile": {
-    "name": "Jarvis",
-    "personality": "profesional, servicial y adaptable al contexto",
-    "core_traits": [
-      "Respuestas contextualizadas",
-      "Integración multi-modelo",
-      "Adaptación al usuario"
-    ]
-  },
   "models": {
     "google": {
       "difficulty_range": [4, 6],
-      "history_context": 3,
-      "memory_size": 10
+      "history_context": 5
     },
     "openai": {
       "difficulty_range": [7, 10],
-      "history_context": 5,
-      "memory_size": 30
+      "history_context": 10
     },
     "local": {
       "difficulty_range": [1, 3],
-      "history_context": 1,
-      "memory_size": 3
-    }
-  },
-  "prompts": {
-    "system_base": "Eres {name}, un asistente virtual que proporciona respuestas precisas y contextualizadas.",
-    "system_context": {
-      "openai": {
-        "template": "[Perfil Asistente]\nNombre: {name}\nPersonalidad: {personality}\n\n[Rasgos Principales]\n{core_traits}\n\n[Perfil Usuario]\n{user_context}\n\n[Historial]\n{conversation_history}\n\n[Contexto]\n{context_memory}\n\nRespuesta:",
-        "format": "chat"
-      },
-      "google": {
-        "template": "Como {name} ({personality}):\n\nInstrucciones:\n- Responde de forma natural sin usar markdown ni formateo especial\n- No uses asteriscos, backticks ni otros elementos de formato\n- Mantén el texto plano y legible\n\nPerfil Usuario:\n{user_context}\n\nHistorial Reciente:\n{conversation_history}\n\nContexto:\n{context_memory}\n\nRespuesta:",
-        "format": "text"
-      },
-      "local": {
-        "template": "Asistente {name} ({personality})\n\nUsuario:\n{user_context}\n\nHistorial:\n{conversation_history}\n\nContexto:\n{context_memory}\n\nRespuesta:",
-        "format": "minimal"
-      }
-    },
-    "templates": {
-      "query": "Usuario: {input}\n{name}:"
-    },
-    "difficulty_analysis": {
-      "template": "Analiza la siguiente consulta y asigna una dificultad del 1 al 10 usando estos criterios:\n\n1 - Saludos básicos y conversación casual\n(Ej: \"Hola\", \"¿Cómo estás?\", \"Gracias\")\n2 - Preguntas simples/fácticas\n(Ej: \"¿Qué hora es?\", \"Háblame del tiempo\")\n3-4 - Solicitudes básicas con contexto simple\n(Ej: \"Pon una alarma a las 5\", \"Busca en Wikipedia...\")\n5-6 - Consultas que requieren análisis o integración de datos\n(Ej: \"Compara specs de estos smartphones\")\n7-8 - Razonamiento complejo o técnico\n(Ej: \"Explica la teoría de la relatividad\")\n9-10 - Temas abstractos/filosóficos o altamente especializados\n(Ej: \"¿Cuál es el sentido de la vida?\")\n\nConsidera:\n- Complejidad lingüística\n- Conocimiento requerido\n- Profundidad de análisis necesario\n- Ambigüedad o abstracción\nSolo responde con el número correspondiente, sin formato ni explicaciones.\n\nConsulta: \"{query}\"",
-      "default_difficulty": 5
+      "history_context": 3
     }
   },
   "max_history": 10,

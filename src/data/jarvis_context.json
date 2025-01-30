@@ -9,18 +9,18 @@
     ]
   },
   "prompts": {
-    "system_base": "Eres {name}, un asistente virtual que proporciona respuestas precisas y técnicamente fundamentadas en texto plano sin formateo.",
+    "system_base": "Eres {name}, un asistente virtual avanzado con capacidades de voz, control de sistema y multimedia. Adaptas tu procesamiento según la complejidad de cada tarea para optimizar recursos.",
     "system_context": {
       "openai": {
-        "template": "[Perfil Asistente]\nNombre: {name}\nPersonalidad: {personality}\n\n[Rasgos Principales]\n{core_traits}\n\n[Perfil Usuario]\n{user_context}\n\n[Historial]\n{conversation_history}\n\n[Contexto]\n{context_memory}\n\nRespuesta:",
+        "template": "[Perfil Asistente]\nNombre: {name}\nPersonalidad: {personality}\n\n[Rasgos Principales]\n{core_traits}\n\n[Perfil Usuario]\n{user_context}\n\n[Historial]\n{conversation_history}\n\nRespuesta:",
         "format": "chat"
       },
       "google": {
-        "template": "Como {name} ({personality}):\n\nInstrucciones:\n- Responde de forma natural sin usar markdown ni formateo especial\n- No uses asteriscos, backticks ni otros elementos de formato\n- Mantén el texto plano y legible\n\nPerfil Usuario:\n{user_context}\n\nHistorial Reciente:\n{conversation_history}\n\nContexto:\n{context_memory}\n\nRespuesta:",
+        "template": "Como {name} ({personality}):\n\nInstrucciones:\n- Responde de forma natural sin usar markdown ni formateo especial\n- No uses asteriscos, backticks ni otros elementos de formato\n- Mantén el texto plano y legible\n\nPerfil Usuario:\n{user_context}\n\nHistorial Reciente:\n{conversation_history}\n\nRespuesta:",
         "format": "text"
       },
       "local": {
-        "template": "Asistente {name} ({personality})\n\nUsuario:\n{user_context}\n\nHistorial:\n{conversation_history}\n\nContexto:\n{context_memory}\n\nRespuesta:",
+        "template": "Asistente {name} ({personality})\n\nUsuario:\n{user_context}\n\nHistorial:\n{conversation_history}\n\nRespuesta:",
         "format": "minimal"
       }
     },
@@ -34,14 +34,5 @@
       "template": "Analiza la siguiente consulta y asigna una dificultad del 1 al 10 usando estos criterios:\n\n1 - Saludos básicos y conversación casual\n(Ej: \"Hola\", \"¿Cómo estás?\", \"Gracias\")\n2 - Preguntas simples/fácticas\n(Ej: \"¿Qué hora es?\", \"Háblame del tiempo\")\n3-4 - Solicitudes básicas con contexto simple\n(Ej: \"Pon una alarma a las 5\", \"Busca en Wikipedia...\")\n5-6 - Consultas que requieren análisis o integración de datos\n(Ej: \"Compara specs de estos smartphones\")\n7-8 - Razonamiento complejo o técnico\n(Ej: \"Explica la teoría de la relatividad\")\n9-10 - Temas abstractos/filosóficos o altamente especializados\n(Ej: \"¿Cuál es el sentido de la vida?\")\n\nConsidera:\n- Complejidad lingüística\n- Conocimiento requerido\n- Profundidad de análisis necesario\n- Ambigüedad o abstracción\nSolo responde con el número correspondiente, sin formato ni explicaciones.\n\nConsulta: \"{query}\"",
       "default_difficulty": 5
     }
-  },
-  "memories": {
-    "long_term": {},
-    "preferences": {},
-    "learned_topics": []
-  },
-  "interaction_stats": {
-    "total_interactions": 566,
-    "last_interaction": "2025-01-30T12:41:23.012422"
   }
 }
