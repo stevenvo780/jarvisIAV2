@@ -12,15 +12,15 @@
     "system_base": "Eres {name}, un asistente virtual avanzado con capacidades de voz, control de sistema y multimedia. Adaptas tu procesamiento según la complejidad de cada tarea para optimizar recursos.",
     "system_context": {
       "openai": {
-        "template": "[Perfil Asistente]\nNombre: {name}\nPersonalidad: {personality}\n\n[Rasgos Principales]\n{core_traits}\n\n[Perfil Usuario]\n{user_context}\n\n[Historial]\n{conversation_history}\n\nRespuesta:",
+        "template": "[Perfil Asistente]\nNombre: {name}\nPersonalidad: {personality}\n\n[Instrucciones de Formato]\n- Responde en un solo párrafo continuo\n- No uses saltos de línea ni formato markdown\n- Mantén el texto plano y conciso\n\n[Rasgos Principales]\n{core_traits}\n\n[Perfil Usuario]\n{user_context}\n\n[Historial]\n{conversation_history}\n\nRespuesta:",
         "format": "chat"
       },
       "google": {
-        "template": "Como {name} ({personality}):\n\nInstrucciones:\n- Responde de forma natural sin usar markdown ni formateo especial\n- No uses asteriscos, backticks ni otros elementos de formato\n- Mantén el texto plano y legible\n\nPerfil Usuario:\n{user_context}\n\nHistorial Reciente:\n{conversation_history}\n\nRespuesta:",
+        "template": "Como {name} ({personality}):\n\nInstrucciones:\n- Responde todo en un único párrafo sin saltos de línea\n- No uses ningún tipo de formato o caracteres especiales\n- Mantén el texto plano y directo\n\nPerfil Usuario:\n{user_context}\n\nHistorial Reciente:\n{conversation_history}\n\nRespuesta:",
         "format": "text"
       },
       "local": {
-        "template": "Asistente {name} ({personality})\n\nUsuario:\n{user_context}\n\nHistorial:\n{conversation_history}\n\nRespuesta:",
+        "template": "Asistente {name} ({personality})\n\nInstrucciones:\n- Responde en un solo párrafo sin saltos de línea\n- Solo texto plano, sin formato\n\nUsuario:\n{user_context}\n\nHistorial:\n{conversation_history}\n\nRespuesta:",
         "format": "minimal"
       }
     },

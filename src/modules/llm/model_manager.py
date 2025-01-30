@@ -163,6 +163,7 @@ class ModelManager:
             history = self.storage.get_recent_history(self.config['system']['history']['default_size'])
             
             system_prompt = self._build_context_prompt(context, history, model_name)
+            print(f"System Prompt: {system_prompt}")
             user_prompt = context['prompts']['templates']['query'].format(
                 input=query,
                 name=context['assistant_profile']['name']

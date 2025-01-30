@@ -2,7 +2,6 @@ import os
 import logging
 import google.generativeai as genai
 from typing import Optional, Dict, Any
-from utils.prompt_builder import PromptBuilder  # Cambiado a importación absoluta
 
 class GoogleModel:
     def __init__(self, api_key: Optional[str] = None, config: Optional[Dict[str, Any]] = None):
@@ -18,21 +17,19 @@ class GoogleModel:
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(self.config['logging_level'])
         genai.configure(api_key=self.api_key)
-        self.prompt_builder = PromptBuilder()
 
     def get_response(self, query: str) -> str:
         try:
             model = genai.GenerativeModel(self.config['model_name'])
-            prompt_data = self.prompt_builder.build_prompt(query, 'google')
-            response = model.generate_content(prompt_data['prompt'])
+            response = model.generate_content(query)
             
             if response.text:
                 return response.text
-            return self.prompt_builder.get_error_message('no_response')
+            return "No se pudo obtener respuesta del modelo."
             
         except Exception as e:
             self.logger.error(f"Error en Google API: {str(e)}")
-            return self.prompt_builder.get_error_message('api_error', message=str(e))
+            return "No se pudo obtener respuesta del modelo."
 
     def analyze_command(self, user_input: str, command_prompt_template: str) -> Optional[str]:
         try:

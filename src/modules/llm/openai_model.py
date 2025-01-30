@@ -3,7 +3,6 @@ import logging
 import time
 from typing import Optional, Dict, Any
 from openai import OpenAI
-from utils.prompt_builder import PromptBuilder
 
 class OpenAIModel:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
@@ -21,17 +20,15 @@ class OpenAIModel:
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(self.config['logging_level'])
         self.client = OpenAI(api_key=self.api_key, timeout=25.0, max_retries=3)
-        self.prompt_builder = PromptBuilder()
 
     def get_response(self, query: str) -> str:
         if not isinstance(query, str) or len(query.strip()) < 3:
             return "La consulta debe ser un texto no vacío (>3 caracteres)"
         
         try:
-            prompt_data = self.prompt_builder.build_prompt(query, 'openai')
             response = self.client.chat.completions.create(
                 model=self.config['model_name'],
-                messages=prompt_data['messages'],
+                messages=query,
                 temperature=self.config['temperature'],
                 max_tokens=self.config['max_tokens']
             )
