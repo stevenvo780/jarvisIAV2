@@ -50,7 +50,7 @@ class Jarvis:
             self._setup_signal_handlers()
             self._initialize_system()
             self._initialize_command_handler()
-            self._start_audio_initialization()
+            self._async_audio_init()
             self._initialize_text_mode()
             self.monitor_thread = threading.Thread(target=self._system_monitor, daemon=True)
             self.processor_thread = threading.Thread(target=self._process_inputs_loop, daemon=True)
@@ -115,9 +115,6 @@ class Jarvis:
         self.command_handler = CommandHandler(self.model)
         self.terminal.print_success("Command handler initialized")
 
-    def _start_audio_initialization(self):
-        t = threading.Thread(target=self._async_audio_init, daemon=True)
-        t.start()
 
     def _async_audio_init(self):
         try:

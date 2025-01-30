@@ -18,7 +18,7 @@ class AudioHandler:
         self.state = state
         self.input_queue = input_queue
         self.audio_effects = AudioEffects()
-        self.trigger_word = "Jarvis"
+        self.trigger_word = "jarvis"
         self.running = True
         self.model = whisper.load_model("small")
         self.recognizer = sr.Recognizer()
@@ -42,12 +42,12 @@ class AudioHandler:
             is_valid, command = self._validate_trigger(text, self.trigger_word)
             if is_valid:
                 if command:
-                    self.terminal.print_response(command)
+                    self.terminal.print_response(command, 'VOICE')
                     self.input_queue.put(('voice', command))
                 else:
                     long_text = self._listen_long()
                     if long_text:
-                        self.terminal.print_response(long_text)
+                        self.terminal.print_response(long_text, 'VOICE')
                         self.input_queue.put(('voice', long_text))
 
     def _listen_short(self):

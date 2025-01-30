@@ -85,12 +85,12 @@ class TerminalManager:
         print_formatted_text(HTML("\n<header>Goodbye!</header>\n"), style=self.style)
 
 
-    def print_response(self, message: str, model_name: str = None):
-        style_key = f'response_{model_name.lower()}' if model_name else 'response_default'
+    def print_response(self, message: str, agent_name: str = None):
+        style_key = f'response_{agent_name.lower()}' if agent_name else 'response_default'
         if style_key not in self.style.style_rules:
             style_key = 'response_default'
             
-        prefix = f"[{model_name.upper()}] " if model_name else ""
+        prefix = f"[{agent_name.upper()}] " if agent_name else ""
         
         lines = message.split('\n')
         for line in lines:
