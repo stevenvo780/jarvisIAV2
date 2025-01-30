@@ -28,7 +28,7 @@ class OpenAIModel:
         try:
             response = self.client.chat.completions.create(
                 model=self.config['model_name'],
-                messages=query,
+                messages=[{'role': 'user', 'content': query}],
                 temperature=self.config['temperature'],
                 max_tokens=self.config['max_tokens']
             )

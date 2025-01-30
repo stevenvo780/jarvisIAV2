@@ -16,7 +16,6 @@ class ModelManager:
         self.difficulty_analyzer = self.models.get('google')
         self.tts = None
         self._setup_logging()
-        self._merge_config_with_context()
         logging.info("ModelManager inicializado")
 
     def _load_user_profile(self, path: str) -> Dict:
@@ -163,13 +162,15 @@ class ModelManager:
             history = self.storage.get_recent_history(self.config['system']['history']['default_size'])
             
             system_prompt = self._build_context_prompt(context, history, model_name)
-            print(f"System Prompt: {system_prompt}")
+            
             user_prompt = context['prompts']['templates']['query'].format(
                 input=query,
                 name=context['assistant_profile']['name']
             )
             
             enriched_query = f"{system_prompt}\n\n{user_prompt}"
+            
+            print(system_prompt)
             response = self.models[model_name].get_response(enriched_query)
             
             self.storage.add_interaction({
@@ -185,36 +186,21 @@ class ModelManager:
             logging.error(f"Error procesando consulta: {e}")
             return self.config['system']['error_messages']['general'], "error"
 
-    def _merge_config_with_context(self):
-        try:
-            context = self.storage.get_context()
-            if not context:
-                return
-            
-            # Se elimina la fusión de 'assistant_profile' y 'prompts' para evitar conflictos
-                
-        except Exception as e:
-            logging.error(f"Error fusionando configuración con contexto: {e}")
-            logging.debug("Continuando con el contexto actual sin fusionar cambios.")
-
     def _build_context_prompt(self, context: Dict, history: list, model_name: str) -> str:
         try:
-            if (model_name not in context['prompts']['system_context']):
-                model_name = 'local'
-                
             template = context['prompts']['system_context'][model_name]['template']
-            format_type = context['prompts']['system_context'][model_name]['format']
             
             # Tomar solo el historial necesario para cada modelo
             model_config = self.config['models'][model_name]
             history_limit = model_config.get('history_context', 1)
             limited_history = history[-history_limit:] if history_limit > 0 else []
-            history_text = self._format_history(limited_history, format_type)
+            history_text = self._format_history(limited_history)
             
             prompt_data = {
                     'name': context['assistant_profile']['name'],
                     'personality': context['assistant_profile']['personality'],
                     'conversation_history': history_text,
+                    'format_response': context['prompts']['system_context'][model_name]['format_response'],
                     'core_traits': '\n'.join(f"- {trait}" for trait in context['assistant_profile']['core_traits']),
                     'user_context': self._build_user_context()
                 }
@@ -227,16 +213,12 @@ class ModelManager:
                 name=context['assistant_profile']['name']
             )
 
-    def _format_history(self, history: list, format_type: str) -> str:
+    def _format_history(self, history: list) -> str:
         if not history:
             return self.config['system']['history']['empty_message']
-            
         entries = []
         for entry in history:
-            if format_type == 'chat':
-                entries.append(f"Usuario: {entry['query']}\nAsistente: {entry['response']}")
-            else:
-                entries.append(f"{entry['query']} -> {entry['response']}")
+            entries.append(f"Usuario: {entry['query']}\nAsistente: {entry['response']}")
         return "\n".join(entries)
 
     def get_history(self) -> List[Dict]:
