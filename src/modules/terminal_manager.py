@@ -52,7 +52,6 @@ class TerminalManager:
             'SPEAKING': "🗣️",
             'ERROR': "❌",
             'IDLE': "🟢",
-            'VOICE_IDLE': "🟢",
             'CHAT': "💬"
         }
 

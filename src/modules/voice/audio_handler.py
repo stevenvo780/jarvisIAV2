@@ -42,10 +42,12 @@ class AudioHandler:
             is_valid, command = self._validate_trigger(text, self.trigger_word)
             if is_valid:
                 if command:
+                    self.terminal.print_response(command)
                     self.input_queue.put(('voice', command))
                 else:
                     long_text = self._listen_long()
                     if long_text:
+                        self.terminal.print_response(long_text)
                         self.input_queue.put(('voice', long_text))
 
     def _listen_short(self):
@@ -74,7 +76,7 @@ class AudioHandler:
                     audio_data = self.recognizer.listen(
                         source,
                         timeout=config.get('operation_timeout'),
-                        phrase_time_limit=None
+                        phrase_time_limit=config.get('phrase_time_limit'),
                     )
                 except sr.WaitTimeoutError:
                     return ""
