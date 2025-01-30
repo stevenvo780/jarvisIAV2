@@ -49,32 +49,32 @@ class AudioHandler:
                         self.input_queue.put(('voice', long_text))
 
     def _listen_short(self):
-        c = self.config['speech_modes']['short_phrase']
-        self._set_recognizer_config(c)
+        config = self.config['speech_modes']['short_phrase']
+        self._set_recognizer_config(config)
         with self.mic_lock:
             with sr.Microphone(device_index=self.device_index) as source:
                 try:
                     audio_data = self.recognizer.listen(
                         source,
-                        timeout=c.get('operation_timeout', 3),
-                        phrase_time_limit=c.get('phrase_time_limit', 3)
+                        timeout=config.get('operation_timeout', 3),
+                        phrase_time_limit=config.get('phrase_time_limit', 3)
                     )
                 except sr.WaitTimeoutError:
                     return ""
         return self._transcribe_audio(audio_data)
 
     def _listen_long(self):
-        c = self.config['speech_modes']['long_phrase']
+        config = self.config['speech_modes']['long_phrase']
         self.audio_effects.play('listening')
         self.terminal.update_prompt_state('LISTENING', '👂 Modo escucha extendida...')
-        self._set_recognizer_config(c)
+        self._set_recognizer_config(config)
         with self.mic_lock:
             with sr.Microphone(device_index=self.device_index) as source:
                 try:
                     audio_data = self.recognizer.listen(
                         source,
-                        timeout=c.get('operation_timeout'),
-                        phrase_time_limit=c.get('phrase_time_limit', 20)
+                        timeout=config.get('operation_timeout'),
+                        phrase_time_limit=None
                     )
                 except sr.WaitTimeoutError:
                     return ""
@@ -82,12 +82,12 @@ class AudioHandler:
         self.terminal.update_prompt_state('PROCESSING', '⚡ Procesando...')
         return text
 
-    def _set_recognizer_config(self, cfg):
-        self.recognizer.energy_threshold = cfg['energy_threshold']
-        self.recognizer.dynamic_energy_threshold = cfg.get('dynamic_energy', False)
-        self.recognizer.pause_threshold = cfg['pause_threshold']
-        self.recognizer.phrase_threshold = cfg['phrase_threshold']
-        self.recognizer.non_speaking_duration = cfg['non_speaking_duration']
+    def _set_recognizer_config(self, config):
+        self.recognizer.energy_threshold = config['energy_threshold']
+        self.recognizer.dynamic_energy_threshold = config.get('dynamic_energy', False)
+        self.recognizer.pause_threshold = config['pause_threshold']
+        self.recognizer.phrase_threshold = config['phrase_threshold']
+        self.recognizer.non_speaking_duration = config['non_speaking_duration']
 
     def _transcribe_audio(self, audio_data):
         temp_wav = os.path.join(os.getcwd(), "temp_audio.wav")

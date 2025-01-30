@@ -1,13 +1,6 @@
 {
   "audio": {
-    "device_index": null,
-    "energy_threshold": 350,
-    "dynamic_energy": true,
-    "pause_threshold": 0.8,
-    "phrase_threshold": 0.4,
-    "non_speaking_duration": 0.5,
-    "sample_rate": 16000,
-    "operation_timeout": 5
+    "device_index": null
   },
   "speech_modes": {
     "short_phrase": {
@@ -28,18 +21,7 @@
       "operation_timeout": null,
       "phrase_time_limit": 20
     },
-    "command_phrase": {
-      "energy_threshold": 250,
-      "dynamic_energy": true,
-      "pause_threshold": 0.5,
-      "phrase_threshold": 0.3,
-      "non_speaking_duration": 0.3,
-      "operation_timeout": 2
-    },
     "adaptive": {
-      "base_timeout": 5,
-      "max_timeout": 15,
-      "min_command_length": 1,
       "silence_threshold": 1.5
     }
   }
