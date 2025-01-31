@@ -159,16 +159,27 @@ class Jarvis:
                 if hasattr(self, 'tts'):
                     self.tts.stop_speaking()
                 self.terminal.update_prompt_state('PROCESSING')
+                
+                if self.actions:
+                    response = self.actions.handle_command(content)
+                    print(response)
+                    if response == True:
+                        self.terminal.print_response(response, "system")
+                        self.terminal.update_prompt_state('NEUTRAL')
+                        self.input_queue.task_done()
+                        return
+                
                 if self.command_manager:
                     response, response_type = self.command_manager.process_input(content)
                     if response and response_type in ["command", "error"]:
                         self.terminal.print_response(response, "system" if response_type == "command" else "error")
                         self.input_queue.task_done()
-                        if hasattr(self, 'tts'):
-                            self.terminal.update_prompt_state('SPEAKING')
-                            self.tts.speak(response)
-                            self.terminal.update_prompt_state('NEUTRAL')
+                        
+                        self.terminal.update_prompt_state('SPEAKING')
+                        self.tts.speak(response)
+                        self.terminal.update_prompt_state('NEUTRAL')
                         return
+                
                 self.terminal.update_prompt_state('THINKING')
                 try:
                     response, model_name = self.model_manager.get_response(content)
@@ -194,8 +205,6 @@ class Jarvis:
 
     def _shutdown_system(self, signum=None, frame=None):
         self.terminal.print_status("Shutting down...")
-        if not self.state['running']:
-            return
         try:
             self.state['running'] = False
             self.terminal.print_warning("Shutdown signal received...")

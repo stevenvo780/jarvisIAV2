@@ -22,8 +22,11 @@ class Actions:
                 return "Comando detenido", True
 
             if command in ['exit', 'quit', 'salir']:
-                if self.state:
-                    self.state['running'] = False
+                self.state['running'] = False
+                return True
+            
+            if command in ['clear', 'limpiar', 'cls']:
+                clear()
                 return True
 
             main_cmd = parts[0]
@@ -47,7 +50,7 @@ class Actions:
                     
                 return "Configuración no válida", False
 
-            return False, False
+            return False
 
         except Exception as e:
             logging.error(f"Error handling command: {e}")
