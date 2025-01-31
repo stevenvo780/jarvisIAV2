@@ -24,97 +24,88 @@ from src.modules.text.text_handler import TextHandler
 from src.modules.voice.audio_handler import AudioHandler
 from src.modules.voice.tts_manager import TTSManager
 from src.modules.storage_manager import StorageManager
-from src.modules.command_manager import CommandManager
-from src.modules.system.command_handler import CommandHandler
+from modules.actions import Actions
+from modules.system.command_manager import CommandManager
 
 setup_logging()
 
 class Jarvis:
     def __init__(self):
-        self.terminal = TerminalManager()
-        self.input_queue = Queue()
-        self.audio_ready = threading.Event()
         self.state = {
             'running': True,
             'voice_active': False,
-            'audio_initialized': False,
+            'listening_active': False,
             'error_count': 0,
             'max_errors': 5
         }
-        self.system_monitor = SystemMonitor()
-        self.text_handler = None
-        self.audio_effects = AudioEffects()
-        self.command_handler = None
+        self.input_queue = Queue()
         self.executor = ThreadPoolExecutor(max_workers=2)
+        load_dotenv()
         try:
-            self._setup_signal_handlers()
-            self._initialize_system()
-            self._initialize_command_handler()
+            self.terminal = TerminalManager()
+            self.terminal.print_header("Starting Jarvis System")
+            self.system_monitor = SystemMonitor()
+            self.terminal.print_success("System monitor initialized")
+            self._initialize_tts()
+            self.terminal.print_success("TTS initialized")
+            self.storage = StorageManager()
+            self.terminal.print_success("Storage initialized")
+            self.audio_effects = AudioEffects()
+            self.terminal.print_success("Audio effects initialized")
+            
+            self.text_handler = None
+            self.command_manager = None
+            self.model_manager = None
+            self.actions = None
+            self._initialize_llm()
+            self.terminal.print_success("System initialized")
             self._async_audio_init()
-            self._initialize_text_mode()
-            self.monitor_thread = threading.Thread(target=self._system_monitor, daemon=True)
-            self.processor_thread = threading.Thread(target=self._process_inputs_loop, daemon=True)
-            self.monitor_thread.start()
-            self.processor_thread.start()
-            self.terminal.print_status("System ready")
+            self.terminal.print_success("Voice system initialized")
+            self._initialize_actions()
+            self.terminal.print_success("Actions initialized")
+            self.text_handler = TextHandler(
+                terminal_manager=self.terminal,
+                input_queue=self.input_queue,
+                actions=self.actions
+            )
+            self.terminal.print_success("Text handler initialized")
+            
+            self.terminal.print_header("Initializing Jarvis")
             self.audio_effects.play('startup')
         except Exception as e:
             self.audio_effects.play('error')
             self.terminal.print_error(f"Initialization error: {e}")
             sys.exit(1)
 
-    def _setup_signal_handlers(self):
-        signal.signal(signal.SIGINT, self._shutdown_system)
-        signal.signal(signal.SIGTERM, self._shutdown_system)
 
-    def _shutdown_system(self, signum=None, frame=None):
-        self.terminal.print_status("Shutting down...")
-        if not self.state['running']:
-            return
+    def _initialize_actions(self):
         try:
-            self.state['running'] = False
-            self.terminal.print_warning("Shutdown signal received...")
-            
-            if hasattr(self, 'executor'):
-                self.executor.shutdown(wait=False)
-            if hasattr(self, 'monitor_thread'):
-                self.monitor_thread.join(timeout=2)
-            if hasattr(self, 'processor_thread'):
-                self.processor_thread.join(timeout=2)
-            
-            if hasattr(self, 'audio'):
-                self.audio.cleanup()
-            if hasattr(self, 'text_handler'):
-                self.text_handler.stop()
-            if hasattr(self, 'tts'):
-                self.tts.cleanup()
-                
-            if hasattr(self, 'model'):
-                del self.model
-                
-            self.terminal.print_goodbye()
-            
+            self.actions = Actions(
+                tts=self.tts,
+                state=self.state,
+                audio_effects=self.audio_effects
+            )
         except Exception as e:
-            logging.error(f"Shutdown error: {str(e)}")
-        finally:
-            os._exit(0)
+            raise e
 
-    def _initialize_system(self):
-        self.terminal.print_header("Starting Jarvis System")
-        load_dotenv()
-        
-        self.storage = StorageManager()
-        self.model = ModelManager(storage_manager=self.storage)
-        self.tts = TTSManager()
-        self.state['audio_initialized'] = True
-        self.model.set_tts_manager(self.tts)
-        self.terminal.print_success("Core system initialized")
-        self.command_manager = CommandManager(tts=self.tts, state=self.state)
+    def _initialize_tts(self):
+        try:
+            self.tts = TTSManager()
+            self.state['voice_active'] = True
+        except Exception as e:
+            self.terminal.print_warning(f"TTS initialization error: {e}")
+            self.state['voice_active'] = False
+            raise e
 
-    def _initialize_command_handler(self):
-        self.command_handler = CommandHandler(self.model)
-        self.terminal.print_success("Command handler initialized")
-
+    def _initialize_llm(self):
+        try:
+            self.model_manager = ModelManager(storage_manager=self.storage, tts=self.tts)
+            self.terminal.print_success("Core system initialized")
+            self.command_manager = CommandManager(
+                model_manager=self.model_manager,
+            )
+        except Exception as e:
+            raise e
 
     def _async_audio_init(self):
         try:
@@ -125,25 +116,14 @@ class Jarvis:
                 state=self.state,
                 input_queue=self.input_queue
             )
-            self.terminal.print_success("Voice system initialized")
-            self.state['voice_active'] = True
+            self.state['listening_active'] = True
             pass
         except Exception as e:
             self.terminal.print_warning(f"⌨️ Text mode only: {e}")
-            self.state['voice_active'] = False
+            self.state['listening_active'] = False
             self.terminal.print_error(f"Error inicializando audio: {e}")
             self.audio_effects.play('error')
             logging.error(f"Audio init error: {e}")
-
-    def _initialize_text_mode(self):
-        if not self.text_handler:
-            self.text_handler = TextHandler(
-                terminal_manager=self.terminal,
-                input_queue=self.input_queue,
-                state=self.state,
-                tts=self.tts
-            )
-            self.terminal.print_success("Text mode ready")
 
     def _handle_critical_error(self, message):
         logging.critical(message)
@@ -178,23 +158,26 @@ class Jarvis:
             if content.strip():
                 if hasattr(self, 'tts'):
                     self.tts.stop_speaking()
-                self.terminal.update_prompt_state('PROCESSING', '⚡ Processing...')
-                if self.command_handler:
-                    response, response_type = self.command_handler.process_input(content)
+                self.terminal.update_prompt_state('PROCESSING')
+                if self.command_manager:
+                    response, response_type = self.command_manager.process_input(content)
                     if response and response_type in ["command", "error"]:
                         self.terminal.print_response(response, "system" if response_type == "command" else "error")
                         self.input_queue.task_done()
                         if hasattr(self, 'tts'):
+                            self.terminal.update_prompt_state('SPEAKING')
                             self.tts.speak(response)
+                            self.terminal.update_prompt_state('NEUTRAL')
                         return
-                self.terminal.update_prompt_state('THINKING', '⚡ Thinking...')
+                self.terminal.update_prompt_state('THINKING')
                 try:
-                    response, model_name = self.model.get_response(content)
+                    response, model_name = self.model_manager.get_response(content)
                     self.terminal.print_response(response, model_name)
                     if (t == 'voice' or self.state['voice_active']) and hasattr(self, 'tts'):
                         self.tts.speak(response)
                 except Exception as e:
                     self.terminal.print_error(f"Error del modelo: {e}")
+                self.terminal.update_prompt_state('NEUTRAL')
             
             self.input_queue.task_done()
             
@@ -203,23 +186,54 @@ class Jarvis:
         except Exception as e:
             self._handle_critical_error(f"Error processing input: {str(e)}")
 
-    def run(self):
-        m = threading.Thread(target=self._system_monitor, daemon=True)
-        m.start()
-        p = threading.Thread(target=self._process_inputs_loop, daemon=True)
-        p.start()
-        
-        self.terminal.print_header("Operating System")
-        self.terminal.print_status("Jarvis Text Interface - Escribe 'help' para ver los comandos")
-        
-        if self.text_handler:
-            self.text_handler.run_interactive()
-
     def _process_inputs_loop(self):
         while self.state['running']:
             self._process_inputs()
             time.sleep(0.1)
         self._shutdown_system()
+
+    def _shutdown_system(self, signum=None, frame=None):
+        self.terminal.print_status("Shutting down...")
+        if not self.state['running']:
+            return
+        try:
+            self.state['running'] = False
+            self.terminal.print_warning("Shutdown signal received...")
+            
+            if hasattr(self, 'executor'):
+                self.executor.shutdown(wait=False)
+            if hasattr(self, 'monitor_thread'):
+                self.monitor_thread.join(timeout=2)
+            if hasattr(self, 'processor_thread'):
+                self.processor_thread.join(timeout=2)
+            
+            if hasattr(self, 'audio'):
+                self.audio.cleanup()
+            if hasattr(self, 'text_handler'):
+                self.text_handler.stop()
+            if hasattr(self, 'tts'):
+                self.tts.cleanup()
+                
+            if hasattr(self, 'model_manager'):
+                del self.model_manager
+                
+            self.terminal.print_goodbye()
+            
+        except Exception as e:
+            logging.error(f"Shutdown error: {str(e)}")
+        finally:
+            os._exit(0)
+
+    def run(self):
+        self.monitor_thread = threading.Thread(target=self._system_monitor, daemon=True)
+        self.processor_thread = threading.Thread(target=self._process_inputs_loop, daemon=True)
+        self.monitor_thread.start()
+        self.processor_thread.start()
+        
+        self.terminal.print_header("Operating System")
+        self.terminal.print_status("Jarvis Text Interface - Escribe 'help' para ver los comandos")
+        
+        self.text_handler.run_interactive()
 
 if __name__ == "__main__":
     jarvis = Jarvis()

@@ -1,7 +1,5 @@
 import logging
-import os
 from typing import Tuple, Optional, Dict
-import google.generativeai as genai
 from sympy import re
 from modules.system.base_commander import BaseCommander
 from modules.system.calendar_commander import CalendarCommander
@@ -11,7 +9,7 @@ from src.modules.system.calendar_commander import CalendarCommander
 
 logger = logging.getLogger(__name__)
 
-class CommandHandler:
+class CommandManager:
     def __init__(self, model_manager):
         self.model_manager = model_manager
         self.modules = {}

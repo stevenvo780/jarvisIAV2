@@ -7,12 +7,13 @@ from src.modules.llm.openai_model import OpenAIModel
 from src.modules.llm.local_model import LocalModel
 
 class ModelManager:
-    def __init__(self, storage_manager, config_path: str = "src/config/config.json", user_profile_path: str = "src/data/user_profile.json"):
+    def __init__(self,storage_manager, tts):
+        self.tts = tts
         self.storage = storage_manager
-        self.config = self._load_config(config_path)
+        self.config = self._load_config('src/config/config.json')
         self._validate_config(self.config)
         self.models = self._initialize_models()
-        self.user_profile = self._load_user_profile(user_profile_path)
+        self.user_profile = self._load_user_profile('src/config/config.json')
         self.difficulty_analyzer = self.models.get('google')
         self.tts = None
         self._setup_logging()
@@ -141,9 +142,6 @@ class ModelManager:
             return "local"
         
         return next(iter(available_models))
-
-    def set_tts_manager(self, tts_manager):
-        self.tts = tts_manager
 
     def get_response(self, query: str) -> Tuple[str, str]:
         try:
