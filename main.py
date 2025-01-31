@@ -158,16 +158,17 @@ class Jarvis:
             if content.strip():
                 if hasattr(self, 'tts'):
                     self.tts.stop_speaking()
-                self.terminal.update_prompt_state('PROCESSING')
-                
+
                 if self.actions:
-                    response = self.actions.handle_command(content)
-                    if response == True:
-                        self.terminal.print_response(response, "system")
+                    message, is_command = self.actions.handle_command(content)
+                    if is_command == True:
+                        if message:
+                            self.terminal.print_response(message, "system")
                         self.terminal.update_prompt_state('NEUTRAL')
                         self.input_queue.task_done()
                         return
                 
+                self.terminal.update_prompt_state('PROCESSING')
                 if self.command_manager:
                     response, response_type = self.command_manager.process_input(content)
                     if response and response_type in ["command", "error"]:

@@ -6,7 +6,6 @@ from prompt_toolkit.shortcuts import print_formatted_text
 from prompt_toolkit.formatted_text import ANSI
 
 class TerminalManager:
-    # Usar códigos ANSI nativos
     GREEN = '\033[32m'
     RED = '\033[31m'
     BLUE = '\033[34m'

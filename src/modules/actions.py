@@ -19,15 +19,15 @@ class Actions:
             if command in ['para', 'stop', 'detente', 'silencio']:
                 if self.tts:
                     self.tts.stop_speaking()
-                return "Comando detenido", True
+                return "Vale", True
 
             if command in ['exit', 'quit', 'salir']:
                 self.state['running'] = False
-                return True
+                return None, True
             
             if command in ['clear', 'limpiar', 'cls']:
                 clear()
-                return True
+                return None, True
 
             main_cmd = parts[0]
             if main_cmd == 'config':
@@ -48,9 +48,9 @@ class Actions:
                     self.save_config()
                     return f"Efectos de sonido {'activados' if value else 'desactivados'}", True
                     
-                return "Configuración no válida", False
+                return "Configuración no válida", True
 
-            return False
+            return None, False
 
         except Exception as e:
             logging.error(f"Error handling command: {e}")
