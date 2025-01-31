@@ -26,7 +26,7 @@ class CalendarCommander(BaseCommander):
         self.model_manager = model_manager
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         self.service = self._get_calendar_service()
-        self.default_hour = 12  # Solo como fallback
+        self.default_hour = 12
         super().__init__()
 
     def _setup_ai(self):
@@ -84,6 +84,18 @@ class CalendarCommander(BaseCommander):
                 'examples': ['qué tengo que hacer mañana?', 'eventos de la próxima semana'],
                 'triggers': ['que tengo', 'qué hay', 'eventos', 'agenda'],
                 'handler': self.query_events
+            },
+            'EDIT': {
+                'description': 'Modifica un evento en el calendario',
+                'examples': ['cambiar el evento de mañana a las 4 PM', 'modificar reunión del viernes'],
+                'triggers': ['editar evento', 'cambiar evento', 'modificar evento'],
+                'handler': self.edit_event
+            },
+            'DELETE': {
+                'description': 'Elimina un evento en el calendario',
+                'examples': ['eliminar el evento del lunes', 'borrar reunión del martes'],
+                'triggers': ['eliminar evento', 'borrar evento'],
+                'handler': self.delete_event
             }
         }
 
@@ -313,6 +325,90 @@ class CalendarCommander(BaseCommander):
         except Exception as e:
             logger.error(f"Error en query_events: {e}")
             return f"Error al consultar eventos: {str(e)}", False
+
+    def edit_event(self, text: str, **kwargs) -> tuple:
+        # Obtener nuevos datos del usuario
+        new_date, has_date = self.parse_event_date(text)
+        new_title = kwargs.get('title')
+        if not new_title:
+            new_title = "Evento modificado"
+
+        # Buscar el evento que contenga en el summary parte del texto original
+        events = self.service.events().list(
+            calendarId='primary',
+            timeMin=datetime.utcnow().isoformat() + 'Z',
+            maxResults=50,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute().get('items', [])
+
+        target_event = None
+        for evt in events:
+            if evt.get('summary') and evt['summary'].lower() in text.lower():
+                target_event = evt
+                break
+
+        if not target_event:
+            return "No encontré un evento para editar", False
+
+        # Editar campos deseados
+        if has_date:
+            target_event['start'] = {
+                'dateTime': new_date.isoformat(),
+                'timeZone': str(self.timezone),
+            }
+            target_event['end'] = {
+                'dateTime': (new_date + timedelta(hours=1)).isoformat(),
+                'timeZone': str(self.timezone),
+            }
+        if new_title:
+            target_event['summary'] = new_title
+
+        updated_event = self.service.events().update(
+            calendarId='primary',
+            eventId=target_event['id'],
+            body=target_event
+        ).execute()
+
+        evento_formateado = [{
+            'titulo': updated_event['summary'],
+            'fecha': updated_event['start'].get('dateTime', ''),
+            'tipo': 'modificado'
+        }]
+        response = self._format_events_response(evento_formateado, f"Edición de evento: {text}")
+        return response, True
+
+    def delete_event(self, text: str, **kwargs) -> tuple:
+        # Buscar el evento que contenga en el summary parte del texto original
+        events = self.service.events().list(
+            calendarId='primary',
+            timeMin=datetime.utcnow().isoformat() + 'Z',
+            maxResults=50,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute().get('items', [])
+
+        target_event = None
+        for evt in events:
+            if evt.get('summary') and evt['summary'].lower() in text.lower():
+                target_event = evt
+                break
+
+        if not target_event:
+            return "No encontré un evento para eliminar", False
+
+        self.service.events().delete(
+            calendarId='primary',
+            eventId=target_event['id']
+        ).execute()
+
+        evento_formateado = [{
+            'titulo': target_event['summary'],
+            'fecha': target_event['start'].get('dateTime', ''),
+            'tipo': 'eliminado'
+        }]
+        response = self._format_events_response(evento_formateado, f"Eliminación de evento: {text}")
+        return response, True
 
     def get_rules_text(self) -> str:
         return """
