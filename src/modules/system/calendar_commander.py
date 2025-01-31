@@ -12,6 +12,7 @@ from googleapiclient.discovery import build
 from pathlib import Path
 import google.generativeai as genai
 import difflib
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -311,15 +312,23 @@ class CalendarCommander(BaseCommander):
 
     def query_events(self, text: str, **kwargs) -> tuple:
         try:
-            days = 1 if 'mañana' in text.lower() else 7
-            
-            now = datetime.utcnow().isoformat() + 'Z'
-            end = (datetime.utcnow() + timedelta(days=days)).isoformat() + 'Z'
-            
+            date_detected, has_date = self.parse_event_date(text)
+            if has_date:
+                start_dt = date_detected.replace(hour=0, minute=0, second=0, microsecond=0)
+                end_dt = (start_dt + timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=999999)
+
+                time_min = start_dt.astimezone(pytz.UTC).isoformat()
+                time_max = end_dt.astimezone(pytz.UTC).isoformat()
+            else:
+                days = 7
+                now = datetime.utcnow()
+                time_min = now.isoformat() + 'Z'
+                time_max = (now + timedelta(days=days)).isoformat() + 'Z'
+
             events_result = self.service.events().list(
                 calendarId='primary',
-                timeMin=now,
-                timeMax=end,
+                timeMin=time_min,
+                timeMax=time_max,
                 maxResults=10,
                 singleEvents=True,
                 orderBy='startTime'
