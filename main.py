@@ -166,6 +166,12 @@ class Jarvis:
                     if is_command == True:
                         if message:
                             self.terminal.print_response(message, "system")
+                            self.storage.add_interaction({
+                                "query": content,
+                                "response": message,
+                                "model": "system",
+                                "type": "system-command"
+                            })
                         self.terminal.update_prompt_state('NEUTRAL')
                         self.input_queue.task_done()
                         return
@@ -175,6 +181,12 @@ class Jarvis:
                     response, response_type = self.command_manager.process_input(content)
                     if response and response_type in ["command", "error"]:
                         self.terminal.print_response(response, "system" if response_type == "command" else "error")
+                        self.storage.add_interaction({
+                            "query": content,
+                            "response": response,
+                            "model": "system" if response_type == "command" else "error",
+                            "type": f"system-{response_type}"
+                        })
                         self.input_queue.task_done()
                         
                         self.terminal.update_prompt_state('SPEAKING')
@@ -184,12 +196,19 @@ class Jarvis:
                 
                 self.terminal.update_prompt_state('THINKING')
                 try:
+                    # aqui no se guarda interaccion por que ya esta dentro del get_response
                     response, model_name = self.model_manager.get_response(content)
                     self.terminal.print_response(response, model_name)
                     if (t == 'voice' or self.state['voice_active']) and hasattr(self, 'tts'):
                         self.tts.speak(response)
                 except Exception as e:
                     self.terminal.print_error(f"Error del modelo: {e}")
+                    self.storage.add_interaction({
+                        "query": content,
+                        "response": str(e),
+                        "model": "error",
+                        "type": "system-error"
+                    })
                 
             self.terminal.update_prompt_state('NEUTRAL')
             self.input_queue.task_done()
