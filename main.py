@@ -162,7 +162,6 @@ class Jarvis:
                 
                 if self.actions:
                     response = self.actions.handle_command(content)
-                    print(response)
                     if response == True:
                         self.terminal.print_response(response, "system")
                         self.terminal.update_prompt_state('NEUTRAL')
@@ -215,17 +214,14 @@ class Jarvis:
                 self.monitor_thread.join(timeout=2)
             if hasattr(self, 'processor_thread'):
                 self.processor_thread.join(timeout=2)
-            
-            if hasattr(self, 'audio'):
-                self.audio.cleanup()
             if hasattr(self, 'text_handler'):
                 self.text_handler.stop()
             if hasattr(self, 'tts'):
                 self.tts.cleanup()
-                
             if hasattr(self, 'model_manager'):
                 del self.model_manager
-                
+            if hasattr(self, 'audio'):
+                self.audio.cleanup()
             self.terminal.print_goodbye()
             
         except Exception as e:

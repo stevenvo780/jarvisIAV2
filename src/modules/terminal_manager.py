@@ -2,16 +2,17 @@ import os
 import logging
 import time
 import threading
+from prompt_toolkit.shortcuts import print_formatted_text
+from prompt_toolkit.formatted_text import ANSI
 
 class TerminalManager:
+    # Usar códigos ANSI nativos
     GREEN = '\033[32m'
     RED = '\033[31m'
     BLUE = '\033[34m'
     CYAN = '\033[36m'
     YELLOW = '\033[33m'
     MAGENTA = '\033[35m'
-    ORANGE = '\033[38;5;208m'
-    PURPLE = '\033[38;5;141m'
     RESET = '\033[0m'
     BOLD = '\033[1m'
     CLEAR_LINE = '\r\033[K'
@@ -56,35 +57,45 @@ class TerminalManager:
             logging.getLogger(lib).propagate = False
 
     def print_error(self, message: str):
-        print(f"{self.RED}✗ {message}{self.RESET}")
+        formatted_text = ANSI(f"{self.RED}{self.BOLD}✗ {message}{self.RESET}")
+        print_formatted_text(formatted_text)
 
     def print_success(self, message: str):
-        print(f"{self.GREEN}✓ {message}{self.RESET}")
+        formatted_text = ANSI(f"{self.GREEN}{self.BOLD}✓ {message}{self.RESET}")
+        print_formatted_text(formatted_text)
 
     def print_warning(self, message: str):
-        print(f"{self.YELLOW}⚠ {message}{self.RESET}")
+        formatted_text = ANSI(f"{self.YELLOW}{self.BOLD}⚠ {message}{self.RESET}")
+        print_formatted_text(formatted_text)
 
     def print_header(self, message: str):
-        print(f"\n{self.BOLD}{self.CYAN}=== {message} ==={self.RESET}\n")
+        formatted_text = ANSI(f"\n{self.BOLD}{self.CYAN}=== {message} ==={self.RESET}\n")
+        print_formatted_text(formatted_text)
 
     def print_status(self, message: str):
-        print(f"{self.BLUE}[STATUS] {message}{self.RESET}")
+        formatted_text = ANSI(f"{self.BLUE}{self.BOLD}[STATUS] {message}{self.RESET}")
+        print_formatted_text(formatted_text)
 
     def print_goodbye(self):
-        print(f"\n{self.GREEN}Goodbye!{self.RESET}\n")
+        formatted_text = ANSI(f"\n{self.GREEN}¡Adiós!{self.RESET}\n")
+        print_formatted_text(formatted_text)
 
     def print_response(self, message: str, agent_name: str = None):
+        message = str(message) if message is not None else ""
+
         prefix = ""
         if agent_name and agent_name.lower() in self.AGENT_EMOJIS:
             emoji = self.AGENT_EMOJIS[agent_name.lower()]
             prefix = f"{emoji} "
-
-        print("\r", end='')
+        
+        formatted_lines = []
         for line in message.split('\n'):
-            print(f"{prefix} {line}")
-
+            formatted_lines.append(f"{prefix}{line}")
+        formatted_message = '\n'.join(formatted_lines)
+        print_formatted_text(formatted_message)
+        
         if self._last_prompt:
-            print(self._last_prompt, end='', flush=True)
+            print_formatted_text(ANSI(self._last_prompt), end='', flush=True)
 
     def update_prompt_state(self, state: str):
         with self._prompt_lock:
@@ -99,5 +110,5 @@ class TerminalManager:
             new_prompt = f"\r{state_props['icon']} "
             
             if new_prompt != self._last_prompt:
-                print(new_prompt, end='', flush=True)
+                print_formatted_text(ANSI(new_prompt), end='', flush=True)
                 self._last_prompt = new_prompt

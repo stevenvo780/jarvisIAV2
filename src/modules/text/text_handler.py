@@ -30,7 +30,7 @@ class TextHandler:
                 try:
                     time.sleep(0.05)
                     user_input = self.session.prompt(
-                        self._get_formatted_prompt(),
+                        HTML(f"{self.terminal.current_state} > "),
                         style=self.style
                     ).strip()
 
@@ -44,10 +44,6 @@ class TextHandler:
                 except Exception as e:
                     logging.error(f"Error de entrada: {e}")
                     continue
-
-    def _get_formatted_prompt(self):
-        icon = "🟢"
-        return HTML(f"{icon} > ")
 
     def _handle_input(self, text: str):
         if not text or text.isspace():
