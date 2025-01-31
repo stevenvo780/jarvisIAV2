@@ -90,11 +90,8 @@ class TerminalManager:
 
     def update_prompt_state(self, state: str):
         with self._prompt_lock:
-            now = time.time()
-            if state == self._last_state and (now - self._last_time < 0.5):
-                return
             self._last_state = state
-            self._last_time = now
+            self._last_time = time.time()
             self.current_state = state
             if hasattr(self, 'session'):
                 self.session.app.invalidate()
