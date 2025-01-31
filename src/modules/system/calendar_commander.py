@@ -11,6 +11,7 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from pathlib import Path
 import google.generativeai as genai
+import difflib
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,31 @@ class CalendarCommander(BaseCommander):
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         self.service = self._get_calendar_service()
         self.default_hour = 12
+        self.conversation_history = self._load_conversation_history()
         super().__init__()
+
+    def _load_conversation_history(self):
+        history_path = Path(__file__).parent.parent.parent / 'data' / 'conversation_history.json'
+        try:
+            with open(history_path, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Error cargando historial: {e}")
+            return {"conversations": []}
+
+    def _get_recent_context(self, current_text: str):
+        recent_messages = []
+        for conv in reversed(self.conversation_history.get('conversations', [])):
+            if len(recent_messages) >= 3:
+                break
+            if any(word in conv['query'].lower() for word in ['recordar', 'agendar', 'calendario', 'evento']):
+                recent_messages.append(f"Usuario: {conv['query']}\nAsistente: {conv['response']}")
+        
+        if recent_messages:
+            context = "Mensajes recientes relacionados:\n" + "\n".join(reversed(recent_messages))
+            context += f"\nConsulta actual: {current_text}"
+            return context
+        return current_text
 
     def _setup_ai(self):
         api_key = os.getenv("GOOGLE_API_KEY")
@@ -111,18 +136,17 @@ class CalendarCommander(BaseCommander):
         for key, (base_date, pattern) in patterns.items():
             match = re.search(pattern, text.lower())
             if match:
-                if match.group(1):  # Si se especificó una hora
+                if match.group(1):
                     hour = int(match.group(1))
                     minutes = int(match.group(2)) if match.group(2) else 0
                     
-                    # Reglas de hora inteligentes
                     if 1 <= hour <= 11 and "pm" in text.lower():
                         hour += 12
                     elif hour == 12 and "am" in text.lower():
                         hour = 0
-                    elif 1 <= hour <= 6:  # Asumimos PM para horas entre 1-6 sin especificar
+                    elif 1 <= hour <= 6:
                         hour += 12
-                else:  # Si no se especificó hora, predecir según la actividad
+                else:
                     hour = self._predict_hour(text)
                     minutes = 0
                 
@@ -138,15 +162,18 @@ class CalendarCommander(BaseCommander):
         return None, False
 
     def _predict_hour(self, text: str) -> int:
-        """Predice la hora más apropiada para una actividad usando el modelo de IA."""
         if self.model_manager:
+            context = self._get_recent_context(text)
             prompt = f"""
             Como asistente de calendario, necesito determinar la hora más apropiada para una actividad.
             
-            Actividad: "{text}"
+            Contexto previo:
+            {context}
+            
+            Actividad actual: "{text}"
             
             Reglas:
-            1. Considera el contexto cultural y las costumbres generales
+            1. Considera el contexto de mensajes anteriores si son relevantes
             2. Piensa en la hora más común para esta actividad
             3. Responde SOLO con el número de hora en formato 24h (0-23)
             4. Si no estás seguro, responde "12"
@@ -170,22 +197,17 @@ class CalendarCommander(BaseCommander):
         return self.default_hour
 
     def _format_events_response(self, events_data: list, context: str = None) -> str:
-        """
-        Formatea la respuesta para cualquier operación del calendario.
-        
-        Args:
-            events_data: Lista de diccionarios con información de eventos
-            context: Contexto adicional o pregunta original del usuario
-        """
         if not events_data:
             return "No hay eventos programados"
 
+        context_with_history = self._get_recent_context(context if context else "")
         prompt = f"""
         Eres un asistente personal informando sobre eventos del calendario.
         
-        {"Contexto: " + context if context else ""}
+        Contexto completo:
+        {context_with_history}
         
-        Eventos:
+        Eventos actuales:
         {events_data}
 
         Instrucciones para presentar la respuesta:
@@ -208,10 +230,8 @@ class CalendarCommander(BaseCommander):
 
     def create_event(self, text: str, title: str = None, **kwargs) -> tuple:
         try:
-            # Si no hay título explícito, intentar extraerlo del texto
             if not title or title == "Jarvis recordatorio":
                 title = text.replace("recordar", "").replace("recuerdame", "").strip()
-                # Eliminar referencias temporales comunes
                 title = re.sub(r'mañana|hoy|a las.*|para.*', '', title, flags=re.IGNORECASE).strip()
                 
             if not title:
@@ -291,7 +311,7 @@ class CalendarCommander(BaseCommander):
 
     def query_events(self, text: str, **kwargs) -> tuple:
         try:
-            days = 1 if 'mañana' in text.lower() else 7  # Simplificamos la detección para consultas de mañana
+            days = 1 if 'mañana' in text.lower() else 7
             
             now = datetime.utcnow().isoformat() + 'Z'
             end = (datetime.utcnow() + timedelta(days=days)).isoformat() + 'Z'
@@ -327,13 +347,9 @@ class CalendarCommander(BaseCommander):
             return f"Error al consultar eventos: {str(e)}", False
 
     def edit_event(self, text: str, **kwargs) -> tuple:
-        # Obtener nuevos datos del usuario
         new_date, has_date = self.parse_event_date(text)
         new_title = kwargs.get('title')
-        if not new_title:
-            new_title = "Evento modificado"
-
-        # Buscar el evento que contenga en el summary parte del texto original
+        
         events = self.service.events().list(
             calendarId='primary',
             timeMin=datetime.utcnow().isoformat() + 'Z',
@@ -342,16 +358,21 @@ class CalendarCommander(BaseCommander):
             orderBy='startTime'
         ).execute().get('items', [])
 
+        event_titles = [evt.get('summary', '').lower() for evt in events]
+        coincidencia = difflib.get_close_matches(text.lower(), event_titles, n=1, cutoff=0.5)
+        
+        if not coincidencia:
+            return "No encontré un evento similar para editar", False
+
         target_event = None
         for evt in events:
-            if evt.get('summary') and evt['summary'].lower() in text.lower():
+            if evt.get('summary', '').lower() == coincidencia[0]:
                 target_event = evt
                 break
 
         if not target_event:
             return "No encontré un evento para editar", False
 
-        # Editar campos deseados
         if has_date:
             target_event['start'] = {
                 'dateTime': new_date.isoformat(),
@@ -379,7 +400,6 @@ class CalendarCommander(BaseCommander):
         return response, True
 
     def delete_event(self, text: str, **kwargs) -> tuple:
-        # Buscar el evento que contenga en el summary parte del texto original
         events = self.service.events().list(
             calendarId='primary',
             timeMin=datetime.utcnow().isoformat() + 'Z',
@@ -437,7 +457,6 @@ class CalendarCommander(BaseCommander):
         return f"{self.command_prefix}_{command}"
 
     def _extract_title_from_input(self, user_input: str) -> str:
-        """Extrae el título de la tarea del texto de entrada."""
         words_to_remove = ['recordar', 'recuerdame', 'agendar', 'crear evento', 'mañana', 'hoy']
         time_patterns = [
             r'a las \d{1,2}(?::\d{2})?(?:\s*[ap]m)?',
