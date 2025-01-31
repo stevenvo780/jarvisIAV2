@@ -40,8 +40,8 @@ class AudioHandler:
             if not text:
                 continue
             is_valid, command = self._validate_trigger(text, self.trigger_word)
-            if is_valid:
-                if command and command != 'asistente virtual':
+            if is_valid and command != 'asistente virtual':
+                if command:
                     self.terminal.print_response(command, 'VOICE')
                     self.input_queue.put(('voice', command))
                 else:

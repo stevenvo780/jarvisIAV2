@@ -55,7 +55,7 @@ class LocalModel:
                 prompt,
                 return_tensors="pt",
                 truncation=True,
-                max_length=512,
+                max_length=256,
                 padding=True,
                 add_special_tokens=True
             )
@@ -65,7 +65,7 @@ class LocalModel:
                 outputs = self.model.generate(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
-                    max_new_tokens=128,
+                    max_new_tokens=80,
                     num_return_sequences=1,
                     temperature=0.3,
                     do_sample=True,

@@ -3,7 +3,7 @@ import logging
 import time
 import threading
 from prompt_toolkit.shortcuts import print_formatted_text
-from prompt_toolkit.formatted_text import ANSI
+from prompt_toolkit.formatted_text import HTML, ANSI
 
 class TerminalManager:
     GREEN = '\033[32m'
@@ -20,7 +20,7 @@ class TerminalManager:
         'google': '🔍',
         'openai': '🤖',
         'local': '🏠',
-        'system': '⚙️',
+        'system': '👤',
         'error': '🚨',
         'voice': '🎙️'
     }
@@ -31,17 +31,14 @@ class TerminalManager:
         'THINKING': {'icon': "💭"},
         'SPEAKING': {'icon': "🗣️"},
         'ERROR': {'icon': "❌"},
-        'IDLE': {'icon': "🟢"},
-        'NEUTRAL': {'icon': ""}
+        'NEUTRAL': {'icon': "🟢 >"}
     }
 
     def __init__(self):
-        self.current_state = self.STATES['IDLE']['icon']
+        self.current_state = 'IDLE'
         self._prompt_lock = threading.Lock()
         self._last_state = None
         self._last_time = 0.0
-        self._last_prompt = None
-        self._initial_prompt_shown = False
         self.setup_logging()
 
     def setup_logging(self):
@@ -81,33 +78,30 @@ class TerminalManager:
 
     def print_response(self, message: str, agent_name: str = None):
         message = str(message) if message is not None else ""
-
         prefix = ""
         if agent_name and agent_name.lower() in self.AGENT_EMOJIS:
             emoji = self.AGENT_EMOJIS[agent_name.lower()]
             prefix = f"{emoji} "
-        
         formatted_lines = []
         for line in message.split('\n'):
             formatted_lines.append(f"{prefix}{line}")
         formatted_message = '\n'.join(formatted_lines)
         print_formatted_text(formatted_message)
-        
-        if self._last_prompt:
-            print_formatted_text(ANSI(self._last_prompt), end='', flush=True)
 
     def update_prompt_state(self, state: str):
         with self._prompt_lock:
             now = time.time()
             if state == self._last_state and (now - self._last_time < 0.5):
                 return
-            
             self._last_state = state
             self._last_time = now
-            
-            state_props = self.STATES.get(state, {'icon': '>'})
-            new_prompt = f"\r{state_props['icon']} "
-            
-            if new_prompt != self._last_prompt:
-                print_formatted_text(ANSI(new_prompt), end='', flush=True)
-                self._last_prompt = new_prompt
+            self.current_state = state
+            if hasattr(self, 'session'):
+                self.session.app.invalidate()
+
+    def get_current_prompt(self):
+        state_props = self.STATES.get(self.current_state, {'icon': '>'})
+        return HTML(f"{state_props['icon']} ")
+
+    def set_session(self, session):
+        self.session = session

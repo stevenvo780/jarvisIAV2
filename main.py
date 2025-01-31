@@ -69,8 +69,10 @@ class Jarvis:
                 actions=self.actions
             )
             self.terminal.print_success("Text handler initialized")
-            
+        
             self.terminal.print_header("Initializing Jarvis")
+            self.terminal.print_status("Jarvis Text Interface - Escribe 'help' para ver los comandos")
+            self.terminal.update_prompt_state('NEUTRAL')
             self.audio_effects.play('startup')
         except Exception as e:
             self.audio_effects.play('error')
@@ -188,8 +190,8 @@ class Jarvis:
                         self.tts.speak(response)
                 except Exception as e:
                     self.terminal.print_error(f"Error del modelo: {e}")
-                self.terminal.update_prompt_state('NEUTRAL')
-            
+                
+            self.terminal.update_prompt_state('NEUTRAL')
             self.input_queue.task_done()
             
         except Empty:
@@ -235,9 +237,6 @@ class Jarvis:
         self.processor_thread = threading.Thread(target=self._process_inputs_loop, daemon=True)
         self.monitor_thread.start()
         self.processor_thread.start()
-        
-        self.terminal.print_header("Operating System")
-        self.terminal.print_status("Jarvis Text Interface - Escribe 'help' para ver los comandos")
         
         self.text_handler.run_interactive()
 

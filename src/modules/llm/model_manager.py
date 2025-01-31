@@ -145,9 +145,6 @@ class ModelManager:
 
     def get_response(self, query: str) -> Tuple[str, str]:
         try:
-            if query.lower().strip() in self.config['system']['stop_commands']:
-                return "Vale", "system"
-
             if not self._validate_query(query):
                 return self.config['system']['error_messages']['security'], "error"
 
