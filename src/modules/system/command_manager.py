@@ -6,6 +6,7 @@ from modules.system.calendar_commander import CalendarCommander
 from src.modules.system.ubuntu_commander import UbuntuCommander
 from src.modules.system.multimedia_commander import MultimediaCommander
 from src.modules.system.calendar_commander import CalendarCommander
+from src.modules.system.math_commander import MathCommander  # Nuevo import
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class CommandManager:
         self.register_module('SYSTEM', UbuntuCommander())
         self.register_module('CALENDAR', CalendarCommander(self.model_manager))
         self.register_module('MEDIA', MultimediaCommander(self.model_manager))
+        self.register_module('MATH', MathCommander())  # Registro del módulo MathCommander
 
     def register_module(self, name: str, module: BaseCommander):
         self.modules[name] = module
