@@ -20,7 +20,7 @@ class TerminalManager:
         'google': '🔍',
         'openai': '🤖',
         'local': '🏠',
-        'agent_emegi': '🧠',
+        'agent_emoji': '🧠',
         'system': '👤',
         'error': '🚨',
         'voice': '🎙️'
@@ -36,7 +36,7 @@ class TerminalManager:
     }
 
     def __init__(self):
-        self.current_state = 'IDLE'
+        self.current_state = 'NEUTRAL'
         self._prompt_lock = threading.Lock()
         self._last_state = None
         self._last_time = 0.0
