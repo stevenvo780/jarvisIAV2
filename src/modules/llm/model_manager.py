@@ -5,7 +5,7 @@ from typing import List, Dict, Tuple
 from src.modules.llm.google_model import GoogleModel
 from src.modules.llm.openai_model import OpenAIModel
 from src.modules.llm.local_model import LocalModel
-from src.modules.llm.deepinfra_model import DeepInfraModel  # Nueva importación
+from src.modules.llm.deepinfra_model import DeepInfraModel
 
 class ModelManager:
     def __init__(self,storage_manager, tts):
@@ -91,7 +91,7 @@ class ModelManager:
                     instantiated[model_name] = OpenAIModel()
                 elif model_name == "local":
                     instantiated[model_name] = LocalModel()
-                elif model_name == "deepinfra":  # Nuevo caso para deepinfra
+                elif model_name == "deepinfra":
                     instantiated[model_name] = DeepInfraModel()
                 else:
                     logging.warning(f"Modelo '{model_name}' no reconocido")
@@ -197,7 +197,6 @@ class ModelManager:
         try:
             template = context['prompts']['system_context'][model_name]['template']
             
-            # Tomar solo el historial necesario para cada modelo
             model_config = self.config['models'][model_name]
             history_limit = model_config.get('history_context', 1)
             limited_history = history[-history_limit:] if history_limit > 0 else []

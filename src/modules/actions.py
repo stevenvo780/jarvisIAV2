@@ -7,7 +7,7 @@ class Actions:
     def __init__(self, tts=None, state=None, audio_effects=None, audio_handler=None):
         self.tts = tts
         self.state = state or {}
-        self.audio_effects = audio_effects
+        self.audio_effects = audio_effects 
         self.audio_handler = audio_handler
         self.config_file = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.json')
         self.load_config()

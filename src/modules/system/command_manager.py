@@ -6,7 +6,7 @@ from modules.system.calendar_commander import CalendarCommander
 from src.modules.system.ubuntu_commander import UbuntuCommander
 from src.modules.system.multimedia_commander import MultimediaCommander
 from src.modules.system.calendar_commander import CalendarCommander
-from src.modules.system.math_commander import MathCommander  # Nuevo import
+from src.modules.system.math_commander import MathCommander
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class CommandManager:
         self.register_module('SYSTEM', UbuntuCommander())
         self.register_module('CALENDAR', CalendarCommander(self.model_manager))
         self.register_module('MEDIA', MultimediaCommander(self.model_manager))
-        self.register_module('MATH', MathCommander())  # Registro del módulo MathCommander
+        self.register_module('MATH', MathCommander())
 
     def register_module(self, name: str, module: BaseCommander):
         self.modules[name] = module
@@ -70,7 +70,6 @@ class CommandManager:
 
     def process_input(self, user_input: str) -> Tuple[str, str]:
         try:
-            # Primero intentamos con el sistema de comandos directo
             for module in self.modules.values():
                 if module.should_handle_command(user_input):
                     command, additional_info = module.extract_command_info(user_input)
@@ -81,14 +80,12 @@ class CommandManager:
                         response, success = module.execute_command(command, **kwargs)
                         return response, "command" if success else "error"
 
-            # Si no hay comando directo, intentamos con AI
             result = self._analyze_with_ai(user_input)
             logger.info(f"AI analysis result: {result}")
             
             if not result or result == "QUERY":
                 return None, "query"
 
-            # Procesamos el comando AI
             if '_' in result:
                 prefix, remainder = result.split('_', 1)
                 command = remainder.split(':', 1)[0].upper()
@@ -140,7 +137,6 @@ class CommandManager:
             self._update_command_prompt()
 
     def _extract_title_from_input(self, user_input: str) -> str:
-        """Extrae el título de la tarea del texto de entrada."""
         words_to_remove = ['recordar', 'recuerdame', 'agendar', 'crear evento', 'mañana', 'hoy']
         time_patterns = [
             r'a las \d{1,2}(?::\d{2})?(?:\s*[ap]m)?',

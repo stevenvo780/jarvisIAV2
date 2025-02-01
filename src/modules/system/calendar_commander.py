@@ -79,7 +79,6 @@ class CalendarCommander(BaseCommander):
         return build('calendar', 'v3', credentials=creds)
 
     def initialize_commands(self):
-        # Registro de comandos utilizando register_command
         self.register_command(
             'CREATE',
             'Crea un nuevo evento en el calendario',
