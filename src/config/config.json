@@ -1,16 +1,20 @@
 {
   "models": {
     "google": {
-      "difficulty_range": [4, 6],
+      "difficulty_range": [40, 60],
       "history_context": 5
     },
     "openai": {
-      "difficulty_range": [7, 10],
+      "difficulty_range": [61, 80],
       "history_context": 10
     },
     "local": {
-      "difficulty_range": [1, 3],
+      "difficulty_range": [1, 39],
       "history_context": 3
+    },
+    "deepinfra": {
+      "difficulty_range": [81, 100],
+      "history_context": 30
     }
   },
   "max_history": 10,

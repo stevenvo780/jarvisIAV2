@@ -20,6 +20,7 @@ class TerminalManager:
         'google': '🔍',
         'openai': '🤖',
         'local': '🏠',
+        'agent_emegi': '🧠',
         'system': '👤',
         'error': '🚨',
         'voice': '🎙️'

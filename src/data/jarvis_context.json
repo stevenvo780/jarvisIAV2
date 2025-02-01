@@ -29,6 +29,10 @@
       "local": {
         "template": "Asistente {name} ({personality})\n\nInstrucciones:\n- Responde en un solo párrafo sin saltos de línea\n- Solo texto plano, sin formato\n\nUsuario:\n{user_context}\n\nHistorial:\n{conversation_history}\n\nRespuesta:",
         "format_response": "Responde en texto plano sin markdown ni saltos de línea"
+      },
+      "deepinfra": {
+        "template": "Como {name} ({personality}):\n\nInstrucciones:\n- Responde en un solo párrafo sin saltos de línea\n- No uses formato markdown ni caracteres especiales\n\nPerfil Usuario:\n{user_context}\n\nHistorial Reciente:\n{conversation_history}\n\nRespuesta:",
+        "format_response": "Responde en texto plano sin markdown ni saltos de línea"
       }
     },
     "templates": {
@@ -38,8 +42,8 @@
       "clarification": "¿Podrías aclarar tu pregunta?"
     },
     "difficulty_analysis": {
-      "template": "Analiza la siguiente consulta y asigna una dificultad del 1 al 10 usando estos criterios:\n\n1 - Saludos básicos y conversación casual\n(Ej: \"Hola\", \"¿Cómo estás?\", \"Gracias\")\n2 - Preguntas simples/fácticas\n(Ej: \"¿Qué hora es?\", \"Háblame del tiempo\")\n3-4 - Solicitudes básicas con contexto simple\n(Ej: \"Pon una alarma a las 5\", \"Busca en Wikipedia...\")\n5-6 - Consultas que requieren análisis o integración de datos\n(Ej: \"Compara specs de estos smartphones\")\n7-8 - Razonamiento complejo o técnico\n(Ej: \"Explica la teoría de la relatividad\")\n9-10 - Temas abstractos/filosóficos o altamente especializados\n(Ej: \"¿Cuál es el sentido de la vida?\")\n\nConsidera:\n- Complejidad lingüística\n- Conocimiento requerido\n- Profundidad de análisis necesario\n- Ambigüedad o abstracción\nSolo responde con el número correspondiente, sin formato ni explicaciones.\n\nConsulta: \"{query}\"",
-      "default_difficulty": 5
+      "template": "Analiza la siguiente consulta y asigna una dificultad del 1 al 100 usando estos criterios:\n\n1-20: Saludos básicos y conversación trivial.\n21-40: Preguntas simples o fácticas.\n41-60: Solicitudes básicas con algo de contexto adicional.\n61-80: Consultas que requieren razonamiento complejo o integración de datos.\n81-100: Temas altamente especializados, abstractos o complejos.\n\nConsidera:\n- Complejidad lingüística\n- Conocimiento requerido\n- Profundidad de análisis\n- Ambigüedad\n\nSolo responde con el número correspondiente, sin formato ni explicaciones.\n\nConsulta: \"{query}\"",
+      "default_difficulty": 50
     }
   }
 }

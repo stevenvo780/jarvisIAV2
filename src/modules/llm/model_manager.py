@@ -5,6 +5,7 @@ from typing import List, Dict, Tuple
 from src.modules.llm.google_model import GoogleModel
 from src.modules.llm.openai_model import OpenAIModel
 from src.modules.llm.local_model import LocalModel
+from src.modules.llm.deepinfra_model import DeepInfraModel  # Nueva importación
 
 class ModelManager:
     def __init__(self,storage_manager, tts):
@@ -72,8 +73,8 @@ class ModelManager:
             if not isinstance(diff_range, list) or len(diff_range) != 2:
                 raise ValueError(f"difficulty_range inválido para {model_name}")
             
-            if diff_range[0] > diff_range[1] or diff_range[0] < 0 or diff_range[1] > 10:
-                raise ValueError(f"Rango de dificultad inválido para {model_name}")
+            if diff_range[0] > diff_range[1] or diff_range[0] < 1 or diff_range[1] > 100:
+                raise ValueError(f"Rango de dificultad inválido para {model_name} (debe estar entre 1 y 100)")
         
         if not isinstance(config.get("security", {}).get("blocked_terms", []), list):
             raise ValueError("Configuración inválida: blocked_terms debe ser una lista")
@@ -90,6 +91,8 @@ class ModelManager:
                     instantiated[model_name] = OpenAIModel()
                 elif model_name == "local":
                     instantiated[model_name] = LocalModel()
+                elif model_name == "deepinfra":  # Nuevo caso para deepinfra
+                    instantiated[model_name] = DeepInfraModel()
                 else:
                     logging.warning(f"Modelo '{model_name}' no reconocido")
             except Exception as e:
@@ -120,9 +123,12 @@ class ModelManager:
             context = self.storage.get_context()
             template = context['prompts']['difficulty_analysis']['template']
             prompt = template.format(query=query)
+            if self.difficulty_analyzer is None:
+                logging.warning("difficulty_analyzer no configurado, utilizando dificultad predeterminada")
+                return context['prompts']['difficulty_analysis']['default_difficulty']
             response = self.difficulty_analyzer.get_response(prompt)
             difficulty = int(''.join(filter(str.isdigit, response)))
-            return min(max(difficulty, 1), 10)
+            return min(max(difficulty, 1), 100)
         except Exception as e:
             logging.warning(f"Error analizando dificultad: {e}")
             context = self.storage.get_context()
@@ -166,6 +172,7 @@ class ModelManager:
             enriched_query = f"{system_prompt}\n\n{user_prompt}"
             
             response = self.models[model_name].get_response(enriched_query)
+            response = self._filter_response(response)
             
             self.storage.add_interaction({
                 "query": query,
@@ -179,6 +186,12 @@ class ModelManager:
         except Exception as e:
             logging.error(f"Error procesando consulta: {e}")
             return self.config['system']['error_messages']['general'], "error"
+
+    def _filter_response(self, response: str) -> str:
+        import re
+        filtered = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL)
+        filtered = re.sub(r'^PENSAMIENTO:.*(?:\n|$)', '', filtered, flags=re.MULTILINE)
+        return filtered.strip()
 
     def _build_context_prompt(self, context: Dict, history: list, model_name: str) -> str:
         try:
