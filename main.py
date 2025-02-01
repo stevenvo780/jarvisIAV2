@@ -4,11 +4,9 @@ import sys
 import time
 import logging
 import threading
-import signal
 from queue import Queue, Empty
 from dotenv import load_dotenv
-import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent.futures import ThreadPoolExecutor
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(PROJECT_ROOT, 'src')
@@ -17,9 +15,9 @@ sys.path.insert(0, SRC_DIR)
 
 from src.utils.error_handler import setup_logging
 from src.utils.audio_utils import AudioEffects
-from src.modules.terminal_manager import TerminalManager
+from modules.text.terminal_manager import TerminalManager
 from src.modules.llm.model_manager import ModelManager
-from src.modules.system_monitor import SystemMonitor
+from modules.system_monitor import SystemMonitor
 from src.modules.text.text_handler import TextHandler
 from src.modules.voice.audio_handler import AudioHandler
 from src.modules.voice.tts_manager import TTSManager

@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Callable
 import logging
 
 logger = logging.getLogger(__name__)
@@ -11,6 +11,14 @@ class BaseCommander:
 
     def initialize_commands(self):
         raise NotImplementedError
+
+    def register_command(self, name: str, description: str, examples: List[str], triggers: List[str], handler: Callable):
+        self.commands[name] = {
+            'description': description,
+            'examples': examples,
+            'triggers': triggers,
+            'handler': handler
+        }
 
     def get_command_descriptions(self) -> List[Dict]:
         descriptions = []

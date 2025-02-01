@@ -15,14 +15,14 @@ class MathCommander(BaseCommander):
         self.command_prefix = "MATH"
 
     def initialize_commands(self):
-        self.commands = {
-            'SOLVE': {
-                'description': 'Resuelve expresiones matemáticas usando WolframAlpha',
-                'examples': ['calcular 2+2', 'resolver integral de x^2', 'wolfram 5*7'],
-                'triggers': ['calcular', 'resolver', 'wolfram'],
-                'handler': self.solve_math
-            }
-        }
+        # Usando register_command para simplificar el registro del comando SOLVE
+        self.register_command(
+            'SOLVE',
+            'Resuelve expresiones matemáticas usando WolframAlpha',
+            ['calcular 2+2', 'resolver integral de x^2', 'wolfram 5*7'],
+            ['calcular', 'resolver', 'wolfram'],
+            self.solve_math
+        )
 
     def solve_math(self, text: str, **kwargs) -> Tuple[str, bool]:
         try:

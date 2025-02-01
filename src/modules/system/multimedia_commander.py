@@ -13,48 +13,50 @@ class MultimediaCommander(BaseCommander):
         super().__init__()
         self.command_prefix = "MEDIA"
         self.model_manager = model_manager
-        self.initialize_commands()
 
     def initialize_commands(self):
-        self.commands = {
-            'VOLUME': {
-                'description': 'Adjust system volume',
-                'examples': ['subir volumen', 'bajar volumen'],
-                'triggers': ['volumen', 'subir', 'bajar', 'sube', 'baja'],
-                'handler': self._adjust_volume
-            },
-            'MUSIC': {
-                'description': 'Play music or videos',
-                'examples': ['reproduce Metallica', 'pon un video de cocina'],
-                'triggers': ['reproduce', 'pon', 'play', 'música', 'spotify',
-                             'youtube', 'video', 'videos', 'music'],
-                'handler': self._play_media
-            },
-            'PAUSE': {
-                'description': 'Pause current playback',
-                'examples': ['pausa', 'detener'],
-                'triggers': ['pausa', 'pausar', 'detener', 'stop'],
-                'handler': self._pause_media
-            },
-            'RESUME': {
-                'description': 'Resume playback',
-                'examples': ['reanudar', 'continua', 'resume'],
-                'triggers': ['reanudar', 'continua', 'resume', 'seguir'],
-                'handler': self._resume_media
-            },
-            'NEXT_TRACK': {
-                'description': 'Ir a siguiente pista',
-                'examples': ['siguiente canción', 'next track'],
-                'triggers': ['siguiente', 'next'],
-                'handler': self._next_track
-            },
-            'PREV_TRACK': {
-                'description': 'Ir a pista anterior',
-                'examples': ['anterior canción', 'previous track'],
-                'triggers': ['anterior', 'previous'],
-                'handler': self._prev_track
-            }
-        }
+        self.register_command(
+            'VOLUME', 
+            'Adjust system volume', 
+            ['subir volumen', 'bajar volumen'], 
+            ['volumen', 'subir', 'bajar', 'sube', 'baja'], 
+            self._adjust_volume
+        )
+        self.register_command(
+            'MUSIC', 
+            'Play music or videos', 
+            ['reproduce Metallica', 'pon un video de cocina'], 
+            ['reproduce', 'pon', 'play', 'música', 'spotify', 'youtube', 'video', 'videos', 'music'], 
+            self._play_media
+        )
+        self.register_command(
+            'PAUSE', 
+            'Pause current playback', 
+            ['pausa', 'detener'], 
+            ['pausa', 'pausar', 'detener', 'stop'], 
+            self._pause_media
+        )
+        self.register_command(
+            'RESUME', 
+            'Resume playback', 
+            ['reanudar', 'continua', 'resume'], 
+            ['reanudar', 'continua', 'resume', 'seguir'], 
+            self._resume_media
+        )
+        self.register_command(
+            'NEXT_TRACK', 
+            'Ir a siguiente pista', 
+            ['siguiente canción', 'next track'], 
+            ['siguiente', 'next'], 
+            self._next_track
+        )
+        self.register_command(
+            'PREV_TRACK', 
+            'Ir a pista anterior', 
+            ['anterior canción', 'previous track'], 
+            ['anterior', 'previous'], 
+            self._prev_track
+        )
 
     def get_rules_text(self) -> str:
         return """

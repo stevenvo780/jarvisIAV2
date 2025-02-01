@@ -79,43 +79,42 @@ class CalendarCommander(BaseCommander):
         return build('calendar', 'v3', credentials=creds)
 
     def initialize_commands(self):
-        self.commands = {
-            'CREATE': {
-                'description': 'Crea un nuevo evento en el calendario',
-                'examples': ['crear evento mañana a las 3 PM llamado Reunión', 
-                           'agendar reunión para hoy a las 2 PM'],
-                'triggers': [
-                    'añade un evento', 'crear evento', 'agendar', 'programar', 
-                    'recuerdame', 'añadir evento', 'nuevo evento', 'programa',
-                    'agendar para'
-                ],
-                'handler': self.create_event
-            },
-            'LIST': {
-                'description': 'Muestra los próximos eventos del calendario',
-                'examples': ['mostrar eventos', 'qué tengo agendado'],
-                'triggers': ['mostrar eventos', 'ver calendario', 'eventos pendientes'],
-                'handler': self.get_events
-            },
-            'QUERY': {
-                'description': 'Consulta eventos de forma dinámica',
-                'examples': ['qué tengo que hacer mañana?', 'eventos de la próxima semana'],
-                'triggers': ['que tengo', 'qué hay', 'eventos', 'agenda'],
-                'handler': self.query_events
-            },
-            'EDIT': {
-                'description': 'Modifica un evento en el calendario',
-                'examples': ['cambiar el evento de mañana a las 4 PM', 'modificar reunión del viernes'],
-                'triggers': ['editar evento', 'cambiar evento', 'modificar evento'],
-                'handler': self.edit_event
-            },
-            'DELETE': {
-                'description': 'Elimina un evento en el calendario',
-                'examples': ['eliminar el evento del lunes', 'borrar reunión del martes'],
-                'triggers': ['eliminar evento', 'borrar evento'],
-                'handler': self.delete_event
-            }
-        }
+        # Registro de comandos utilizando register_command
+        self.register_command(
+            'CREATE',
+            'Crea un nuevo evento en el calendario',
+            ['crear evento mañana a las 3 PM llamado Reunión', 'agendar reunión para hoy a las 2 PM'],
+            ['añade un evento', 'crear evento', 'agendar', 'programar', 'recuerdame', 'añadir evento', 'nuevo evento', 'programa', 'agendar para'],
+            self.create_event
+        )
+        self.register_command(
+            'LIST',
+            'Muestra los próximos eventos del calendario',
+            ['mostrar eventos', 'qué tengo agendado'],
+            ['mostrar eventos', 'ver calendario', 'eventos pendientes'],
+            self.get_events
+        )
+        self.register_command(
+            'QUERY',
+            'Consulta eventos de forma dinámica',
+            ['qué tengo que hacer mañana?', 'eventos de la próxima semana'],
+            ['que tengo', 'qué hay', 'eventos', 'agenda'],
+            self.query_events
+        )
+        self.register_command(
+            'EDIT',
+            'Modifica un evento en el calendario',
+            ['cambiar el evento de mañana a las 4 PM', 'modificar reunión del viernes'],
+            ['editar evento', 'cambiar evento', 'modificar evento'],
+            self.edit_event
+        )
+        self.register_command(
+            'DELETE',
+            'Elimina un evento en el calendario',
+            ['eliminar el evento del lunes', 'borrar reunión del martes'],
+            ['eliminar evento', 'borrar evento'],
+            self.delete_event
+        )
 
     def parse_event_date(self, text: str) -> tuple:
         today = datetime.now()
