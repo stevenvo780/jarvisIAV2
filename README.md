@@ -15,8 +15,10 @@ A sophisticated AI virtual assistant with advanced voice and text processing cap
 - OpenAI GPT integration
 - Google Gemini AI integration
 - Local LLama model for offline processing
+- DeepSeek-R1 model integration for enhanced reasoning
 - Automatic model selection based on query complexity
 - Contextual understanding and memory retention
+- Wolfram Alpha integration for mathematical computations
 
 ### Calendar Integration
 - Google Calendar synchronization
@@ -39,6 +41,27 @@ A sophisticated AI virtual assistant with advanced voice and text processing cap
 - Multi-cultural understanding
 - Difficulty-based model routing
 - Memory management system
+
+### Interactive Terminal Interface
+- Color-coded output for different message types
+- Status indicators and emojis
+- Real-time state feedback
+- Command history navigation
+- Dynamic prompt updates
+- Error highlighting and notifications
+- Clear visual hierarchy for responses
+- Sound effect feedback
+
+### Advanced Mathematical Capabilities
+- Complex mathematical expressions solving
+- Integration with WolframAlpha
+- Support for:
+  - Algebraic equations
+  - Calculus operations
+  - Statistical analysis
+  - Scientific computations
+  - Unit conversions
+  - Graphing capabilities
 
 ## Project Structure
 
@@ -109,6 +132,13 @@ cd ~/.local/share/jarvis/models
 
 # Download LLama model (requires HuggingFace account)
 wget https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q4_K_M.gguf
+```
+
+### DeepSeek Integration
+1. Get your DeepSeek API key
+2. Add to `.env`:
+```bash
+DEEPSEEK_API_KEY=your_deepseek_key
 ```
 
 ## Usage
