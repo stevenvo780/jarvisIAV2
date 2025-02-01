@@ -67,7 +67,7 @@ class LocalModel(BaseModel):
                 outputs = self.model.generate(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
-                    max_new_tokens=80,
+                    max_new_tokens=100,
                     num_return_sequences=1,
                     temperature=0.3,
                     do_sample=True,
