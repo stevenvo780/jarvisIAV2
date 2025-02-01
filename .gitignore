@@ -3,6 +3,7 @@
 *.pyc
 __pycache__/
 logs/
+jarvisV2/
 jarvis
 venv
 conversation_history.json
