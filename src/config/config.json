@@ -2,11 +2,11 @@
   "models": {
     "google": {
       "difficulty_range": [40, 60],
-      "history_context": 5
+      "history_context": 15
     },
     "openai": {
       "difficulty_range": [61, 80],
-      "history_context": 10
+      "history_context": 20
     },
     "local": {
       "difficulty_range": [1, 39],
