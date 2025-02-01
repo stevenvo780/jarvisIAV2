@@ -1,19 +1,23 @@
 import logging
 import warnings
+import torch
 from typing import Optional, Dict, Any
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-import torch
+from .base_model import BaseModel
 
 warnings.filterwarnings('ignore', message='Input type into Linear4bit.*')
 
-class LocalModel:
+class LocalModel(BaseModel):
     DEFAULT_MODEL_NAME = "meta-llama/Llama-3.2-3B"
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {}
-        self.model_name = self.config.get("model_name", self.DEFAULT_MODEL_NAME)
+        default_config = {
+            'model_name': self.DEFAULT_MODEL_NAME,
+        }
+        merged_config = {**default_config, **(config or {})}
+        super().__init__(merged_config)
+        self.model_name = self.config.get("model_name")
         logging.info(f"Cargando modelo: {self.model_name}")
-        
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name,
             padding_side="left",
@@ -29,9 +33,8 @@ class LocalModel:
             llm_int8_enable_fp32_cpu_offload=True
         )
         
-        device_map = "auto"
-        if not torch.cuda.is_available():
-            device_map = "cpu"
+        device_map = "auto" if torch.cuda.is_available() else "cpu"
+        if device_map == "cpu":
             logging.warning("GPU no disponible, usando CPU")
         
         try:
@@ -50,9 +53,8 @@ class LocalModel:
 
     def get_response(self, query: str) -> str:
         try:
-            prompt = query
             encoded = self.tokenizer(
-                prompt,
+                query,
                 return_tensors="pt",
                 truncation=True,
                 max_length=256,
@@ -76,25 +78,16 @@ class LocalModel:
                     eos_token_id=self.tokenizer.eos_token_id,
                     use_cache=True
                 )
-            
             response = self.tokenizer.decode(
                 outputs[0][input_ids.shape[1]:],
                 skip_special_tokens=True,
                 clean_up_tokenization_spaces=True
             ).strip()
-
             response = response.split('\n')[0]
-            
-            prefixes_to_remove = ["Respuesta:", "Jarvis:", "Usuario:", "Asistente:"]
-            for prefix in prefixes_to_remove:
+            for prefix in ["Respuesta:", "Jarvis:", "Usuario:", "Asistente:"]:
                 if response.startswith(prefix):
                     response = response.replace(prefix, "", 1).strip()
-            
-            if not response or len(response) < 2:
-                return "¿En qué puedo ayudarte?"
-
-            return response
-
+            return response if response and len(response) >= 2 else "¿En qué puedo ayudarte?"
         except Exception as e:
             logging.error(f"Error en el modelo local: {e}")
             return "Lo siento, hubo un error en el procesamiento. ¿Puedo ayudarte en algo más?"

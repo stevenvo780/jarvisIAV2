@@ -2,16 +2,15 @@ import os
 import logging
 import requests
 from typing import Optional, Dict, Any
+from .base_model import BaseModel
 
-class DeepInfraModel:
+class DeepInfraModel(BaseModel):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         default_config = {
             'model_name': "deepseek-ai/DeepSeek-R1",
-            'logging_level': logging.INFO
         }
-        self.config = {**default_config, **(config or {})}
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(self.config['logging_level'])
+        merged_config = {**default_config, **(config or {})}
+        super().__init__(merged_config)
         self.DEEPINFRA_API_KEY = os.getenv("DEEPINFRA_API_KEY")
         if not self.DEEPINFRA_API_KEY:
             raise ValueError("DEEPINFRA_API_KEY no encontrada en variables de entorno")
