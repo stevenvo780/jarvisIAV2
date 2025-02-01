@@ -10,7 +10,6 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from pathlib import Path
-import google.generativeai as genai
 import difflib
 import json
 
@@ -54,13 +53,6 @@ class CalendarCommander(BaseCommander):
             context += f"\nConsulta actual: {current_text}"
             return context
         return current_text
-
-    def _setup_ai(self):
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY no encontrada")
-        genai.configure(api_key=api_key)
-        self.ai_model = genai.GenerativeModel('gemini-2.0-flash-exp')
 
     def _get_calendar_service(self):
         creds = None
