@@ -70,32 +70,36 @@ class CommandManager:
 
     def process_input(self, user_input: str) -> Tuple[str, str]:
         try:
+            # Primero intentamos con el sistema de comandos directo
+            for module in self.modules.values():
+                if module.should_handle_command(user_input):
+                    command, additional_info = module.extract_command_info(user_input)
+                    if command:
+                        prefix = module.command_prefix
+                        logger.debug(f"Direct command match: {prefix}_{command}")
+                        kwargs = module.process_command_parameters(command, user_input, additional_info)
+                        response, success = module.execute_command(command, **kwargs)
+                        return response, "command" if success else "error"
+
+            # Si no hay comando directo, intentamos con AI
             result = self._analyze_with_ai(user_input)
             logger.info(f"AI analysis result: {result}")
             
             if not result or result == "QUERY":
-                result = self._fallback_trigger_check(user_input)
-                if not result:
-                    return None, "query"
+                return None, "query"
 
-            try:
-                if '_' in result:
-                    prefix, remainder = result.split('_', 1)
-                    command = remainder.split(':', 1)[0].upper()
-                    additional_info = remainder.split(':', 1)[1] if ':' in remainder else ""
-                    
-                    prefix = prefix.upper()
-                    logger.debug(f"Processing command - Prefix: {prefix}, Command: {command}")
-                    
-                    if prefix in self.modules:
-                        module = self.modules[prefix]
-                        kwargs = module.process_command_parameters(command, user_input, additional_info)
-                        response, success = module.execute_command(command, **kwargs)
-                        logger.info(f"Command executed: {prefix}_{command} -> {success}")
-                        return response, "command" if success else "error"
-            except Exception as e:
-                logger.error(f"Error executing command: {e}", exc_info=True)
-                return f"Error ejecutando comando: {str(e)}", "error"
+            # Procesamos el comando AI
+            if '_' in result:
+                prefix, remainder = result.split('_', 1)
+                command = remainder.split(':', 1)[0].upper()
+                additional_info = remainder.split(':', 1)[1] if ':' in remainder else ""
+                
+                prefix = prefix.upper()
+                if prefix in self.modules:
+                    module = self.modules[prefix]
+                    kwargs = module.process_command_parameters(command, user_input, additional_info)
+                    response, success = module.execute_command(command, **kwargs)
+                    return response, "command" if success else "error"
             
             return None, "query"
             

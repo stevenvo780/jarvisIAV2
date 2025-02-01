@@ -34,7 +34,7 @@ class UbuntuCommander(BaseCommander):
             'TERMINAL': {
                 'description': 'Abre una terminal',
                 'examples': ['abrir terminal', 'abrir consola'],
-                'triggers': ['terminal', 'consola'],
+                'triggers': ['terminal', 'consola', 'shell'],
                 'handler': self._open_terminal
             },
             'SETTINGS': {
@@ -93,14 +93,36 @@ class UbuntuCommander(BaseCommander):
             return f"Error abriendo configuración: {str(e)}", False
 
     def process_command_parameters(self, command: str, user_input: str, additional_info: str) -> dict:
-        return {}  # No necesita parámetros adicionales
+        return {}
 
     def should_handle_command(self, user_input: str) -> bool:
-        return any(word in user_input.lower() for word in 
-                  ['abrir', 'ejecutar', 'iniciar', 'mostrar'])
+        input_lower = user_input.lower()
+        action_words = ['abrir', 'ejecutar', 'iniciar', 'mostrar', 'abre', 'nueva', 'quiero']
+        has_action = any(word in input_lower for word in action_words)
+        
+        has_trigger = False
+        for cmd_info in self.commands.values():
+            if any(trigger in input_lower for trigger in cmd_info['triggers']):
+                has_trigger = True
+                break
+        
+        return has_action and has_trigger
 
     def extract_command_info(self, user_input: str) -> tuple:
+        input_lower = user_input.lower()
+        input_words = input_lower.split()
+        
         for cmd_name, cmd_info in self.commands.items():
-            if any(trigger in user_input.lower() for trigger in cmd_info['triggers']):
-                return cmd_name, None
+            for trigger in cmd_info['triggers']:
+                if trigger in input_words:
+                    return cmd_name, None
+        
+        for cmd_name, cmd_info in self.commands.items():
+            for trigger in cmd_info['triggers']:
+                if trigger in input_lower:
+                    return cmd_name, None
+        
         return None, None
+
+    def format_command_response(self, command: str, additional_info: str) -> str:
+        return f"{self.command_prefix}_{command.upper()}" + (f":{additional_info}" if additional_info else "")

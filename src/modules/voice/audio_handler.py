@@ -23,19 +23,56 @@ class AudioHandler:
         self.model = whisper.load_model("small")
         self.recognizer = sr.Recognizer()
         self.mic_lock = threading.Lock()
-        config_path = os.path.join('src', 'config', 'audio_config.json')
-        with open(config_path, 'r') as f:
-            self.config = json.load(f)
-        self.device_index = self.config['audio']['device_index']
-        self.mic = sr.Microphone(device_index=self.device_index)
-        with self.mic_lock:
-            with self.mic as source:
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+        self.device_index = None
+        self.load_config()
+        self.initialize_microphone()
         self.audio_thread = threading.Thread(target=self._audio_loop, daemon=True)
         self.audio_thread.start()
 
+    def load_config(self):
+        config_path = os.path.join('src', 'config', 'audio_config.json')
+        try:
+            with open(config_path, 'r') as f:
+                self.config = json.load(f)
+            self.device_index = self.config['audio'].get('device_index')
+        except Exception as e:
+            logging.error(f"Error loading audio config: {e}")
+            self.config = {
+                "audio": {"device_index": None},
+                "speech_modes": {
+                    "short_phrase": {
+                        "energy_threshold": 250,
+                        "dynamic_energy": True,
+                        "pause_threshold": 0.55,
+                        "phrase_threshold": 0.25,
+                        "non_speaking_duration": 0.3,
+                        "operation_timeout": 3,
+                        "phrase_time_limit": 3
+                    }
+                }
+            }
+            self.device_index = None
+
+    def initialize_microphone(self):
+        try:
+            self.mic = sr.Microphone(device_index=self.device_index)
+            with self.mic as source:
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                self.terminal.print_success("Microphone initialized and calibrated")
+        except Exception as e:
+            self.state['listening_active'] = False
+            raise Exception(f"Error initializing microphone: {e}")
+
+    def toggle_listening(self):
+        self.state['listening_active'] = not self.state['listening_active']
+        status = "activada" if self.state['listening_active'] else "desactivada"
+        self.terminal.print_status(f"Escucha {status}")
+        return f"Escucha {status}"
+
     def _audio_loop(self):
         while self.running:
+            if not self.state['listening_active']:
+                continue
             text = self._listen_short()
             if not text:
                 continue
@@ -127,6 +164,7 @@ class AudioHandler:
 
     def cleanup(self):
         self.running = False
+        self.state['listening_active'] = False
         if hasattr(self, 'model'):
             del self.model
         if hasattr(self, 'mic'):

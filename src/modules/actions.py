@@ -4,10 +4,11 @@ import os
 from prompt_toolkit.shortcuts import clear
 
 class Actions:
-    def __init__(self, tts=None, state=None, audio_effects=None):
+    def __init__(self, tts=None, state=None, audio_effects=None, audio_handler=None):
         self.tts = tts
         self.state = state or {}
         self.audio_effects = audio_effects
+        self.audio_handler = audio_handler
         self.config_file = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.json')
         self.load_config()
 
@@ -70,3 +71,8 @@ class Actions:
                 json.dump(self.config, f, indent=2)
         except Exception as e:
             logging.error(f"Error saving config: {e}")
+
+    def _toggle_listening(self):
+        if self.audio_handler:
+            return self.audio_handler.toggle_listening(), True
+        return "Sistema de voz no disponible", False
