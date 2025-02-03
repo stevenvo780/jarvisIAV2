@@ -69,6 +69,12 @@ class AudioHandler:
         self.terminal.print_status(f"Escucha {status}")
         return f"Escucha {status}"
 
+    def set_listening(self, active: bool):
+        self.state['listening_active'] = active
+        status = "activada" if active else "desactivada"
+        self.terminal.print_status(f"Escucha {status}")
+        return f"Escucha {status}"
+
     def _audio_loop(self):
         while self.running:
             if not self.state['listening_active']:

@@ -11,6 +11,8 @@ class Actions:
         self.audio_handler = audio_handler
         self.config_file = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.json')
         self.load_config()
+        if "audio" in self.config and "listening_enabled" in self.config["audio"]:
+            self.state['listening_active'] = self.config["audio"]["listening_enabled"]
 
     def handle_command(self, command: str):
         try:
@@ -29,6 +31,34 @@ class Actions:
             if command in ['clear', 'limpiar', 'cls']:
                 clear()
                 return None, True
+
+            if command == "enable listening":
+                if self.audio_handler:
+                    msg = self.audio_handler.set_listening(True)
+                    self.config['audio']['listening_enabled'] = True
+                    self.save_config()
+                    return msg, True
+                return "Voice system not available", False
+
+            if command == "disable listening":
+                if self.audio_handler:
+                    msg = self.audio_handler.set_listening(False)
+                    self.config['audio']['listening_enabled'] = False
+                    self.save_config()
+                    return msg, True
+                return "Voice system not available", False
+
+            if command == "enable speech":
+                self.config['audio']['tts_enabled'] = True
+                self.save_config()
+                return "Speech enabled", True
+
+            if command == "disable speech":
+                self.config['audio']['tts_enabled'] = False
+                if self.tts:
+                    self.tts.stop_speaking()
+                self.save_config()
+                return "Speech disabled", True
 
             main_cmd = parts[0]
             if main_cmd == 'config':
@@ -61,9 +91,14 @@ class Actions:
         try:
             with open(self.config_file, 'r') as f:
                 self.config = json.load(f)
+            if "audio" not in self.config:
+                self.config["audio"] = {}
+            self.config["audio"].setdefault("tts_enabled", True)
+            self.config["audio"].setdefault("sound_effects_enabled", True)
+            self.config["audio"].setdefault("listening_enabled", True)
         except Exception as e:
             logging.error(f"Error loading config: {e}")
-            self.config = {"audio": {"tts_enabled": True, "sound_effects_enabled": True}}
+            self.config = {"audio": {"tts_enabled": True, "sound_effects_enabled": True, "listening_enabled": True}}
 
     def save_config(self):
         try:
