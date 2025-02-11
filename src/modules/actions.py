@@ -19,6 +19,20 @@ class Actions:
             command = command.lower().strip()
             parts = command.split()
             
+            if command in ['help', 'ayuda']:
+                help_text = (
+                    "Comandos disponibles:\n"
+                    "- enable listening: Activa el sistema de escucha\n"
+                    "- disable listening: Desactiva el sistema de escucha\n"
+                    "- enable speech: Activa el TTS\n"
+                    "- disable speech: Desactiva el TTS\n"
+                    "- para/stop/detente/silencio: Detiene la acción actual\n"
+                    "- clear/limpiar/cls: Limpia la terminal\n"
+                    "- exit/quit/salir: Finaliza el programa\n"
+                    "- config [tts|effects] [on|off]: Configura opciones\n"
+                )
+                return help_text, True
+
             if command in ['para', 'stop', 'detente', 'silencio']:
                 if self.tts:
                     self.tts.stop_speaking()

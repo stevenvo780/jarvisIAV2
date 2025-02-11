@@ -19,7 +19,7 @@ class CommandManager:
 
     def _register_default_modules(self):
         self.register_module('SYSTEM', UbuntuCommander())
-        self.register_module('CALENDAR', CalendarCommander(self.model_manager))
+        #self.register_module('CALENDAR', CalendarCommander(self.model_manager))
         self.register_module('MEDIA', MultimediaCommander(self.model_manager))
         self.register_module('MATH', MathCommander())
 

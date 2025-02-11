@@ -83,6 +83,8 @@ class ModelManager:
 
     def _initialize_models(self) -> Dict[str, object]:
         instantiated = {}
+        errors = []
+        
         for model_name in self.config['models']:
             try:
                 if model_name == "google":
@@ -94,11 +96,28 @@ class ModelManager:
                 elif model_name == "deepinfra":
                     instantiated[model_name] = DeepInfraModel()
                 else:
-                    logging.warning(f"Modelo '{model_name}' no reconocido")
+                    errors.append(f"Modelo no reconocido: {model_name}")
+                    continue
+                logging.info(f"Modelo {model_name} inicializado correctamente")
+            except ImportError as ie:
+                error_msg = f"Error importando módulo {model_name}: {str(ie)}"
+                logging.error(error_msg)
+                errors.append(error_msg)
             except Exception as e:
-                logging.error(f"Error inicializando {model_name}: {str(e)}")
+                error_msg = f"Error inicializando modelo {model_name}: {e.__class__.__name__} - {str(e)}"
+                logging.error(error_msg)
+                errors.append(error_msg)
+
         if not instantiated:
-            raise RuntimeError("No se pudo inicializar ningún modelo")
+            error_summary = "\n".join(errors)
+            error_msg = f"Fallo crítico: No se pudo inicializar ningún modelo.\nDetalles:\n{error_summary}"
+            logging.critical(error_msg)
+            raise RuntimeError(error_msg)
+            
+        if len(instantiated) < len(self.config['models']):
+            error_summary = "\n".join(errors)
+            logging.warning(f"Algunos modelos fallaron en inicializar:\n{error_summary}")
+            
         return instantiated
 
     def _setup_logging(self):

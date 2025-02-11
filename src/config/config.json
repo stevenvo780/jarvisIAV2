@@ -1,29 +1,52 @@
 {
   "models": {
     "google": {
-      "difficulty_range": [40, 60],
+      "difficulty_range": [
+        40,
+        60
+      ],
       "history_context": 15
     },
     "openai": {
-      "difficulty_range": [61, 80],
+      "difficulty_range": [
+        61,
+        80
+      ],
       "history_context": 20
     },
     "local": {
-      "difficulty_range": [1, 39],
+      "difficulty_range": [
+        1,
+        39
+      ],
       "history_context": 3
     },
     "deepinfra": {
-      "difficulty_range": [81, 100],
+      "difficulty_range": [
+        81,
+        100
+      ],
       "history_context": 30
     }
   },
   "max_history": 10,
   "security": {
-    "blocked_terms": [";", "&&", "|", "`", "$("]
+    "blocked_terms": [
+      ";",
+      "&&",
+      "|",
+      "`",
+      "$("
+    ]
   },
   "log_level": "INFO",
   "system": {
-    "stop_commands": ["stop", "para", "detente", "silencio"],
+    "stop_commands": [
+      "stop",
+      "para",
+      "detente",
+      "silencio"
+    ],
     "error_messages": {
       "security": "Lo siento, tu consulta no puede ser procesada por razones de seguridad.",
       "general": "Lo siento, ha ocurrido un error procesando tu consulta."
@@ -33,5 +56,10 @@
       "memories_size": 5,
       "empty_message": "Sin historial reciente"
     }
+  },
+  "audio": {
+    "tts_enabled": true,
+    "sound_effects_enabled": true,
+    "listening_enabled": false
   }
 }

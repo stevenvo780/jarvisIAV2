@@ -83,7 +83,8 @@ class Jarvis:
             self.actions = Actions(
                 tts=self.tts,
                 state=self.state,
-                audio_effects=self.audio_effects
+                audio_effects=self.audio_effects,
+                audio_handler=self.audio 
             )
         except Exception as e:
             raise e
