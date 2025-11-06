@@ -5,17 +5,29 @@ from typing import Optional, Dict, Any
 from .base_model import BaseModel
 
 class GoogleModel(BaseModel):
+    """
+    Google Gemini API handler
+    
+    Supported models:
+    - gemini-2.0-flash-exp (fast and free)
+    - gemini-2.0-flash-thinking-exp (with reasoning)
+    - gemini-1.5-pro (for complex tasks)
+    """
+    
     def __init__(self, api_key: Optional[str] = None, config: Optional[Dict[str, Any]] = None):
         api_key = api_key or os.getenv("GOOGLE_API_KEY")
         if not api_key:
             raise ValueError("GOOGLE_API_KEY no encontrada en variables de entorno")
         self.api_key = api_key
         default_config = {
-            'model_name': "gemini-2.0-flash-exp",
+            'model_name': "gemini-2.0-flash-thinking-exp",  # Updated to thinking model
+            'temperature': 0.7,
+            'max_tokens': 8192,
         }
         merged_config = {**default_config, **(config or {})}
         super().__init__(merged_config)
         genai.configure(api_key=self.api_key)
+        self.logger.info(f"✅ GoogleModel initialized: {self.config['model_name']}")
 
     def get_response(self, query: str) -> str:
         try:

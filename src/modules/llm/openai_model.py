@@ -5,18 +5,28 @@ from openai import OpenAI
 from .base_model import BaseModel
 
 class OpenAIModel(BaseModel):
+    """
+    OpenAI API handler
+    
+    Supported models:
+    - gpt-4o-mini (recommended for cost)
+    - gpt-4o (for maximum quality)
+    - gpt-4-turbo
+    """
+    
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         if not (os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_API_KEY").startswith("sk-")):
             raise ValueError("OPENAI_API_KEY no encontrada o inválida")
         self.api_key = os.getenv("OPENAI_API_KEY")
         default_config = {
-            'model_name': 'gpt-4o',
+            'model_name': 'gpt-4o-mini',  # Updated to use cheaper model by default
             'temperature': 0.7,
-            'max_tokens': 1024,
+            'max_tokens': 4096,  # Increased for better responses
         }
         merged_config = {**default_config, **(config or {})}
         super().__init__(merged_config)
-        self.client = OpenAI(api_key=self.api_key, timeout=25.0, max_retries=3)
+        self.client = OpenAI(api_key=self.api_key, timeout=30.0, max_retries=3)
+        self.logger.info(f"✅ OpenAIModel initialized: {self.config['model_name']}")
 
     def get_response(self, query: str) -> str:
         if not isinstance(query, str) or len(query.strip()) < 3:
