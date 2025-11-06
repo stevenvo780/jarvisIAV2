@@ -12,7 +12,7 @@ from src.utils.audio_utils import AudioEffects
 warnings.filterwarnings("ignore")
 
 class AudioHandler:
-    def __init__(self, terminal_manager, tts, state, input_queue):
+    def __init__(self, terminal_manager, tts, state, input_queue, whisper_handler=None):
         self.terminal = terminal_manager
         self.tts = tts
         self.state = state
@@ -20,7 +20,16 @@ class AudioHandler:
         self.audio_effects = AudioEffects()
         self.trigger_word = "jarvis"
         self.running = True
-        self.model = whisper.load_model("small")
+        
+        # V2: Usar WhisperHandler si está disponible, sino legacy
+        self.whisper_handler = whisper_handler
+        if self.whisper_handler:
+            logging.info("Using V2 WhisperHandler (faster-whisper)")
+            self.model = None  # No cargar modelo legacy
+        else:
+            logging.info("Using legacy openai-whisper")
+            self.model = whisper.load_model("small")
+        
         self.recognizer = sr.Recognizer()
         self.mic_lock = threading.Lock()
         self.device_index = None
@@ -139,18 +148,28 @@ class AudioHandler:
         try:
             with open(temp_wav, "wb") as f:
                 f.write(audio_data.get_wav_data())
-            result = self.model.transcribe(
-                temp_wav,
-                language="es",
-                initial_prompt="Jarvis asistente virtual",
-                no_speech_threshold=self.config['speech_modes']['adaptive'].get('silence_threshold', 1.5),
-                temperature=0.0,
-                best_of=5,
-                beam_size=5,
-                patience=1,
-                fp16=False
-            )
-            return result["text"].strip().lower()
+            
+            # V2: Usar WhisperHandler si está disponible
+            if self.whisper_handler:
+                result = self.whisper_handler.transcribe_file(
+                    temp_wav,
+                    language="es"
+                )
+                return result.lower()
+            else:
+                # Legacy: openai-whisper
+                result = self.model.transcribe(
+                    temp_wav,
+                    language="es",
+                    initial_prompt="Jarvis asistente virtual",
+                    no_speech_threshold=self.config['speech_modes']['adaptive'].get('silence_threshold', 1.5),
+                    temperature=0.0,
+                    best_of=5,
+                    beam_size=5,
+                    patience=1,
+                    fp16=False
+                )
+                return result["text"].strip().lower()
         except Exception as e:
             logging.error(f"Transcription error: {e}")
             return ""

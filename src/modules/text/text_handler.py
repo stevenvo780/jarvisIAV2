@@ -9,11 +9,13 @@ class TextHandler:
         self,
         terminal_manager,
         input_queue,
-        actions
+        actions,
+        embeddings=None  # V2: Sistema RAG opcional
         ):
         self.terminal = terminal_manager
         self.input_queue = input_queue
         self.actions = actions
+        self.embeddings = embeddings
         self.running = True
         self.style = Style.from_dict({
             'prompt': '#00aa00 bold',

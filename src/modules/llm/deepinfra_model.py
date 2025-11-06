@@ -8,7 +8,7 @@ import logging
 from typing import Optional, Dict, Any
 
 try:
-    from openai import OpenAI  # DeepSeek API is OpenAI-compatible
+    from openai import OpenAI
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
