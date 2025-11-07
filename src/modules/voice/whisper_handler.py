@@ -75,8 +75,9 @@ class WhisperHandler:
                         break
                 else:
                     # Last resort: HuggingFace (requires internet)
+                    # Use a valid Whisper model from HF - large-v3 is available
                     self.logger.warning("No local model found, using HuggingFace (requires internet)")
-                    self.model_path = "guillaumekln/faster-whisper-large-v3-turbo"
+                    self.model_path = "Systran/faster-whisper-large-v3"
             
             # Check device availability
             import torch

@@ -103,7 +103,8 @@ class Jarvis:
                 self.metrics = None
             
             # V2: Inicializar embeddings/RAG
-            if USE_V2_EMBEDDINGS:
+            enable_rag = os.getenv('ENABLE_RAG', 'true').lower() == 'true'
+            if USE_V2_EMBEDDINGS and enable_rag:
                 try:
                     self.embeddings = EmbeddingManager(
                         model_name="models/embeddings/bge-m3",
@@ -112,9 +113,11 @@ class Jarvis:
                     )
                     self.terminal.print_success("V2 Embedding system (RAG) initialized")
                 except Exception as e:
-                    self.terminal.print_warning(f"V2 Embeddings fallback to CPU: {e}")
-                    self.embeddings = EmbeddingManager(device="cpu")
+                    self.terminal.print_warning(f"V2 Embeddings disabled: {e}")
+                    self.embeddings = None
             else:
+                if not enable_rag:
+                    self.terminal.print_status("V2 RAG/Embeddings disabled (ENABLE_RAG=false)")
                 self.embeddings = None
             
             self.text_handler = None
@@ -203,6 +206,15 @@ class Jarvis:
             raise e
 
     def _async_audio_init(self):
+        enable_whisper = os.getenv('ENABLE_WHISPER', 'true').lower() == 'true'
+        
+        if not enable_whisper:
+            self.terminal.print_status("⌨️ Text mode - ENABLE_WHISPER=false")
+            self.whisper = None
+            self.audio = None
+            self.state.set_listening_active(False)
+            return
+            
         try:
             logging.info("Iniciando inicialización de audio...")
             
@@ -218,26 +230,36 @@ class Jarvis:
                     self.terminal.print_success("V2 WhisperHandler initialized (4x faster)")
                 except Exception as e:
                     self.terminal.print_warning(f"V2 Whisper fallback to CPU: {e}")
-                    self.whisper = WhisperHandler(device="cpu")
+                    try:
+                        self.whisper = WhisperHandler(device="cpu")
+                    except Exception as e2:
+                        self.terminal.print_error(f"Whisper CPU fallback also failed: {e2}")
+                        self.whisper = None
             else:
                 self.whisper = None
             
             # AudioHandler legacy (wrapper)
-            self.audio = AudioHandler(
-                terminal_manager=self.terminal,
-                tts=self.tts,
-                state=self.state,
-                input_queue=self.input_queue,
-                whisper_handler=self.whisper if USE_V2_WHISPER else None  # V2 passthrough
-            )
-            self.state.set_listening_active(True)
-            pass
+            if self.whisper:
+                self.audio = AudioHandler(
+                    terminal_manager=self.terminal,
+                    tts=self.tts,
+                    state=self.state,
+                    input_queue=self.input_queue,
+                    whisper_handler=self.whisper if USE_V2_WHISPER else None  # V2 passthrough
+                )
+                self.state.set_listening_active(True)
+            else:
+                # Initialize a minimal audio handler or set to None
+                self.audio = None
+                self.state.set_listening_active(False)
+                self.terminal.print_warning("⌨️ Text mode only - Whisper not available")
         except Exception as e:
             self.terminal.print_warning(f"⌨️ Text mode only: {e}")
             self.state.set_listening_active(False)
             self.terminal.print_error(f"Error inicializando audio: {e}")
             self.audio_effects.play('error')
             logging.error(f"Audio init error: {e}")
+            self.audio = None  # Ensure self.audio is set even on error
 
     def _handle_critical_error(self, message):
         logging.critical(message)
@@ -445,7 +467,7 @@ class Jarvis:
                 self.terminal.print_success(f"RAG: {stats['total_memories']} memories saved")
                 del self.embeddings
             
-            if hasattr(self, 'audio'):
+            if hasattr(self, 'audio') and self.audio:
                 self.audio.cleanup()
             
             self.terminal.print_goodbye()

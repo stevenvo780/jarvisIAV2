@@ -6,13 +6,14 @@ from prompt_toolkit.shortcuts import clear
 class Actions:
     def __init__(self, tts=None, state=None, audio_effects=None, audio_handler=None):
         self.tts = tts
-        self.state = state or {}
+        self.state = state
         self.audio_effects = audio_effects 
         self.audio_handler = audio_handler
         self.config_file = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.json')
         self.load_config()
-        if "audio" in self.config and "listening_enabled" in self.config["audio"]:
-            self.state['listening_active'] = self.config["audio"]["listening_enabled"]
+        # Use proper JarvisState setter methods
+        if self.state and "audio" in self.config and "listening_enabled" in self.config["audio"]:
+            self.state.set_listening_active(self.config["audio"]["listening_enabled"])
 
     def handle_command(self, command: str):
         try:
@@ -39,7 +40,8 @@ class Actions:
                 return "Vale", True
 
             if command in ['exit', 'quit', 'salir']:
-                self.state['running'] = False
+                if self.state:
+                    self.state.set_running(False)
                 return None, True
             
             if command in ['clear', 'limpiar', 'cls']:

@@ -10,11 +10,16 @@ class MathCommander(BaseCommander):
     def __init__(self):
         self.app_id = os.getenv("WOLFRAM_APP_ID")
         if not self.app_id:
-            raise ValueError("WOLFRAM_APP_ID no está configurado")
+            logger.warning("WOLFRAM_APP_ID no está configurado - MathCommander deshabilitado")
+            self.enabled = False
+        else:
+            self.enabled = True
         super().__init__()
         self.command_prefix = "MATH"
 
     def initialize_commands(self):
+        if not self.enabled:
+            return
         # Usando register_command para simplificar el registro del comando SOLVE
         self.register_command(
             'SOLVE',
@@ -25,6 +30,8 @@ class MathCommander(BaseCommander):
         )
 
     def solve_math(self, text: str, **kwargs) -> Tuple[str, bool]:
+        if not self.enabled:
+            return "Wolfram Alpha no está configurado", False
         try:
             # Extraer la consulta removiendo palabras clave
             query = text.replace("calcular", "").replace("resolver", "").replace("wolfram", "").strip()

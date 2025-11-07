@@ -20,7 +20,6 @@ except ImportError:
 
 try:
     import chromadb
-    from chromadb.config import Settings
     CHROMADB_AVAILABLE = True
 except ImportError:
     CHROMADB_AVAILABLE = False
@@ -110,13 +109,9 @@ class EmbeddingManager:
             # Create directory if needed
             os.makedirs(self.chroma_path, exist_ok=True)
             
-            # Initialize client
-            self.chroma_client = chromadb.Client(
-                Settings(
-                    chroma_db_impl="duckdb+parquet",
-                    persist_directory=self.chroma_path,
-                    anonymized_telemetry=False
-                )
+            # Initialize client with new API
+            self.chroma_client = chromadb.PersistentClient(
+                path=self.chroma_path
             )
             
             # Get or create collection

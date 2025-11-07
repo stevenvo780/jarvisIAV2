@@ -550,6 +550,7 @@ class ModelOrchestrator:
         """Get orchestrator statistics"""
         stats = {
             'loaded_models': list(self.loaded_models.keys()),
+            'models_loaded': len(self.loaded_models),  # Add count for main.py
             'gpu_count': self.gpu_count,
             'gpus': []
         }

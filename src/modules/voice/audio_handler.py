@@ -69,24 +69,30 @@ class AudioHandler:
                 self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
                 self.terminal.print_success("Microphone initialized and calibrated")
         except Exception as e:
-            self.state['listening_active'] = False
+            if self.state:
+                self.state.set_listening_active(False)
             raise Exception(f"Error initializing microphone: {e}")
 
     def toggle_listening(self):
-        self.state['listening_active'] = not self.state['listening_active']
-        status = "activada" if self.state['listening_active'] else "desactivada"
-        self.terminal.print_status(f"Escucha {status}")
-        return f"Escucha {status}"
+        if self.state:
+            current = self.state.listening_active
+            self.state.set_listening_active(not current)
+            status = "activada" if not current else "desactivada"
+            self.terminal.print_status(f"Escucha {status}")
+            return f"Escucha {status}"
+        return "Estado no disponible"
 
     def set_listening(self, active: bool):
-        self.state['listening_active'] = active
-        status = "activada" if active else "desactivada"
-        self.terminal.print_status(f"Escucha {status}")
-        return f"Escucha {status}"
+        if self.state:
+            self.state.set_listening_active(active)
+            status = "activada" if active else "desactivada"
+            self.terminal.print_status(f"Escucha {status}")
+            return f"Escucha {status}"
+        return "Estado no disponible"
 
     def _audio_loop(self):
         while self.running:
-            if not self.state['listening_active']:
+            if not self.state or not self.state.listening_active:
                 continue
             text = self._listen_short()
             if not text:
@@ -189,7 +195,8 @@ class AudioHandler:
 
     def cleanup(self):
         self.running = False
-        self.state['listening_active'] = False
+        if self.state:
+            self.state.set_listening_active(False)
         if hasattr(self, 'model'):
             del self.model
         if hasattr(self, 'mic'):
