@@ -41,7 +41,7 @@ class EmbeddingManager:
     def __init__(
         self,
         model_name: str = "models/embeddings/bge-m3",
-        device: str = "cuda:1",  # GPU2
+        device: str = "cpu",  # CPU por defecto para embeddings (evita OOM)
         chroma_path: str = "vectorstore/chromadb",
         collection_name: str = "jarvis_memory",
         cache_size: int = 1000
