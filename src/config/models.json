@@ -7,13 +7,15 @@
       "name": "RTX 5070 Ti",
       "vram_total": 16384,
       "vram_reserved": 500,
-      "primary_use": "Large LLMs (70B, 32B, 14B)"
+      "primary_use": "All LLMs - ONLY GPU TO USE",
+      "enabled": true
     },
     "gpu_1": {
       "name": "RTX 2060",
       "vram_total": 6144,
       "vram_reserved": 300,
-      "primary_use": "Fast LLMs, Whisper, Embeddings"
+      "primary_use": "DISABLED - Not enough VRAM",
+      "enabled": false
     }
   },
 
@@ -24,12 +26,12 @@
       "backend": "vllm",
       "gpu_id": 0,
       "vram_required": 14000,
-      "difficulty_range": [70, 100],
+      "difficulty_range": [1, 100],
       "quantization": "awq",
       "priority": 1,
       "max_tokens": 4096,
       "temperature": 0.7,
-      "description": "Modelo principal para razonamiento complejo y consultas avanzadas"
+      "description": "🏆 FLAGSHIP - Modelo único más potente para RTX 5070 Ti"
     },
     
     "qwen-32b": {
@@ -40,11 +42,12 @@
       "vram_required": 10000,
       "difficulty_range": [60, 85],
       "quantization": "awq",
-      "priority": 2,
+      "priority": 100,
       "max_tokens": 4096,
       "temperature": 0.7,
       "specialties": ["math", "code", "technical", "analysis"],
-      "description": "Especializado en matemáticas, código y análisis técnico"
+      "description": "DESHABILITADO - Usar solo llama-70b",
+      "deprecated": true
     },
     
     "deepseek-14b": {
@@ -55,36 +58,70 @@
       "vram_required": 9000,
       "difficulty_range": [65, 95],
       "quantization": "gptq",
-      "priority": 3,
+      "priority": 100,
       "max_tokens": 4096,
       "temperature": 0.7,
       "specialties": ["reasoning", "math", "step-by-step", "analysis"],
-      "description": "Razonamiento paso a paso estilo Chain-of-Thought"
+      "description": "DESHABILITADO - Usar solo llama-70b",
+      "deprecated": true
+    },
+    
+    "qwen-14b": {
+      "name": "Qwen2.5-14B-Instruct-AWQ",
+      "path": "models/llm/qwen2.5-14b-awq",
+      "backend": "vllm",
+      "gpu_id": 0,
+      "vram_required": 6000,
+      "difficulty_range": [40, 75],
+      "quantization": "awq",
+      "priority": 100,
+      "max_tokens": 4096,
+      "temperature": 0.7,
+      "specialties": ["math", "code", "multilingual"],
+      "description": "DESHABILITADO - Usar solo llama-70b",
+      "deprecated": true
+    },
+    
+    "mistral-7b": {
+      "name": "Mistral-7B-Instruct-v0.3-AWQ",
+      "path": "models/llm/mistral-7b-awq",
+      "backend": "vllm",
+      "gpu_id": 0,
+      "vram_required": 3500,
+      "difficulty_range": [20, 65],
+      "quantization": "awq",
+      "priority": 100,
+      "max_tokens": 8192,
+      "temperature": 0.7,
+      "specialties": ["chat", "general", "fast"],
+      "description": "DESHABILITADO - Usar solo llama-70b",
+      "deprecated": true
     },
     
     "llama-8b": {
       "name": "Llama-3.2-8B-Instruct",
       "path": "models/llm/llama-3.2-8b-instruct",
       "backend": "transformers",
-      "gpu_id": 1,
+      "gpu_id": 0,
       "vram_required": 4500,
       "difficulty_range": [1, 60],
       "quantization": "4bit",
-      "priority": 4,
+      "priority": 10,
       "max_tokens": 2048,
       "temperature": 0.7,
-      "description": "Modelo rápido para consultas simples y chat general",
+      "description": "DISABLED - Usar qwen-14b o mistral-7b en su lugar",
       "use_flash_attention": true,
       "load_in_4bit": true,
       "bnb_4bit_compute_dtype": "float16",
-      "bnb_4bit_use_double_quant": true
+      "bnb_4bit_use_double_quant": true,
+      "deprecated": true
     },
     
     "llama-3b-legacy": {
       "name": "Llama-3.2-3B (Legacy)",
       "path": "meta-llama/Llama-3.2-3B",
       "backend": "transformers",
-      "gpu_id": 1,
+      "gpu_id": 0,
       "vram_required": 3000,
       "difficulty_range": [1, 40],
       "quantization": "4bit",
@@ -101,79 +138,28 @@
     "gpt-4o-mini": {
       "provider": "openai",
       "model_name": "gpt-4o-mini",
-      "difficulty_range": [75, 100],
+      "difficulty_range": [1, 100],
       "cost_per_1k_input": 0.00015,
       "cost_per_1k_output": 0.0006,
       "max_tokens": 16384,
       "temperature": 0.7,
-      "use_case": "Consultas complejas económicas",
+      "use_case": "Fallback universal cuando modelos locales no disponibles",
       "fallback": true,
-      "priority": 1
-    },
-    
-    "claude-3.5-sonnet": {
-      "provider": "anthropic",
-      "model_name": "claude-3-5-sonnet-20241022",
-      "difficulty_range": [80, 100],
-      "cost_per_1k_input": 0.003,
-      "cost_per_1k_output": 0.015,
-      "max_tokens": 8192,
-      "temperature": 0.7,
-      "use_case": "Razonamiento profundo, análisis complejo",
-      "specialties": ["reasoning", "writing", "analysis"],
-      "priority": 2
-    },
-    
-    "gemini-flash-thinking": {
-      "provider": "google",
-      "model_name": "gemini-2.0-flash-thinking-exp",
-      "difficulty_range": [50, 90],
-      "cost_per_1k_input": 0.0001,
-      "cost_per_1k_output": 0.0004,
-      "max_tokens": 8192,
-      "temperature": 0.7,
-      "use_case": "Respuestas rápidas con razonamiento",
-      "fast": true,
-      "priority": 3
-    },
-    
-    "deepseek-chat": {
-      "provider": "deepseek",
-      "model_name": "deepseek-chat",
-      "difficulty_range": [60, 100],
-      "cost_per_1k_input": 0.00014,
-      "cost_per_1k_output": 0.00028,
-      "max_tokens": 4096,
-      "temperature": 0.7,
-      "use_case": "Matemáticas, código, razonamiento económico",
-      "specialties": ["math", "code", "reasoning"],
-      "priority": 4
-    },
-    
-    "gpt-4o": {
-      "provider": "openai",
-      "model_name": "gpt-4o",
-      "difficulty_range": [85, 100],
-      "cost_per_1k_input": 0.0025,
-      "cost_per_1k_output": 0.01,
-      "max_tokens": 16384,
-      "temperature": 0.7,
-      "use_case": "Casos críticos de máxima calidad",
-      "priority": 5,
-      "deprecated_use": "Preferir gpt-4o-mini para ahorro"
+      "priority": 90
     },
     
     "gemini-2.0-flash": {
       "provider": "google",
       "model_name": "gemini-2.0-flash-exp",
-      "difficulty_range": [40, 60],
+      "difficulty_range": [1, 100],
       "cost_per_1k_input": 0.0,
       "cost_per_1k_output": 0.0,
       "max_tokens": 8192,
       "temperature": 0.7,
-      "use_case": "Análisis de dificultad y consultas medias",
+      "use_case": "Fallback gratuito cuando modelos locales no disponibles",
       "free_tier": true,
-      "priority": 6
+      "fallback": true,
+      "priority": 95
     }
   },
 
@@ -181,7 +167,7 @@
     "bge-m3": {
       "name": "BGE-M3",
       "path": "models/embeddings/bge-m3",
-      "gpu_id": 1,
+      "gpu_id": 0,
       "vram_required": 1500,
       "dimensions": 1024,
       "max_seq_length": 8192,
@@ -192,7 +178,7 @@
     "e5-mistral-7b": {
       "name": "E5-Mistral-7B-Instruct",
       "path": "models/embeddings/e5-mistral-7b",
-      "gpu_id": 1,
+      "gpu_id": 0,
       "vram_required": 4000,
       "dimensions": 4096,
       "max_seq_length": 4096,
@@ -206,7 +192,7 @@
     "model_name": "Whisper-Large-V3-Turbo",
     "path": "models/whisper/large-v3-turbo-ct2",
     "backend": "faster-whisper",
-    "gpu_id": 1,
+    "gpu_id": 0,
     "vram_required": 2000,
     "compute_type": "int8",
     "beam_size": 5,
@@ -216,14 +202,17 @@
 
   "routing": {
     "prefer_local": true,
-    "max_local_latency": 5.0,
+    "max_local_latency": 30.0,
     "fallback_on_oom": true,
     "fallback_on_error": true,
     "cache_responses": true,
     "cache_ttl": 3600,
-    "route_by_specialty": true,
+    "route_by_specialty": false,
     "cost_optimization": true,
-    "max_api_cost_per_day": 5.0
+    "max_api_cost_per_day": 2.0,
+    "local_first_priority": true,
+    "api_only_if_no_local": true,
+    "default_model": "llama-70b"
   },
 
   "system": {

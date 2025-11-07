@@ -73,8 +73,15 @@ class ModelOrchestrator:
         if PYNVML_AVAILABLE:
             try:
                 pynvml.nvmlInit()
-                self.gpu_count = pynvml.nvmlDeviceGetCount()
-                self.logger.info(f"✅ GPU monitoring initialized ({self.gpu_count} GPUs)")
+                # Respetar CUDA_VISIBLE_DEVICES
+                cuda_visible = os.getenv("CUDA_VISIBLE_DEVICES", None)
+                if cuda_visible is not None:
+                    visible_gpus = [int(x) for x in cuda_visible.split(",")]
+                    self.gpu_count = len(visible_gpus)
+                    self.logger.info(f"✅ GPU monitoring initialized - Using GPU(s): {visible_gpus}")
+                else:
+                    self.gpu_count = pynvml.nvmlDeviceGetCount()
+                    self.logger.info(f"✅ GPU monitoring initialized ({self.gpu_count} GPUs)")
             except Exception as e:
                 self.logger.warning(f"GPU monitoring failed: {e}")
                 self.gpu_count = 0
@@ -579,9 +586,38 @@ class ModelOrchestrator:
         if not best_api:
             best_api = "gpt-4o-mini"  # Default fallback
         
-        # This would call the appropriate API handler
-        # For now, return placeholder
-        return f"[API Fallback: {best_api}] {query}", best_api
+        self.logger.info(f"📡 Using API model: {best_api}")
+        
+        # Load and call the appropriate API model
+        try:
+            api_config = self.api_configs[best_api]
+            provider = api_config.get("provider")
+            
+            if provider == "openai":
+                from src.modules.llm.openai_model import OpenAIModel
+                model = OpenAIModel(api_config)
+                response = model.get_response(query)
+                return response, best_api
+                
+            elif provider == "google":
+                from src.modules.llm.google_model import GoogleModel
+                model = GoogleModel(api_config)
+                response = model.get_response(query)
+                return response, best_api
+                
+            elif provider == "anthropic":
+                from src.modules.llm.anthropic_model import AnthropicModel
+                model = AnthropicModel(api_config)
+                response = model.get_response(query)
+                return response, best_api
+                
+            else:
+                self.logger.error(f"Unknown provider: {provider}")
+                return f"Error: Unknown API provider {provider}", best_api
+                
+        except Exception as e:
+            self.logger.error(f"API fallback error: {e}")
+            return f"Error en API fallback: {str(e)}", best_api
     
     def get_stats(self) -> Dict:
         """Get orchestrator statistics"""

@@ -40,15 +40,46 @@ def print_error(msg):
 
 # Configuración de modelos
 MODELS = {
-    "llm_gpu1": [
+    "llm_flagship": [
         {
             "name": "Llama-3.3-70B-Instruct-AWQ",
             "repo": "casperhansen/llama-3.3-70b-instruct-awq",
             "local_dir": "models/llm/llama-3.3-70b-awq",
             "size": "~40GB",
             "vram": "14GB",
-            "gpu": "GPU1",
-            "description": "Modelo principal para razonamiento complejo"
+            "gpu": "GPU0 (RTX 5070 Ti)",
+            "description": "🏆 FLAGSHIP ÚNICO - Modelo más potente, carga solo este"
+        }
+    ],
+    "llm_gpu0_starter": [
+        {
+            "name": "Qwen2.5-14B-Instruct-AWQ",
+            "repo": "Qwen/Qwen2.5-14B-Instruct-AWQ",
+            "local_dir": "models/llm/qwen2.5-14b-awq",
+            "size": "~8GB",
+            "vram": "6GB",
+            "gpu": "GPU0 (RTX 5070 Ti)",
+            "description": "⭐ RECOMENDADO STARTER - Modelo mediano rápido y eficiente"
+        },
+        {
+            "name": "Mistral-7B-Instruct-v0.3-AWQ",
+            "repo": "TheBloke/Mistral-7B-Instruct-v0.3-AWQ",
+            "local_dir": "models/llm/mistral-7b-awq",
+            "size": "~4GB",
+            "vram": "3.5GB",
+            "gpu": "GPU0 (RTX 5070 Ti)",
+            "description": "⚡ Modelo pequeño ultra-rápido para chat general"
+        }
+    ],
+    "llm_gpu0_advanced": [
+        {
+            "name": "Llama-3.3-70B-Instruct-AWQ",
+            "repo": "casperhansen/llama-3.3-70b-instruct-awq",
+            "local_dir": "models/llm/llama-3.3-70b-awq",
+            "size": "~40GB",
+            "vram": "14GB",
+            "gpu": "GPU0 (RTX 5070 Ti)",
+            "description": "🏆 FLAGSHIP - Modelo principal para razonamiento complejo"
         },
         {
             "name": "Qwen2.5-32B-Instruct-AWQ",
@@ -56,8 +87,8 @@ MODELS = {
             "local_dir": "models/llm/qwen2.5-32b-awq",
             "size": "~18GB",
             "vram": "10GB",
-            "gpu": "GPU1",
-            "description": "Especializado en matemáticas y código"
+            "gpu": "GPU0 (RTX 5070 Ti)",
+            "description": "💎 PREMIUM - Especializado en matemáticas y código"
         },
         {
             "name": "DeepSeek-R1-Distill-Qwen-14B",
@@ -65,19 +96,19 @@ MODELS = {
             "local_dir": "models/llm/deepseek-r1-14b-gptq",
             "size": "~8GB",
             "vram": "9GB",
-            "gpu": "GPU1",
-            "description": "Razonamiento paso a paso estilo Chain-of-Thought"
+            "gpu": "GPU0 (RTX 5070 Ti)",
+            "description": "🧠 REASONING - Razonamiento paso a paso estilo Chain-of-Thought"
         }
     ],
-    "llm_gpu2": [
+    "llm_gpu1": [
         {
             "name": "Llama-3.2-8B-Instruct",
             "repo": "meta-llama/Llama-3.2-8B-Instruct",
             "local_dir": "models/llm/llama-3.2-8b-instruct",
             "size": "~16GB",
             "vram": "5GB (FP16)",
-            "gpu": "GPU2",
-            "description": "Modelo rápido para consultas simples"
+            "gpu": "GPU1 (RTX 2060)",
+            "description": "Modelo rápido para consultas simples (no cabe con quantización actual)"
         }
     ],
     "whisper": [
@@ -174,8 +205,10 @@ def convert_whisper_to_ct2(model_path, output_path):
 
 def main():
     parser = argparse.ArgumentParser(description="Descargar modelos para Jarvis IA V2")
-    parser.add_argument("--category", choices=["llm_gpu1", "llm_gpu2", "whisper", "embeddings", "all"],
-                       default="all", help="Categoría de modelos a descargar")
+    parser.add_argument("--category", 
+                       choices=["llm_flagship", "llm_gpu0_starter", "llm_gpu0_advanced", "llm_gpu1", "whisper", "embeddings", "all"],
+                       default="llm_flagship", 
+                       help="Categoría de modelos a descargar (default: llm_flagship - SOLO Llama-70B)")
     parser.add_argument("--skip-existing", action="store_true",
                        help="Omitir modelos ya descargados")
     parser.add_argument("--hf-token", type=str,
