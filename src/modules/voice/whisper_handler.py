@@ -52,15 +52,31 @@ class WhisperHandler:
         self.logger.info("✅ WhisperHandler initialized")
     
     def _load_model(self):
-        """Load Whisper model with CTranslate2"""
+        """Load Whisper model with CTranslate2 and smart fallback"""
         try:
             self.logger.info(f"Loading Whisper: {self.model_path}")
             
-            # Check if model exists
+            # Check if model exists locally
             if not os.path.exists(self.model_path):
                 self.logger.warning(f"Model not found at {self.model_path}")
-                self.logger.info("Using HuggingFace model (will download)")
-                self.model_path = "openai/whisper-large-v3-turbo"
+                
+                # Try alternative local paths first
+                alternative_paths = [
+                    "models/whisper/large-v3",
+                    "models/whisper/large-v3-turbo",
+                    "/usr/share/whisper/large-v3-turbo",
+                    os.path.expanduser("~/.cache/whisper/large-v3-turbo"),
+                ]
+                
+                for alt_path in alternative_paths:
+                    if os.path.exists(alt_path):
+                        self.model_path = alt_path
+                        self.logger.info(f"Using alternative local path: {alt_path}")
+                        break
+                else:
+                    # Last resort: HuggingFace (requires internet)
+                    self.logger.warning("No local model found, using HuggingFace (requires internet)")
+                    self.model_path = "guillaumekln/faster-whisper-large-v3-turbo"
             
             # Check device availability
             import torch

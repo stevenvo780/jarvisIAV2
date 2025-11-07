@@ -59,7 +59,7 @@ class GPUResourceManager:
     @contextmanager
     def allocate_gpu(gpu_id: int):
         """
-        Context manager for GPU allocation
+        Context manager for GPU allocation with safe cleanup
         
         Args:
             gpu_id: GPU device ID
@@ -68,12 +68,18 @@ class GPUResourceManager:
             GPUContext object
         """
         gpu_context = GPUContext(gpu_id)
+        acquired = False
         
         try:
             gpu_context.acquire()
+            acquired = True
             yield gpu_context
         finally:
-            gpu_context.release()
+            if acquired:
+                gpu_context.release()
+            else:
+                # Clean up partial state if acquire failed
+                gpu_context.cleanup_partial()
     
     @staticmethod
     def get_gpu_memory(gpu_id: int) -> tuple[int, int]:
@@ -174,6 +180,16 @@ class GPUContext:
         
         except Exception as e:
             self.logger.error(f"Error releasing GPU {self.device_id}: {e}")
+    
+    def cleanup_partial(self):
+        """Clean up partial state if acquire failed"""
+        try:
+            # Clear any partially allocated resources
+            if torch.cuda.is_available() and self.device_id < torch.cuda.device_count():
+                GPUResourceManager.clear_cache(self.device_id)
+                self.logger.info(f"Cleaned up partial state for GPU {self.device_id}")
+        except Exception as e:
+            self.logger.error(f"Error cleaning up partial state: {e}")
     
     def get_memory_info(self) -> dict:
         """Get current memory information"""

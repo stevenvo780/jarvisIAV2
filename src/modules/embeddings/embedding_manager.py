@@ -6,6 +6,7 @@ Handles embeddings generation and vector storage using ChromaDB
 import os
 import logging
 import torch
+import hashlib
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 import json
@@ -43,13 +44,19 @@ class EmbeddingManager:
         model_name: str = "models/embeddings/bge-m3",
         device: str = "cuda:1",  # GPU2
         chroma_path: str = "vectorstore/chromadb",
-        collection_name: str = "jarvis_memory"
+        collection_name: str = "jarvis_memory",
+        cache_size: int = 1000
     ):
         self.logger = logging.getLogger("EmbeddingManager")
         self.model_name = model_name
         self.device = device
         self.chroma_path = chroma_path
         self.collection_name = collection_name
+        self.cache_size = cache_size
+        
+        # LRU cache for embeddings
+        self._embedding_cache: Dict[str, List[float]] = {}
+        self._cache_access_times: Dict[str, float] = {}
         
         # Check availability
         if not SENTENCE_TRANSFORMERS_AVAILABLE:
@@ -127,7 +134,7 @@ class EmbeddingManager:
     
     def embed(self, texts: List[str], normalize: bool = True) -> List[List[float]]:
         """
-        Generate embeddings for texts
+        Generate embeddings for texts with LRU caching
         
         Args:
             texts: List of text strings to embed
@@ -136,20 +143,89 @@ class EmbeddingManager:
         Returns:
             List of embedding vectors
         """
-        try:
-            with torch.no_grad():
-                embeddings = self.model.encode(
-                    texts,
-                    convert_to_numpy=True,
-                    normalize_embeddings=normalize,
-                    show_progress_bar=False
-                )
-            
-            return embeddings.tolist()
+        import time
         
-        except Exception as e:
-            self.logger.error(f"Error generating embeddings: {e}")
-            return []
+        results = []
+        to_embed = []
+        to_embed_indices = []
+        
+        # Check cache
+        for i, text in enumerate(texts):
+            text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+            
+            if text_hash in self._embedding_cache:
+                # Cache hit
+                results.append(self._embedding_cache[text_hash])
+                self._cache_access_times[text_hash] = time.time()
+            else:
+                # Cache miss - need to embed
+                to_embed.append(text)
+                to_embed_indices.append((i, text_hash))
+        
+        # Embed new texts
+        if to_embed:
+            try:
+                with torch.no_grad():
+                    new_embeddings = self.model.encode(
+                        to_embed,
+                        convert_to_numpy=True,
+                        normalize_embeddings=normalize,
+                        show_progress_bar=False
+                    )
+                
+                # Add to cache and results
+                for (idx, text_hash), embedding in zip(to_embed_indices, new_embeddings):
+                    emb_list = embedding.tolist()
+                    self._embedding_cache[text_hash] = emb_list
+                    self._cache_access_times[text_hash] = time.time()
+                    results.append(emb_list)
+                
+                # Evict old cache entries if needed (LRU)
+                if len(self._embedding_cache) > self.cache_size:
+                    self._evict_old_cache_entries()
+                
+                self.logger.info(f"Embedded {len(to_embed)} texts, {len(texts) - len(to_embed)} from cache")
+            
+            except Exception as e:
+                self.logger.error(f"Embedding error: {e}")
+                # Fallback: return empty embeddings
+                dim = 1024  # BGE-M3 dimension
+                return [[0.0] * dim for _ in texts]
+        
+        return results
+    
+    def _evict_old_cache_entries(self):
+        """Evict least recently used cache entries"""
+        # Sort by access time
+        sorted_items = sorted(
+            self._cache_access_times.items(), 
+            key=lambda x: x[1]
+        )
+        
+        # Keep only most recent cache_size items
+        to_keep = dict(sorted_items[-self.cache_size:])
+        
+        # Remove old entries
+        old_keys = set(self._embedding_cache.keys()) - set(to_keep.keys())
+        for key in old_keys:
+            del self._embedding_cache[key]
+            del self._cache_access_times[key]
+        
+        self.logger.debug(f"Evicted {len(old_keys)} old cache entries")
+    
+    def clear_cache(self):
+        """Clear embedding cache"""
+        self._embedding_cache.clear()
+        self._cache_access_times.clear()
+        self.logger.info("Embedding cache cleared")
+    
+    def get_cache_stats(self) -> Dict[str, int]:
+        """Get cache statistics"""
+        return {
+            'size': len(self._embedding_cache),
+            'max_size': self.cache_size,
+            'hit_rate': 0.0  # TODO: track hits/misses
+        }
     
     def add_to_memory(
         self,

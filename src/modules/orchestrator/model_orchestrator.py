@@ -6,9 +6,11 @@ Manages local models (vLLM, Transformers) and API models with automatic routing
 import os
 import json
 import logging
+import time
 from typing import Dict, Optional, Tuple, List, Any
 from dataclasses import dataclass
 from enum import Enum
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 import torch
 
 try:
@@ -138,30 +140,104 @@ class ModelOrchestrator:
             return (0, 0)
     
     def _can_load_model(self, model_config: ModelConfig) -> bool:
-        """Check if there's enough VRAM to load a model"""
+        """
+        Enhanced VRAM check with peak memory and fragmentation consideration
+        
+        Returns:
+            True if model can be safely loaded
+        """
         if model_config.gpu_id is None:
             return True  # CPU always available
         
         used, total = self._get_gpu_memory(model_config.gpu_id)
         available = total - used
-        buffer = self.config.get("system", {}).get("vram_buffer_mb", 500)
         
-        required = model_config.vram_required + buffer
-        can_load = available >= required
+        # Dynamic buffer based on model size (15% safety margin)
+        buffer_ratio = 0.15
+        buffer = max(
+            int(model_config.vram_required * buffer_ratio),
+            self.config.get("system", {}).get("vram_buffer_mb", 500)
+        )
+        
+        # Consider inference peaks (20% overhead during inference)
+        peak_multiplier = 1.2
+        required_with_peak = int((model_config.vram_required + buffer) * peak_multiplier)
+        
+        can_load = available >= required_with_peak
         
         if not can_load:
             self.logger.warning(
                 f"⚠️  Insufficient VRAM for {model_config.name}: "
-                f"need {required}MB, have {available}MB"
+                f"need {required_with_peak}MB (inc. peak), have {available}MB"
+            )
+        else:
+            self.logger.info(
+                f"✅ VRAM check passed for {model_config.name}: "
+                f"{available}MB available, {required_with_peak}MB required"
             )
         
         return can_load
     
+    def _enforce_model_limit(self, target_gpu: int):
+        """Unload least recently used models if limit exceeded (LRU eviction)"""
+        # Get models on target GPU
+        gpu_models = [
+            (model_id, model_data) 
+            for model_id, model_data in self.loaded_models.items()
+            if model_data['config'].gpu_id == target_gpu
+        ]
+        
+        if len(gpu_models) >= self.max_models_per_gpu:
+            # Sort by last access time (LRU)
+            gpu_models.sort(key=lambda x: self.model_access_times.get(x[0], 0))
+            
+            # Unload oldest
+            oldest_id, oldest_data = gpu_models[0]
+            self.logger.info(
+                f"🗑️  Unloading {oldest_id} (LRU) to free GPU {target_gpu}"
+            )
+            self._unload_model(oldest_id)
+    
+    def _unload_model(self, model_id: str):
+        """Unload model and free resources"""
+        if model_id not in self.loaded_models:
+            return
+        
+        model_data = self.loaded_models[model_id]
+        config = model_data['config']
+        
+        self.logger.info(f"Unloading model: {model_id}")
+        
+        # Clean up model object
+        if 'model' in model_data:
+            del model_data['model']
+        
+        # Clear CUDA cache if GPU model
+        if config.gpu_id is not None:
+            import torch
+            with torch.cuda.device(config.gpu_id):
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+        
+        # Remove from loaded models
+        del self.loaded_models[model_id]
+        if model_id in self.model_access_times:
+            del self.model_access_times[model_id]
+        
+        self.logger.info(f"✅ Model {model_id} unloaded")
+    
+    def _update_model_access_time(self, model_id: str):
+        """Update last access time for LRU tracking"""
+        import time
+        self.model_access_times[model_id] = time.time()
+    
     def _load_vllm_model(self, model_id: str, config: ModelConfig) -> Dict[str, Any]:
-        """Load model using vLLM backend"""
+        """Load model using vLLM backend with timeout protection"""
         self.logger.info(f"🚄 Loading {config.name} with vLLM on GPU {config.gpu_id}")
         
-        try:
+        timeout = self.config.get("system", {}).get("model_load_timeout", 300)  # 5 min default
+        
+        def _load_inner():
             from vllm import LLM, SamplingParams
             
             # Set GPU
@@ -176,14 +252,23 @@ class ModelOrchestrator:
                 trust_remote_code=True
             )
             
-            self.logger.info(f"✅ {config.name} loaded successfully with vLLM")
-            
             return {
                 'model': llm,
                 'backend': ModelBackend.VLLM,
                 'config': config,
-                'loaded_at': self._get_timestamp()
+                'loaded_at': time.time()
             }
+        
+        try:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_load_inner)
+                try:
+                    result = future.result(timeout=timeout)
+                    self.logger.info(f"✅ {config.name} loaded successfully with vLLM")
+                    return result
+                except FutureTimeoutError:
+                    self.logger.error(f"❌ Model load timeout after {timeout}s: {model_id}")
+                    raise TimeoutError(f"Model load timeout: {model_id}")
         
         except Exception as e:
             self.logger.error(f"❌ Failed to load {config.name} with vLLM: {e}")
@@ -254,12 +339,17 @@ class ModelOrchestrator:
         """Load a model into memory"""
         if model_id in self.loaded_models:
             self.logger.info(f"Model {model_id} already loaded")
+            self._update_model_access_time(model_id)
             return True
         
         config = self.model_configs.get(model_id)
         if not config:
             self.logger.error(f"Model {model_id} not found in config")
             return False
+        
+        # Enforce model limit per GPU (LRU eviction)
+        if config.gpu_id is not None:
+            self._enforce_model_limit(config.gpu_id)
         
         # Check VRAM availability
         if not self._can_load_model(config):
@@ -277,6 +367,7 @@ class ModelOrchestrator:
                 return False
             
             self.loaded_models[model_id] = model_data
+            self._update_model_access_time(model_id)
             return True
         
         except Exception as e:
