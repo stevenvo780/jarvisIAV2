@@ -380,6 +380,44 @@ class Jarvis:
                 break
         
         return min(100, max(10, difficulty))
+    
+    def _kill_zombie_vllm_processes(self):
+        """
+        Force kill any remaining VLLM processes that weren't cleaned up properly
+        This is a safety measure to prevent GPU memory leaks
+        """
+        import subprocess
+        
+        try:
+            # Find VLLM processes
+            result = subprocess.run(
+                ["pgrep", "-f", "VLLM::EngineCore"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0 and result.stdout.strip():
+                pids = result.stdout.strip().split('\n')
+                logging.info(f"Found {len(pids)} zombie VLLM process(es): {pids}")
+                
+                for pid in pids:
+                    try:
+                        subprocess.run(["kill", "-9", pid], timeout=2)
+                        logging.info(f"Killed zombie VLLM process: {pid}")
+                    except Exception as e:
+                        logging.error(f"Failed to kill PID {pid}: {e}")
+                        
+                self.terminal.print_success("Zombie VLLM processes cleaned")
+            else:
+                logging.info("No zombie VLLM processes found")
+                
+        except subprocess.TimeoutExpired:
+            logging.warning("Timeout while searching for VLLM processes")
+        except FileNotFoundError:
+            logging.warning("pgrep not available - skipping zombie cleanup")
+        except Exception as e:
+            logging.error(f"Error in zombie cleanup: {e}")
 
     def _shutdown_system(self, signum=None, frame=None):
         self.terminal.print_status("Shutting down...")
@@ -405,9 +443,20 @@ class Jarvis:
             
             # Cleanup orchestrator
             if hasattr(self, 'orchestrator') and self.orchestrator:
-                self.terminal.print_status("Unloading models...")
-                # Python limpiará los modelos en exit
-                del self.orchestrator
+                self.terminal.print_status("Unloading models and cleaning GPU...")
+                try:
+                    # Explicitly cleanup all models and GPU resources
+                    self.orchestrator.cleanup()
+                except Exception as e:
+                    logging.error(f"Orchestrator cleanup error: {e}")
+                finally:
+                    del self.orchestrator
+                    
+                # Force kill any zombie VLLM processes
+                try:
+                    self._kill_zombie_vllm_processes()
+                except Exception as e:
+                    logging.error(f"Error killing zombie VLLM processes: {e}")
             
             if hasattr(self, 'model_manager') and self.model_manager:
                 del self.model_manager

@@ -20,18 +20,21 @@
   },
 
   "models": {
-    "llama-70b": {
-      "name": "Llama-3.3-70B-Instruct",
-      "path": "models/llm/llama-3.3-70b-awq",
+    "qwen-14b": {
+      "name": "Qwen2.5-14B-Instruct-AWQ",
+      "path": "models/llm/qwen2.5-14b-awq",
       "backend": "vllm",
       "gpu_id": 0,
-      "vram_required": 14000,
+      "vram_required": 6144,
+      "vram_peak_mb": 2048,
       "difficulty_range": [1, 100],
       "quantization": "awq",
       "priority": 1,
-      "max_tokens": 4096,
+      "deprecated": false,
+      "max_tokens": 256,
       "temperature": 0.7,
-      "description": "🏆 FLAGSHIP - Modelo único más potente para RTX 5070 Ti"
+      "top_p": 0.9,
+      "stop": ["\n\n\n", "🟢", "###"]
     },
     
     "qwen-32b": {
@@ -39,14 +42,29 @@
       "path": "models/llm/qwen2.5-32b-awq",
       "backend": "vllm",
       "gpu_id": 0,
-      "vram_required": 10000,
-      "difficulty_range": [60, 85],
+      "vram_required": 13800,
+      "difficulty_range": [1, 100],
       "quantization": "awq",
       "priority": 100,
       "max_tokens": 4096,
       "temperature": 0.7,
       "specialties": ["math", "code", "technical", "analysis"],
-      "description": "DESHABILITADO - Usar solo llama-70b",
+      "description": "DESHABILITADO - Requiere 15.4GB VRAM (OOM en RTX 5070 Ti)",
+      "deprecated": true
+    },
+    
+    "llama-70b": {
+      "name": "Llama-3.3-70B-Instruct",
+      "path": "models/llm/llama-3.3-70b-awq",
+      "backend": "vllm",
+      "gpu_id": 0,
+      "vram_required": 19320,
+      "difficulty_range": [1, 100],
+      "quantization": "awq",
+      "priority": 100,
+      "max_tokens": 4096,
+      "temperature": 0.7,
+      "description": "DESHABILITADO - Requiere 19.3GB VRAM (no cabe en RTX 5070 Ti)",
       "deprecated": true
     },
     
@@ -62,23 +80,7 @@
       "max_tokens": 4096,
       "temperature": 0.7,
       "specialties": ["reasoning", "math", "step-by-step", "analysis"],
-      "description": "DESHABILITADO - Usar solo llama-70b",
-      "deprecated": true
-    },
-    
-    "qwen-14b": {
-      "name": "Qwen2.5-14B-Instruct-AWQ",
-      "path": "models/llm/qwen2.5-14b-awq",
-      "backend": "vllm",
-      "gpu_id": 0,
-      "vram_required": 6000,
-      "difficulty_range": [40, 75],
-      "quantization": "awq",
-      "priority": 100,
-      "max_tokens": 4096,
-      "temperature": 0.7,
-      "specialties": ["math", "code", "multilingual"],
-      "description": "DESHABILITADO - Usar solo llama-70b",
+      "description": "DESHABILITADO - Usar solo qwen-14b",
       "deprecated": true
     },
     
@@ -94,7 +96,7 @@
       "max_tokens": 8192,
       "temperature": 0.7,
       "specialties": ["chat", "general", "fast"],
-      "description": "DESHABILITADO - Usar solo llama-70b",
+      "description": "DESHABILITADO - Usar solo qwen-14b",
       "deprecated": true
     },
     
@@ -106,10 +108,10 @@
       "vram_required": 4500,
       "difficulty_range": [1, 60],
       "quantization": "4bit",
-      "priority": 10,
+      "priority": 100,
       "max_tokens": 2048,
       "temperature": 0.7,
-      "description": "DISABLED - Usar qwen-14b o mistral-7b en su lugar",
+      "description": "DESHABILITADO - Usar qwen-14b en su lugar",
       "use_flash_attention": true,
       "load_in_4bit": true,
       "bnb_4bit_compute_dtype": "float16",
@@ -125,12 +127,12 @@
       "vram_required": 3000,
       "difficulty_range": [1, 40],
       "quantization": "4bit",
-      "priority": 5,
+      "priority": 100,
       "max_tokens": 1024,
       "temperature": 0.7,
-      "description": "Modelo legacy para compatibilidad (deprecado)",
+      "description": "DESHABILITADO - Modelo legacy deprecado",
       "deprecated": true,
-      "fallback_for": ["llama-8b"]
+      "fallback_for": []
     }
   },
 
@@ -212,7 +214,7 @@
     "max_api_cost_per_day": 2.0,
     "local_first_priority": true,
     "api_only_if_no_local": true,
-    "default_model": "llama-70b"
+    "default_model": "qwen-14b"
   },
 
   "system": {

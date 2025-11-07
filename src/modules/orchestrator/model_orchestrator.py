@@ -41,6 +41,8 @@ class ModelConfig:
     quantization: Optional[str] = None
     max_tokens: int = 2048
     temperature: float = 0.7
+    top_p: float = 0.9
+    stop: List[str] = None
     priority: int = 999
     specialties: List[str] = None
     deprecated: bool = False
@@ -481,11 +483,16 @@ class ModelOrchestrator:
         from vllm import SamplingParams
         
         config = model_data['config']
+        
+        # Get stop sequences from config or use defaults
+        stop_sequences = config.stop if hasattr(config, 'stop') else ["</s>", "<|endoftext|>"]
+        top_p = config.top_p if hasattr(config, 'top_p') else 0.9
+        
         sampling_params = SamplingParams(
             temperature=config.temperature,
-            top_p=0.9,
+            top_p=top_p,
             max_tokens=config.max_tokens,
-            stop=["</s>", "<|endoftext|>"]
+            stop=stop_sequences
         )
         
         outputs = model_data['model'].generate([query], sampling_params)
@@ -687,9 +694,64 @@ class ModelOrchestrator:
             self.logger.error(f"Error unloading {model_id}: {e}")
             return False
     
-    def __del__(self):
-        """Cleanup on destruction"""
+    def cleanup(self):
+        """
+        Explicit cleanup method to unload all models and free GPU memory
+        MUST be called before application shutdown to prevent zombie VLLM processes
+        """
+        self.logger.info("🧹 Starting ModelOrchestrator cleanup...")
+        
+        # Get list of loaded models (copy to avoid modification during iteration)
+        models_to_unload = list(self.loaded_models.keys())
+        
+        if not models_to_unload:
+            self.logger.info("No models to unload")
+        else:
+            self.logger.info(f"Unloading {len(models_to_unload)} model(s): {models_to_unload}")
+            
+            # Unload all models
+            for model_id in models_to_unload:
+                try:
+                    self.logger.info(f"Unloading {model_id}...")
+                    self._unload_model(model_id)
+                except Exception as e:
+                    self.logger.error(f"Error unloading {model_id}: {e}")
+            
+            # Force garbage collection
+            import gc
+            gc.collect()
+            
+            # Clear CUDA cache on all GPUs
+            if torch.cuda.is_available():
+                for gpu_id in range(torch.cuda.device_count()):
+                    try:
+                        with torch.cuda.device(gpu_id):
+                            torch.cuda.empty_cache()
+                            torch.cuda.synchronize()
+                        self.logger.info(f"✅ GPU {gpu_id} cache cleared")
+                    except Exception as e:
+                        self.logger.error(f"Error clearing GPU {gpu_id}: {e}")
+        
+        # Shutdown pynvml
         if PYNVML_AVAILABLE:
+            try:
+                pynvml.nvmlShutdown()
+                self.logger.info("✅ NVML shutdown complete")
+            except:
+                pass
+        
+        self.logger.info("✅ ModelOrchestrator cleanup complete")
+    
+    def __del__(self):
+        """Cleanup on destruction - calls cleanup if not already called"""
+        # Safety fallback in case cleanup() wasn't called explicitly
+        if self.loaded_models:
+            self.logger.warning("⚠️  __del__ called with models still loaded - running cleanup")
+            try:
+                self.cleanup()
+            except:
+                pass
+        elif PYNVML_AVAILABLE:
             try:
                 pynvml.nvmlShutdown()
             except:

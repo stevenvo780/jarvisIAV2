@@ -42,13 +42,13 @@ def print_error(msg):
 MODELS = {
     "llm_flagship": [
         {
-            "name": "Llama-3.3-70B-Instruct-AWQ",
-            "repo": "casperhansen/llama-3.3-70b-instruct-awq",
-            "local_dir": "models/llm/llama-3.3-70b-awq",
-            "size": "~40GB",
-            "vram": "14GB",
+            "name": "Qwen2.5-14B-Instruct-AWQ",
+            "repo": "Qwen/Qwen2.5-14B-Instruct-AWQ",
+            "local_dir": "models/llm/qwen2.5-14b-awq",
+            "size": "~8GB",
+            "vram": "6-8GB",
             "gpu": "GPU0 (RTX 5070 Ti)",
-            "description": "🏆 FLAGSHIP ÚNICO - Modelo más potente, carga solo este"
+            "description": "🏆 FLAGSHIP - ÚNICO MODELO - El más grande que cabe en RTX 5070 Ti"
         }
     ],
     "llm_gpu0_starter": [
