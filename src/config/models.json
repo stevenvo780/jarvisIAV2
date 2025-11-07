@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "description": "Multi-GPU Model Configuration for Jarvis IA V2",
+  "description": "Multi-GPU Model Configuration for Jarvis IA",
   
   "gpu_config": {
     "gpu_0": {

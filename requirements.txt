@@ -1,23 +1,64 @@
-google_api_python_client==2.159.0
-google_auth_oauthlib==1.2.1
-gTTS==2.5.4
-openai==1.60.2
-openai_whisper==20240930
-prompt_toolkit==3.0.50
-protobuf==5.29.3
-psutil==6.1.1
-pygame==2.6.1
-python-dotenv==1.0.1
-pytz==2024.2
-sounddevice==0.4.6
-SpeechRecognition==3.14.0
-sympy==1.13.1
-torch==2.5.1
-transformers==4.48.1
+# Core Deep Learning (CUDA 12.4)
+torch>=2.6.0
+torchvision>=0.19.0
+torchaudio>=2.5.0
+
+# Transformers & Optimization
+transformers>=4.48.1
+accelerate>=0.36.0
+bitsandbytes>=0.45.0
+peft>=0.14.0
+optimum>=1.23.0
+
+# Flash Attention (requiere compilación)
+# Instalar con: pip install flash-attn --no-build-isolation
+# flash-attn>=2.7.0
+
+# Inference Backends
+vllm>=0.6.5
+# llama-cpp-python con CUDA
+# Instalar con: CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python[server]
+# llama-cpp-python>=0.3.5
+ctranslate2>=4.5.0
+
+# Embeddings & Vector Stores
+sentence-transformers>=3.3.0
+chromadb>=0.5.20
+faiss-cpu>=1.9.0
+
+# Speech Recognition (optimizado)
+faster-whisper>=1.1.0
+openai-whisper>=20240930
+pyaudio>=0.2.14
+sounddevice>=0.5.1
+SpeechRecognition>=3.14.0
+
+# Text-to-Speech
+pygame>=2.6.1
+gtts>=2.5.4
+
+# API Clients
+openai>=1.60.2
+anthropic>=0.43.0
+google-generativeai>=0.8.4
+google-api-python-client>=2.159.0
+google-auth-oauthlib>=1.2.1
+
+# System Monitoring
+psutil>=6.1.1
+pynvml>=11.5.3
+
+# Terminal & UI
 colorama>=0.4.6
-google-generativeai>=0.3.0
-llama-cpp-python>=0.2.9
+prompt-toolkit>=3.0.50
+
+# Utilities
+python-dotenv>=1.0.1
+pytz>=2024.2
+sympy>=1.13.1
 wolframalpha>=5.0.0
-PyAudio==0.2.14
-bitsandbytes>=0.41.1
-accelerate>=0.26.0
+protobuf>=5.29.3
+
+# Data Processing
+numpy>=1.24.0
+pandas>=2.0.0

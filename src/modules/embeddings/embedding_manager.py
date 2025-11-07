@@ -1,5 +1,5 @@
 """
-Embedding Manager - RAG and Semantic Search for Jarvis IA V2
+Embedding Manager - RAG and Semantic Search for Jarvis IA
 Handles embeddings generation and vector storage using ChromaDB
 """
 

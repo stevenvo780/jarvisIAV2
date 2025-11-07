@@ -20,7 +20,6 @@ class JarvisState:
     listening_active: bool = False
     error_count: int = 0
     max_errors: int = 5
-    v2_mode: bool = False
     
     _lock: Lock = field(default_factory=Lock, init=False, repr=False)
     
@@ -73,6 +72,5 @@ class JarvisState:
                 'voice_active': self.voice_active,
                 'listening_active': self.listening_active,
                 'error_count': self.error_count,
-                'max_errors': self.max_errors,
-                'v2_mode': self.v2_mode
+                'max_errors': self.max_errors
             }

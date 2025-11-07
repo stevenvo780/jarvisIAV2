@@ -17,40 +17,10 @@ from src.utils.error_handler import setup_logging
 from src.utils.audio_utils import AudioEffects
 from src.utils.jarvis_state import JarvisState
 from modules.text.terminal_manager import TerminalManager
-
-# V2: Nuevo orchestrador multi-GPU
-try:
-    from src.modules.orchestrator.model_orchestrator import ModelOrchestrator
-    USE_V2_ORCHESTRATOR = True
-except ImportError:
-    from src.modules.llm.model_manager import ModelManager
-    USE_V2_ORCHESTRATOR = False
-    logging.warning("V2 ModelOrchestrator no disponible, usando ModelManager legacy")
-
-# V2: Sistema de embeddings/RAG
-try:
-    from src.modules.embeddings.embedding_manager import EmbeddingManager
-    USE_V2_EMBEDDINGS = True
-except ImportError:
-    USE_V2_EMBEDDINGS = False
-    logging.warning("V2 EmbeddingManager no disponible")
-
-# V2: Whisper optimizado
-try:
-    from src.modules.voice.whisper_handler import WhisperHandler
-    USE_V2_WHISPER = True
-except ImportError:
-    USE_V2_WHISPER = False
-    logging.warning("V2 WhisperHandler no disponible, usando AudioHandler legacy")
-
-# V2: Métricas y monitoreo
-try:
-    from src.utils.metrics_tracker import MetricsTracker, QueryTimer
-    USE_V2_METRICS = True
-except ImportError:
-    USE_V2_METRICS = False
-    logging.warning("V2 MetricsTracker no disponible")
-
+from src.modules.orchestrator.model_orchestrator import ModelOrchestrator
+from src.modules.embeddings.embedding_manager import EmbeddingManager
+from src.modules.voice.whisper_handler import WhisperHandler
+from src.utils.metrics_tracker import MetricsTracker, QueryTimer
 from modules.system_monitor import SystemMonitor
 from src.modules.text.text_handler import TextHandler
 from src.modules.voice.audio_handler import AudioHandler
@@ -69,16 +39,14 @@ class Jarvis:
             voice_active=False,
             listening_active=False,
             error_count=0,
-            max_errors=5,
-            v2_mode=USE_V2_ORCHESTRATOR
+            max_errors=5
         )
         self.input_queue = Queue()
         self.executor = ThreadPoolExecutor(max_workers=2)
         load_dotenv()
         try:
             self.terminal = TerminalManager()
-            version_str = "V2 (Multi-GPU + RAG)" if USE_V2_ORCHESTRATOR else "V1 (Legacy)"
-            self.terminal.print_header(f"Starting Jarvis System {version_str}")
+            self.terminal.print_header("Starting Jarvis AI Assistant (Multi-GPU + RAG)")
             
             self.system_monitor = SystemMonitor()
             self.terminal.print_success("System monitor initialized")
@@ -92,32 +60,28 @@ class Jarvis:
             self.audio_effects = AudioEffects()
             self.terminal.print_success("Audio effects initialized")
             
-            # V2: Inicializar métricas
-            if USE_V2_METRICS:
-                self.metrics = MetricsTracker(
-                    log_path="logs/metrics.jsonl",
-                    enable_gpu_monitoring=True
-                )
-                self.terminal.print_success("V2 Metrics tracker initialized")
-            else:
-                self.metrics = None
+            # Inicializar métricas y monitoreo
+            self.metrics = MetricsTracker(
+                log_path="logs/metrics.jsonl",
+                enable_gpu_monitoring=True
+            )
+            self.terminal.print_success("Metrics tracker initialized")
             
-            # V2: Inicializar embeddings/RAG
+            # Inicializar embeddings/RAG
             enable_rag = os.getenv('ENABLE_RAG', 'true').lower() == 'true'
-            if USE_V2_EMBEDDINGS and enable_rag:
+            if enable_rag:
                 try:
                     self.embeddings = EmbeddingManager(
                         model_name="models/embeddings/bge-m3",
-                        device="cuda:1",  # GPU2 para embeddings
+                        device="cuda:1",
                         chroma_path="vectorstore/chromadb"
                     )
-                    self.terminal.print_success("V2 Embedding system (RAG) initialized")
+                    self.terminal.print_success("Embedding system (RAG) initialized")
                 except Exception as e:
-                    self.terminal.print_warning(f"V2 Embeddings disabled: {e}")
+                    self.terminal.print_warning(f"Embeddings disabled: {e}")
                     self.embeddings = None
             else:
-                if not enable_rag:
-                    self.terminal.print_status("V2 RAG/Embeddings disabled (ENABLE_RAG=false)")
+                self.terminal.print_status("RAG/Embeddings disabled (ENABLE_RAG=false)")
                 self.embeddings = None
             
             self.text_handler = None
@@ -139,14 +103,14 @@ class Jarvis:
                 terminal_manager=self.terminal,
                 input_queue=self.input_queue,
                 actions=self.actions,
-                embeddings=self.embeddings if USE_V2_EMBEDDINGS else None  # Pasar RAG
+                embeddings=self.embeddings
             )
             self.terminal.print_success("Text handler initialized")
         
             self.terminal.print_header("Initializing Jarvis")
             
-            # Mostrar estadísticas V2 si están disponibles
-            if USE_V2_ORCHESTRATOR and hasattr(self, 'orchestrator'):
+            # Mostrar estadísticas
+            if hasattr(self, 'orchestrator'):
                 stats = self.orchestrator.get_stats()
                 self.terminal.print_success(f"GPUs: {stats['gpu_count']} | Models loaded: {stats['models_loaded']}")
             
@@ -181,27 +145,17 @@ class Jarvis:
 
     def _initialize_llm(self):
         try:
-            if USE_V2_ORCHESTRATOR:
-                # V2: Usar ModelOrchestrator
-                self.orchestrator = ModelOrchestrator(
-                    config_path="src/config/models_v2.json"
-                )
-                self.model_manager = None  # Legacy no usado
-                self.terminal.print_success("V2 ModelOrchestrator initialized (Multi-GPU)")
-                
-                # CommandManager puede usar orchestrator o model_manager
-                self.command_manager = CommandManager(
-                    model_manager=self.orchestrator,  # Compatible con misma interfaz
-                )
-            else:
-                # V1: Legacy ModelManager
-                self.model_manager = ModelManager(storage_manager=self.storage, tts=self.tts)
-                self.orchestrator = None
-                self.terminal.print_success("V1 ModelManager initialized (Legacy)")
-                
-                self.command_manager = CommandManager(
-                    model_manager=self.model_manager,
-                )
+            # Usar ModelOrchestrator para Multi-GPU
+            self.orchestrator = ModelOrchestrator(
+                config_path="src/config/models.json"
+            )
+            self.model_manager = None
+            self.terminal.print_success("ModelOrchestrator initialized (Multi-GPU)")
+            
+            # CommandManager usa el orchestrator
+            self.command_manager = CommandManager(
+                model_manager=self.orchestrator,
+            )
         except Exception as e:
             raise e
 
@@ -218,38 +172,34 @@ class Jarvis:
         try:
             logging.info("Iniciando inicialización de audio...")
             
-            # V2: Intentar usar WhisperHandler optimizado
-            if USE_V2_WHISPER:
+            # Intentar usar WhisperHandler optimizado
+            try:
+                self.whisper = WhisperHandler(
+                    model_path="models/whisper/large-v3-turbo-ct2",
+                    device="cuda",
+                    device_index=1,
+                    compute_type="int8"
+                )
+                self.terminal.print_success("WhisperHandler initialized")
+            except Exception as e:
+                self.terminal.print_warning(f"Whisper fallback to CPU: {e}")
                 try:
-                    self.whisper = WhisperHandler(
-                        model_path="models/whisper/large-v3-turbo-ct2",
-                        device="cuda",
-                        device_index=1,  # GPU2
-                        compute_type="int8"
-                    )
-                    self.terminal.print_success("V2 WhisperHandler initialized (4x faster)")
-                except Exception as e:
-                    self.terminal.print_warning(f"V2 Whisper fallback to CPU: {e}")
-                    try:
-                        self.whisper = WhisperHandler(device="cpu")
-                    except Exception as e2:
-                        self.terminal.print_error(f"Whisper CPU fallback also failed: {e2}")
-                        self.whisper = None
-            else:
-                self.whisper = None
+                    self.whisper = WhisperHandler(device="cpu")
+                except Exception as e2:
+                    self.terminal.print_error(f"Whisper CPU fallback also failed: {e2}")
+                    self.whisper = None
             
-            # AudioHandler legacy (wrapper)
+            # AudioHandler (wrapper para reconocimiento de voz)
             if self.whisper:
                 self.audio = AudioHandler(
                     terminal_manager=self.terminal,
                     tts=self.tts,
                     state=self.state,
                     input_queue=self.input_queue,
-                    whisper_handler=self.whisper if USE_V2_WHISPER else None  # V2 passthrough
+                    whisper_handler=self.whisper
                 )
                 self.state.set_listening_active(True)
             else:
-                # Initialize a minimal audio handler or set to None
                 self.audio = None
                 self.state.set_listening_active(False)
                 self.terminal.print_warning("⌨️ Text mode only - Whisper not available")
@@ -259,7 +209,7 @@ class Jarvis:
             self.terminal.print_error(f"Error inicializando audio: {e}")
             self.audio_effects.play('error')
             logging.error(f"Audio init error: {e}")
-            self.audio = None  # Ensure self.audio is set even on error
+            self.audio = None
 
     def _handle_critical_error(self, message):
         logging.critical(message)
@@ -329,8 +279,8 @@ class Jarvis:
                 
                 self.terminal.update_prompt_state('THINKING')
                 try:
-                    # V2: Usar orchestrator con métricas y contexto RAG
-                    if USE_V2_ORCHESTRATOR and self.orchestrator:
+                    # Usar orchestrator con métricas y contexto RAG
+                    if self.orchestrator:
                         # Calcular dificultad (simple heurística)
                         difficulty = self._estimate_difficulty(content)
                         
@@ -345,7 +295,7 @@ class Jarvis:
                             enriched_query = f"Contexto relevante:\n{rag_context}\n\nPregunta: {content}"
                         
                         # Consultar con métricas
-                        if USE_V2_METRICS and self.metrics:
+                        if self.metrics:
                             with QueryTimer(self.metrics, content, "auto", difficulty):
                                 response, model_name = self.orchestrator.get_response(
                                     query=enriched_query,
@@ -436,8 +386,8 @@ class Jarvis:
             self.state.set_running(False)
             self.terminal.print_warning("Shutdown signal received...")
             
-            # V2: Mostrar estadísticas finales
-            if USE_V2_METRICS and self.metrics:
+            # Mostrar estadísticas finales
+            if self.metrics:
                 self.terminal.print_header("Session Statistics")
                 self.metrics.print_stats()
             
@@ -452,10 +402,10 @@ class Jarvis:
             if hasattr(self, 'tts'):
                 self.tts.cleanup()
             
-            # V2: Cleanup orchestrator
+            # Cleanup orchestrator
             if hasattr(self, 'orchestrator') and self.orchestrator:
-                self.terminal.print_status("Unloading V2 models...")
-                # No hay método cleanup directo, pero Python limpiará en exit
+                self.terminal.print_status("Unloading models...")
+                # Python limpiará los modelos en exit
                 del self.orchestrator
             
             if hasattr(self, 'model_manager') and self.model_manager:
