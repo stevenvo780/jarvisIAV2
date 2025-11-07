@@ -17,6 +17,7 @@ sys.path.insert(0, SRC_DIR)
 from src.utils.error_handler import setup_logging
 from src.utils.audio_utils import AudioEffects
 from src.utils.jarvis_state import JarvisState
+from src.utils.smart_prompt_builder import SmartPromptBuilder  # NUEVO
 from modules.text.terminal_manager import TerminalManager
 from src.modules.orchestrator.model_orchestrator import ModelOrchestrator
 from src.modules.embeddings.embedding_manager import EmbeddingManager
@@ -84,6 +85,15 @@ class Jarvis:
             else:
                 self.terminal.print_status("RAG/Embeddings disabled (ENABLE_RAG=false)")
                 self.embeddings = None
+            
+            # Inicializar SmartPromptBuilder para prompt engineering avanzado
+            enable_smart_prompts = os.getenv('ENABLE_SMART_PROMPTS', 'true').lower() == 'true'
+            if enable_smart_prompts:
+                self.prompt_builder = SmartPromptBuilder(debug=False)
+                self.terminal.print_success("SmartPromptBuilder initialized")
+            else:
+                self.prompt_builder = None
+                self.terminal.print_status("SmartPromptBuilder disabled")
             
             self.text_handler = None
             self.command_manager = None
@@ -296,10 +306,21 @@ class Jarvis:
                                 deduplicate=True
                             )
                         
-                        # Enriquecer query con contexto
-                        enriched_query = content
-                        if rag_context:
-                            enriched_query = f"Contexto relevante:\n{rag_context}\n\nPregunta: {content}"
+                        # Enriquecer query con SmartPromptBuilder si está disponible
+                        if self.prompt_builder:
+                            enriched_query = self.prompt_builder.build_enriched_prompt(
+                                query=content,
+                                rag_context=rag_context,
+                                difficulty=difficulty,
+                                model_name="qwen-14b",
+                                enable_few_shot=True,
+                                enable_cot=True
+                            )
+                        else:
+                            # Fallback: formato simple
+                            enriched_query = content
+                            if rag_context:
+                                enriched_query = f"Contexto relevante:\n{rag_context}\n\nPregunta: {content}"
                         
                         # Consultar con métricas
                         if self.metrics:
@@ -537,10 +558,21 @@ class Jarvis:
                         deduplicate=True
                     )
                 
-                # Enriquecer query con contexto
-                enriched_query = query
-                if rag_context:
-                    enriched_query = f"Contexto relevante:\n{rag_context}\n\nPregunta: {query}"
+                # Enriquecer query con SmartPromptBuilder si está disponible
+                if self.prompt_builder:
+                    enriched_query = self.prompt_builder.build_enriched_prompt(
+                        query=query,
+                        rag_context=rag_context,
+                        difficulty=difficulty,
+                        model_name="qwen-14b",
+                        enable_few_shot=True,
+                        enable_cot=True
+                    )
+                else:
+                    # Fallback: formato simple
+                    enriched_query = query
+                    if rag_context:
+                        enriched_query = f"Contexto relevante:\n{rag_context}\n\nPregunta: {query}"
                 
                 print("\n⏳ Processing...")
                 
