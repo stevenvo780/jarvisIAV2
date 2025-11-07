@@ -223,11 +223,14 @@
     "vram_buffer_mb": 500,
     "auto_unload_models": true,
     "model_swap_strategy": "lru",
+    "max_models_per_gpu": 2,
+    "model_load_timeout": 300,
     "enable_metrics": true,
     "metrics_log_path": "logs/metrics.jsonl",
     "enable_rag": true,
     "rag_max_context": 3,
-    "rag_collection_name": "jarvis_memory"
+    "rag_collection_name": "jarvis_memory",
+    "enable_dynamic_tokens": true
   },
 
   "security": {

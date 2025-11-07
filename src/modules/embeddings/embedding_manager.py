@@ -7,7 +7,7 @@ import os
 import logging
 import torch
 import hashlib
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 from datetime import datetime
 import json
 
@@ -322,43 +322,170 @@ class EmbeddingManager:
     def get_context_for_query(
         self,
         query: str,
-        max_context: int = 3,
-        min_similarity: float = 0.3
+        max_context: int = 10,  # ✅ Incrementado de 3 a 10
+        min_similarity: float = 0.7,  # ✅ Más estricto (era 0.3)
+        time_decay_days: int = 30,  # ✅ Priorizar recientes
+        filter_by_difficulty: Optional[Tuple[int, int]] = None,
+        deduplicate: bool = True,
+        similarity_threshold_dedup: float = 0.95
     ) -> str:
         """
-        Get relevant context from memory for a query
+        Get relevant context from memory for a query (ENHANCED)
+        
+        Mejoras V2:
+        - Similarity scoring correcto (cosine distance)
+        - Ranking híbrido: 0.7*similarity + 0.2*recency + 0.1*difficulty_proximity
+        - Deduplicación semántica
+        - Metadata filtering (difficulty range)
+        - Formato estructurado con scores
         
         Args:
             query: User query
-            max_context: Maximum number of context items
-            min_similarity: Minimum similarity threshold (0-1)
+            max_context: Maximum number of context items (default: 10)
+            min_similarity: Minimum similarity threshold 0-1 (default: 0.7)
+            time_decay_days: Days for time decay (default: 30)
+            filter_by_difficulty: Optional (min, max) difficulty filter
+            deduplicate: Remove semantically duplicate memories
+            similarity_threshold_dedup: Threshold for deduplication (default: 0.95)
         
         Returns:
             Formatted context string
         """
-        memories = self.search_memory(query, n_results=max_context)
+        from datetime import datetime, timedelta
+        
+        # Buscar más memorias para filtrado posterior
+        search_n = max_context * 3
+        memories = self.search_memory(query, n_results=search_n)
         
         if not memories:
             return ""
         
-        # Filter by similarity (distance is inverse of similarity for cosine)
-        # ChromaDB returns cosine distance (lower is better)
+        # 1. Filtrar por similarity (cosine distance correcto)
+        # Cosine distance: 0 = idéntico, 1 = ortogonal, 2 = opuesto
+        # similarity = 1 - (distance / 2)
+        # Para min_similarity=0.7 → distance debe ser < 0.6
+        max_distance = 2 * (1 - min_similarity)
+        
         relevant_memories = [
             mem for mem in memories
-            if mem['distance'] < (1 - min_similarity)  # Convert similarity to distance
+            if mem['distance'] < max_distance
         ]
+        
+        self.logger.debug(
+            f"Similarity filter: {len(memories)} → {len(relevant_memories)} "
+            f"(min_sim={min_similarity}, max_dist={max_distance:.2f})"
+        )
         
         if not relevant_memories:
             return ""
         
-        # Format context
-        context_parts = []
-        for i, mem in enumerate(relevant_memories, 1):
-            timestamp = mem['metadata'].get('timestamp', 'unknown')
-            context_parts.append(f"[Memoria {i} - {timestamp}]: {mem['text']}")
+        # 2. Filtrar por difficulty range si especificado
+        if filter_by_difficulty:
+            min_diff, max_diff = filter_by_difficulty
+            relevant_memories = [
+                mem for mem in relevant_memories
+                if min_diff <= mem['metadata'].get('difficulty', 50) <= max_diff
+            ]
+            self.logger.debug(f"Difficulty filter: {len(relevant_memories)} memories")
         
-        context = "\n".join(context_parts)
-        self.logger.info(f"Retrieved {len(relevant_memories)} relevant memories")
+        # 3. Calcular hybrid score (relevancia + recencia + difficulty proximity)
+        now = datetime.now()
+        scored_memories = []
+        
+        for mem in relevant_memories:
+            # Similarity score (0-1, higher is better)
+            similarity = 1 - (mem['distance'] / 2)
+            
+            # Recency score (0-1, exponential decay)
+            try:
+                timestamp_str = mem['metadata'].get('timestamp', '')
+                if timestamp_str:
+                    mem_time = datetime.fromisoformat(timestamp_str)
+                    days_old = (now - mem_time).days
+                    # Exponential decay: e^(-days/decay_days)
+                    import math
+                    recency = math.exp(-days_old / time_decay_days)
+                else:
+                    recency = 0.5  # Unknown age
+            except:
+                recency = 0.5
+            
+            # Difficulty proximity score (0-1)
+            # Si no hay filter, asumimos query difficulty = 50
+            query_difficulty = filter_by_difficulty[0] if filter_by_difficulty else 50
+            mem_difficulty = mem['metadata'].get('difficulty', 50)
+            diff_distance = abs(query_difficulty - mem_difficulty) / 100
+            difficulty_proximity = 1 - diff_distance
+            
+            # Hybrid score: weighted sum
+            hybrid_score = (
+                0.7 * similarity +
+                0.2 * recency +
+                0.1 * difficulty_proximity
+            )
+            
+            scored_memories.append({
+                **mem,
+                'similarity': similarity,
+                'recency': recency,
+                'difficulty_proximity': difficulty_proximity,
+                'hybrid_score': hybrid_score
+            })
+        
+        # 4. Ordenar por hybrid score
+        scored_memories.sort(key=lambda x: x['hybrid_score'], reverse=True)
+        
+        # 5. Deduplicación semántica (opcional)
+        if deduplicate and len(scored_memories) > 1:
+            unique_memories = [scored_memories[0]]  # Siempre incluir el mejor
+            
+            for mem in scored_memories[1:]:
+                # Comparar con memorias ya seleccionadas
+                is_duplicate = False
+                mem_text = mem['text']
+                
+                for unique_mem in unique_memories:
+                    # Similarity simple por texto (evitar re-embedding)
+                    # Usamos ratio de palabras compartidas como proxy
+                    words_mem = set(mem_text.lower().split())
+                    words_unique = set(unique_mem['text'].lower().split())
+                    
+                    if words_mem and words_unique:
+                        overlap = len(words_mem & words_unique) / len(words_mem | words_unique)
+                        if overlap > similarity_threshold_dedup:
+                            is_duplicate = True
+                            break
+                
+                if not is_duplicate:
+                    unique_memories.append(mem)
+            
+            scored_memories = unique_memories
+            self.logger.debug(f"Deduplication: {len(scored_memories)} unique memories")
+        
+        # 6. Limitar a max_context
+        final_memories = scored_memories[:max_context]
+        
+        # 7. Formatear contexto estructurado
+        context_parts = []
+        for i, mem in enumerate(final_memories, 1):
+            timestamp = mem['metadata'].get('timestamp', 'unknown')
+            model = mem['metadata'].get('model', 'unknown')
+            difficulty = mem['metadata'].get('difficulty', 0)
+            hybrid_score = mem.get('hybrid_score', 0)
+            
+            # Formato mejorado con metadata relevante
+            context_parts.append(
+                f"[Memoria #{i} | Score: {hybrid_score:.2f} | "
+                f"Dificultad: {difficulty} | Modelo: {model} | {timestamp}]\n"
+                f"{mem['text']}"
+            )
+        
+        context = "\n\n".join(context_parts)
+        
+        self.logger.info(
+            f"✅ Retrieved {len(final_memories)} relevant memories "
+            f"(avg_score: {sum(m['hybrid_score'] for m in final_memories)/len(final_memories):.2f})"
+        )
         
         return context
     

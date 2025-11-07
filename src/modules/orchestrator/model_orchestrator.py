@@ -13,6 +13,9 @@ from enum import Enum
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 import torch
 
+# Import DynamicTokenManager for adaptive token allocation
+from src.utils.dynamic_token_manager import DynamicTokenManager, QueryType
+
 try:
     import pynvml
     PYNVML_AVAILABLE = True
@@ -70,6 +73,15 @@ class ModelOrchestrator:
         # Model management limits
         self.max_models_per_gpu = self.config.get("system", {}).get("max_models_per_gpu", 2)
         self.model_access_times: Dict[str, float] = {}  # For LRU tracking
+        
+        # Initialize DynamicTokenManager for adaptive token allocation
+        enable_dynamic_tokens = self.config.get("system", {}).get("enable_dynamic_tokens", True)
+        if enable_dynamic_tokens:
+            self.token_manager = DynamicTokenManager(debug=False)
+            self.logger.info("✅ DynamicTokenManager initialized")
+        else:
+            self.token_manager = None
+            self.logger.info("⚠️  DynamicTokenManager disabled")
         
         # Initialize GPU monitoring
         if PYNVML_AVAILABLE:
@@ -478,11 +490,47 @@ class ModelOrchestrator:
         
         return selected_id
     
-    def _generate_vllm(self, model_data: Dict, query: str) -> str:
-        """Generate response using vLLM"""
+    def _generate_vllm(
+        self, 
+        model_data: Dict, 
+        query: str,
+        difficulty: int = 50,
+        max_tokens_override: Optional[int] = None
+    ) -> str:
+        """
+        Generate response using vLLM
+        
+        Args:
+            model_data: Model data dict
+            query: User query
+            difficulty: Query difficulty (for dynamic tokens)
+            max_tokens_override: Override calculated max_tokens
+        """
         from vllm import SamplingParams
         
         config = model_data['config']
+        
+        # Calculate dynamic max_tokens if token_manager enabled
+        if max_tokens_override:
+            max_tokens = max_tokens_override
+        elif self.token_manager:
+            # Get available VRAM
+            if config.gpu_id is not None:
+                used, total = self._get_gpu_memory(config.gpu_id)
+                available_vram_gb = (total - used) / 1024  # Convert MB to GB
+            else:
+                available_vram_gb = None
+            
+            max_tokens = self.token_manager.calculate_max_tokens(
+                query=query,
+                difficulty=difficulty,
+                available_vram_gb=available_vram_gb
+            )
+            
+            self.logger.info(f"🎯 Dynamic max_tokens: {max_tokens} (difficulty={difficulty})")
+        else:
+            # Fallback to config default
+            max_tokens = config.max_tokens
         
         # Get stop sequences from config or use defaults
         stop_sequences = config.stop if hasattr(config, 'stop') else ["</s>", "<|endoftext|>"]
@@ -491,7 +539,7 @@ class ModelOrchestrator:
         sampling_params = SamplingParams(
             temperature=config.temperature,
             top_p=top_p,
-            max_tokens=config.max_tokens,
+            max_tokens=max_tokens,
             stop=stop_sequences
         )
         
@@ -500,11 +548,47 @@ class ModelOrchestrator:
         
         return response
     
-    def _generate_transformers(self, model_data: Dict, query: str) -> str:
-        """Generate response using Transformers"""
+    def _generate_transformers(
+        self, 
+        model_data: Dict, 
+        query: str,
+        difficulty: int = 50,
+        max_tokens_override: Optional[int] = None
+    ) -> str:
+        """
+        Generate response using Transformers
+        
+        Args:
+            model_data: Model data dict
+            query: User query
+            difficulty: Query difficulty (for dynamic tokens)
+            max_tokens_override: Override calculated max_tokens
+        """
         model = model_data['model']
         tokenizer = model_data['tokenizer']
         config = model_data['config']
+        
+        # Calculate dynamic max_tokens if token_manager enabled
+        if max_tokens_override:
+            max_tokens = max_tokens_override
+        elif self.token_manager:
+            # Get available VRAM
+            if config.gpu_id is not None:
+                used, total = self._get_gpu_memory(config.gpu_id)
+                available_vram_gb = (total - used) / 1024  # Convert MB to GB
+            else:
+                available_vram_gb = None
+            
+            max_tokens = self.token_manager.calculate_max_tokens(
+                query=query,
+                difficulty=difficulty,
+                available_vram_gb=available_vram_gb
+            )
+            
+            self.logger.info(f"🎯 Dynamic max_tokens: {max_tokens} (difficulty={difficulty})")
+        else:
+            # Fallback to config default
+            max_tokens = config.max_tokens
         
         inputs = tokenizer(query, return_tensors="pt", truncation=True, max_length=2048)
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
@@ -512,7 +596,7 @@ class ModelOrchestrator:
         with torch.inference_mode():
             outputs = model.generate(
                 **inputs,
-                max_new_tokens=config.max_tokens,
+                max_new_tokens=max_tokens,
                 temperature=config.temperature,
                 do_sample=True,
                 top_p=0.9,
@@ -565,10 +649,11 @@ class ModelOrchestrator:
             model_data = self.loaded_models[model_id]
             config = model_data['config']
             
+            # Pass difficulty to generator for dynamic tokens
             if model_data['backend'] == ModelBackend.VLLM:
-                response = self._generate_vllm(model_data, query)
+                response = self._generate_vllm(model_data, query, difficulty=difficulty)
             elif model_data['backend'] == ModelBackend.TRANSFORMERS:
-                response = self._generate_transformers(model_data, query)
+                response = self._generate_transformers(model_data, query, difficulty=difficulty)
             else:
                 raise ValueError(f"Unsupported backend: {model_data['backend']}")
             

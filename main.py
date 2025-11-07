@@ -288,7 +288,13 @@ class Jarvis:
                         # Obtener contexto RAG si está disponible
                         rag_context = ""
                         if self.embeddings:
-                            rag_context = self.embeddings.get_context_for_query(content, max_context=3)
+                            rag_context = self.embeddings.get_context_for_query(
+                                query=content,
+                                max_context=10,  # ✅ Incrementado de 3 a 10
+                                min_similarity=0.7,  # ✅ Más estricto (era 0.3 implícito)
+                                filter_by_difficulty=(max(1, difficulty-20), min(100, difficulty+20)),
+                                deduplicate=True
+                            )
                         
                         # Enriquecer query con contexto
                         enriched_query = content
@@ -523,7 +529,13 @@ class Jarvis:
                 # Obtener contexto RAG si está disponible
                 rag_context = ""
                 if self.embeddings:
-                    rag_context = self.embeddings.get_context_for_query(query, max_context=3)
+                    rag_context = self.embeddings.get_context_for_query(
+                        query=query,
+                        max_context=10,  # ✅ Incrementado de 3 a 10
+                        min_similarity=0.7,  # ✅ Más estricto
+                        filter_by_difficulty=(max(1, difficulty-20), min(100, difficulty+20)),
+                        deduplicate=True
+                    )
                 
                 # Enriquecer query con contexto
                 enriched_query = query
