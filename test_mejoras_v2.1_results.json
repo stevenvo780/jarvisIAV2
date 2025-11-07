@@ -1,0 +1,200 @@
+{
+  "stats": {
+    "total": 14,
+    "passed": 6,
+    "failed": 2,
+    "warnings": 6
+  },
+  "results": [
+    {
+      "test": "DynamicTokens-1-Query simple - minimal",
+      "status": "PASS",
+      "details": {
+        "query": "Hola",
+        "difficulty": 5,
+        "query_type": "MINIMAL",
+        "max_tokens": 80,
+        "expected_range": [
+          64,
+          256
+        ]
+      },
+      "timestamp": 1762536645.0851598
+    },
+    {
+      "test": "DynamicTokens-2-Query media - question",
+      "status": "FAIL",
+      "details": {
+        "query": "\u00bfQu\u00e9 es Python?",
+        "difficulty": 16,
+        "query_type": "MINIMAL",
+        "max_tokens": 115,
+        "expected_range": [
+          128,
+          512
+        ]
+      },
+      "timestamp": 1762536645.0855265
+    },
+    {
+      "test": "DynamicTokens-3-Query c\u00f3digo - code generation",
+      "status": "PASS",
+      "details": {
+        "query": "Genera una funci\u00f3n de b\u00fasqueda binaria en Python con comentarios",
+        "difficulty": 56,
+        "query_type": "CODE",
+        "max_tokens": 1381,
+        "expected_range": [
+          512,
+          4096
+        ]
+      },
+      "timestamp": 1762536645.0855644
+    },
+    {
+      "test": "DynamicTokens-4-Query compleja - reasoning",
+      "status": "FAIL",
+      "details": {
+        "query": "Explica paso a paso el algoritmo de ordenamiento quicksort, compar\u00e1ndolo con mergesort y mostrando complejidades",
+        "difficulty": 86,
+        "query_type": "REASONING",
+        "max_tokens": 5324,
+        "expected_range": [
+          1024,
+          4096
+        ]
+      },
+      "timestamp": 1762536645.085603
+    },
+    {
+      "test": "DynamicTokens-5-Query an\u00e1lisis - analysis",
+      "status": "PASS",
+      "details": {
+        "query": "Analiza las diferencias entre arquitecturas MVC y MVVM",
+        "difficulty": 45,
+        "query_type": "REASONING",
+        "max_tokens": 1280,
+        "expected_range": [
+          512,
+          2048
+        ]
+      },
+      "timestamp": 1762536645.0856347
+    },
+    {
+      "test": "RAG-1-Query factual",
+      "status": "WARN",
+      "details": {
+        "query": "\u00bfQu\u00e9 es Python?",
+        "difficulty": 60,
+        "memories_count": 0,
+        "context_size": 0,
+        "warning": "No hay memorias en la base de datos a\u00fan"
+      },
+      "timestamp": 1762536647.2411575
+    },
+    {
+      "test": "RAG-2-Query c\u00f3digo",
+      "status": "WARN",
+      "details": {
+        "query": "Genera c\u00f3digo para b\u00fasqueda binaria",
+        "difficulty": 75,
+        "memories_count": 0,
+        "context_size": 0,
+        "warning": "No hay memorias en la base de datos a\u00fan"
+      },
+      "timestamp": 1762536647.2491777
+    },
+    {
+      "test": "RAG-3-Query compleja",
+      "status": "WARN",
+      "details": {
+        "query": "Explica paso a paso el algoritmo quicksort",
+        "difficulty": 85,
+        "memories_count": 0,
+        "context_size": 0,
+        "warning": "No hay memorias en la base de datos a\u00fan"
+      },
+      "timestamp": 1762536647.256385
+    },
+    {
+      "test": "RAG-Format",
+      "status": "WARN",
+      "details": {
+        "warning": "No context to check format"
+      },
+      "timestamp": 1762536647.2563908
+    },
+    {
+      "test": "SmartPrompt-1-Chat simple",
+      "status": "WARN",
+      "details": {
+        "query": "Hola, \u00bfc\u00f3mo est\u00e1s?",
+        "difficulty": 15,
+        "detected_task": "EXPLANATION",
+        "expected_task": "CHAT",
+        "prompt_size": 300,
+        "has_system": true,
+        "has_cot": false
+      },
+      "timestamp": 1762536647.2576349
+    },
+    {
+      "test": "SmartPrompt-2-Pregunta factual",
+      "status": "WARN",
+      "details": {
+        "query": "\u00bfQu\u00e9 es Python?",
+        "difficulty": 50,
+        "detected_task": "EXPLANATION",
+        "expected_task": "QUESTION",
+        "prompt_size": 297,
+        "has_system": true,
+        "has_cot": false
+      },
+      "timestamp": 1762536647.2577045
+    },
+    {
+      "test": "SmartPrompt-3-C\u00f3digo generation",
+      "status": "PASS",
+      "details": {
+        "query": "Genera una funci\u00f3n de b\u00fasqueda binaria en Python",
+        "difficulty": 70,
+        "detected_task": "CODE_GEN",
+        "expected_task": "CODE_GEN",
+        "prompt_size": 498,
+        "has_system": true,
+        "has_cot": true
+      },
+      "timestamp": 1762536647.2577662
+    },
+    {
+      "test": "SmartPrompt-4-Razonamiento complejo",
+      "status": "PASS",
+      "details": {
+        "query": "Explica paso a paso el teorema de Pit\u00e1goras con demostraci\u00f3n",
+        "difficulty": 80,
+        "detected_task": "REASONING",
+        "expected_task": "REASONING",
+        "prompt_size": 633,
+        "has_system": true,
+        "has_cot": true
+      },
+      "timestamp": 1762536647.257833
+    },
+    {
+      "test": "SmartPrompt-5-An\u00e1lisis comparativo",
+      "status": "PASS",
+      "details": {
+        "query": "Compara arquitecturas MVC vs MVVM",
+        "difficulty": 65,
+        "detected_task": "ANALYSIS",
+        "expected_task": "ANALYSIS",
+        "prompt_size": 612,
+        "has_system": true,
+        "has_cot": true
+      },
+      "timestamp": 1762536647.25789
+    }
+  ],
+  "timestamp": 1762536647.2579198
+}

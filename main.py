@@ -18,9 +18,11 @@ from src.utils.error_handler import setup_logging
 from src.utils.audio_utils import AudioEffects
 from src.utils.jarvis_state import JarvisState
 from src.utils.smart_prompt_builder import SmartPromptBuilder  # NUEVO
+from src.utils.quality_evaluator import QualityEvaluator  # NUEVO Fase 5
 from modules.text.terminal_manager import TerminalManager
 from src.modules.orchestrator.model_orchestrator import ModelOrchestrator
 from src.modules.embeddings.embedding_manager import EmbeddingManager
+from src.modules.learning.learning_manager import LearningManager  # NUEVO Fase 3
 from src.modules.voice.whisper_handler import WhisperHandler
 from src.utils.metrics_tracker import MetricsTracker, QueryTimer
 from modules.system_monitor import SystemMonitor
@@ -53,14 +55,26 @@ class Jarvis:
             self.system_monitor = SystemMonitor()
             self.terminal.print_success("System monitor initialized")
             
-            self._initialize_tts()
-            self.terminal.print_success("TTS initialized")
+            # TTS conditional initialization
+            enable_tts = os.getenv('ENABLE_TTS', 'true').lower() == 'true'
+            if enable_tts:
+                self._initialize_tts()
+                self.terminal.print_success("TTS initialized")
+            else:
+                self.tts = None
+                self.terminal.print_info("TTS disabled (ENABLE_TTS=false)")
             
             self.storage = StorageManager()
             self.terminal.print_success("Storage initialized")
             
-            self.audio_effects = AudioEffects()
-            self.terminal.print_success("Audio effects initialized")
+            # Audio effects conditional initialization
+            enable_audio_effects = os.getenv('ENABLE_AUDIO_EFFECTS', 'true').lower() == 'true'
+            if enable_audio_effects:
+                self.audio_effects = AudioEffects()
+                self.terminal.print_success("Audio effects initialized")
+            else:
+                self.audio_effects = None
+                self.terminal.print_info("Audio effects disabled (ENABLE_AUDIO_EFFECTS=false)")
             
             # Inicializar métricas y monitoreo
             self.metrics = MetricsTracker(
@@ -95,6 +109,32 @@ class Jarvis:
                 self.prompt_builder = None
                 self.terminal.print_status("SmartPromptBuilder disabled")
             
+            # Inicializar Learning Manager (Fase 3)
+            enable_learning = os.getenv('ENABLE_LEARNING', 'true').lower() == 'true'
+            if enable_learning:
+                self.learning_manager = LearningManager(
+                    log_dir="logs/learning",
+                    enable_auto_tuning=True,
+                    debug=False
+                )
+                self.terminal.print_success("LearningManager initialized")
+            else:
+                self.learning_manager = None
+                self.terminal.print_status("LearningManager disabled")
+            
+            # Inicializar Quality Evaluator (Fase 5)
+            enable_quality = os.getenv('ENABLE_QUALITY_EVAL', 'true').lower() == 'true'
+            if enable_quality:
+                self.quality_evaluator = QualityEvaluator(
+                    log_file="logs/quality_evaluations.jsonl",
+                    enable_detailed_logging=True,
+                    debug=False
+                )
+                self.terminal.print_success("QualityEvaluator initialized")
+            else:
+                self.quality_evaluator = None
+                self.terminal.print_status("QualityEvaluator disabled")
+            
             self.text_handler = None
             self.command_manager = None
             self.model_manager = None
@@ -127,9 +167,11 @@ class Jarvis:
             
             self.terminal.print_status("Jarvis Text Interface - Escribe 'help' para ver los comandos")
             self.terminal.update_prompt_state('NEUTRAL')
-            self.audio_effects.play('startup')
+            if self.audio_effects:
+                self.audio_effects.play('startup')
         except Exception as e:
-            self.audio_effects.play('error')
+            if self.audio_effects:
+                self.audio_effects.play('error')
             self.terminal.print_error(f"Initialization error: {e}")
             sys.exit(1)
 
@@ -218,14 +260,16 @@ class Jarvis:
             self.terminal.print_warning(f"⌨️ Text mode only: {e}")
             self.state.set_listening_active(False)
             self.terminal.print_error(f"Error inicializando audio: {e}")
-            self.audio_effects.play('error')
+            if self.audio_effects:
+                self.audio_effects.play('error')
             logging.error(f"Audio init error: {e}")
             self.audio = None
 
     def _handle_critical_error(self, message):
         logging.critical(message)
         self.terminal.print_error(message)
-        self.audio_effects.play('error')
+        if self.audio_effects:
+            self.audio_effects.play('error')
         if self.state.increment_errors():
             self.terminal.print_error("Max error limit reached")
             self._shutdown_system()
@@ -252,7 +296,7 @@ class Jarvis:
             t, content = self.input_queue.get_nowait()
             
             if content.strip():
-                if hasattr(self, 'tts'):
+                if self.tts:
                     self.tts.stop_speaking()
 
                 if self.actions:
@@ -284,7 +328,8 @@ class Jarvis:
                         self.input_queue.task_done()
                         
                         self.terminal.update_prompt_state('SPEAKING')
-                        self.tts.speak(response)
+                        if self.tts:
+                            self.tts.speak(response)
                         self.terminal.update_prompt_state('NEUTRAL')
                         return
                 
@@ -343,13 +388,51 @@ class Jarvis:
                                 model=model_name,
                                 difficulty=difficulty
                             )
+                        
+                        # ✅ NUEVO: Evaluar calidad de respuesta (Fase 5)
+                        quality_score = None
+                        if self.quality_evaluator:
+                            task_type = self.prompt_builder.detect_task_type(content).value if self.prompt_builder else "general"
+                            quality_eval = self.quality_evaluator.evaluate(
+                                query=content,
+                                response=response,
+                                task_type=task_type
+                            )
+                            quality_score = quality_eval["overall_score"]
+                            
+                            # Log warning si calidad baja
+                            if not quality_eval["passed"]:
+                                self.terminal.print_warning(
+                                    f"⚠️  Low quality response detected (score: {quality_score:.2f})"
+                                )
+                        
+                        # ✅ NUEVO: Log en Learning Manager (Fase 3)
+                        if self.learning_manager and self.metrics:
+                            # Get tokens used and response time from last query
+                            tokens_used = getattr(self.orchestrator, 'last_tokens_used', 0)
+                            response_time = getattr(self.metrics, 'last_response_time', 0)
+                            
+                            self.learning_manager.log_interaction(
+                                query=content,
+                                response=response,
+                                model=model_name,
+                                difficulty=difficulty,
+                                task_type=task_type if self.prompt_builder else "general",
+                                tokens_used=tokens_used,
+                                response_time=response_time,
+                                quality_score=quality_score,
+                                metadata={
+                                    "rag_enabled": rag_context != "",
+                                    "smart_prompts": self.prompt_builder is not None
+                                }
+                            )
                     else:
                         # V1: Legacy model_manager
                         # aqui no se guarda interaccion por que ya esta dentro del get_response
                         response, model_name = self.model_manager.get_response(content)
                     
                     self.terminal.print_response(response, model_name)
-                    if (t == 'voice' or self.state.voice_active) and hasattr(self, 'tts'):
+                    if (t == 'voice' or self.state.voice_active) and self.tts:
                         self.tts.speak(response)
                 except Exception as e:
                     self.terminal.print_error(f"Error del modelo: {e}")
@@ -465,7 +548,7 @@ class Jarvis:
                 self.processor_thread.join(timeout=2)
             if hasattr(self, 'text_handler'):
                 self.text_handler.stop()
-            if hasattr(self, 'tts'):
+            if self.tts:
                 self.tts.cleanup()
             
             # Cleanup orchestrator

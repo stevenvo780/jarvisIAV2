@@ -657,6 +657,10 @@ class ModelOrchestrator:
             else:
                 raise ValueError(f"Unsupported backend: {model_data['backend']}")
             
+            # ✅ Track tokens used para Learning Manager
+            tokens_estimate = len(response.split())  # Simple estimate
+            self.last_tokens_used = tokens_estimate
+            
             return response, config.name
         
         except Exception as e:

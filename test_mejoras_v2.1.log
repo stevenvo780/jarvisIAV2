@@ -1,0 +1,89 @@
+/mnt/DATA/repos/Personal/jarvisIAV2/.venv/lib/python3.10/site-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+2025-11-07 12:26:24,891 - INFO - ✅ DynamicTokenManager initialized
+2025-11-07 12:26:24,891 - ERROR - Error ejecutando Fase 1: Dynamic Tokens: 'DynamicTokenManager' object has no attribute '_estimate_difficulty'
+2025-11-07 12:26:24,891 - INFO - Loading embedding model: models/embeddings/bge-m3
+2025-11-07 12:26:25,065 - INFO - Load pretrained SentenceTransformer: models/embeddings/bge-m3
+2025-11-07 12:26:27,116 - INFO - ✅ Embedding model loaded on cuda:0
+2025-11-07 12:26:27,129 - INFO - Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2025-11-07 12:26:27,226 - INFO - ✅ ChromaDB initialized (0 memories)
+2025-11-07 12:26:27,226 - INFO - ✅ EmbeddingManager initialized
+2025-11-07 12:26:27,432 - INFO - Embedded 1 texts, 0 from cache
+2025-11-07 12:26:27,434 - INFO - Found 0 memories for query
+2025-11-07 12:26:27,434 - ERROR - Error en RAG tests: 'str' object has no attribute 'get'
+2025-11-07 12:26:27,434 - INFO - ✅ SmartPromptBuilder initialized
+2025-11-07 12:26:27,434 - ERROR - Error en Smart Prompts tests: CODE_GENERATION
+2025-11-07 12:26:27,434 - INFO - Resultados guardados en: test_mejoras_v2.1_results.json
+
+================================================================================
+🧪 JARVIS IA V2.1 - TEST SUITE COMPLETO
+================================================================================
+Fecha: 7 Noviembre 2025
+Testing: Fases 1, 2, 4 implementadas
+================================================================================
+
+
+🔍 Ejecutando: Fase 1: Dynamic Tokens
+
+================================================================================
+🔬 FASE 1: Dynamic Token Manager
+================================================================================
+
+
+🔍 Ejecutando: Fase 2: Enhanced RAG
+
+================================================================================
+🔬 FASE 2: Enhanced RAG System
+================================================================================
+
+Inicializando EmbeddingManager...
+✅ EmbeddingManager inicializado correctamente
+
+Test RAG 1: Query factual
+  Query: '¿Qué es Python?'
+  Difficulty: 60
+
+================================================================================
+📊 RESUMEN DE TESTING
+================================================================================
+✅ Passed: 0
+❌ Failed: 1
+⚠️  Warnings: 0
+📈 Total: 1
+🎯 Success Rate: 0.0%
+================================================================================
+
+🔍 Ejecutando: Fase 4: Smart Prompts
+
+================================================================================
+🔬 FASE 4: Smart Prompt Builder
+================================================================================
+
+
+================================================================================
+📊 RESUMEN DE TESTING
+================================================================================
+✅ Passed: 0
+❌ Failed: 1
+⚠️  Warnings: 0
+📈 Total: 1
+🎯 Success Rate: 0.0%
+================================================================================
+
+================================================================================
+🏁 RESULTADOS FINALES - TODAS LAS FASES
+================================================================================
+
+================================================================================
+📊 RESUMEN DE TESTING
+================================================================================
+✅ Passed: 0
+❌ Failed: 3
+⚠️  Warnings: 0
+📈 Total: 3
+🎯 Success Rate: 0.0%
+================================================================================
+
+✅ Testing completo!
+📄 Resultados guardados en: test_mejoras_v2.1_results.json
+

@@ -332,5 +332,8 @@ class QueryTimer:
             error=self.error
         )
         
+        # ✅ Save last response time for Learning Manager
+        self.tracker.last_response_time = latency
+        
         # Don't suppress exceptions
         return False
