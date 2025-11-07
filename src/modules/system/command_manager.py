@@ -106,18 +106,9 @@ class CommandManager:
 
     def _analyze_with_ai(self, user_input: str) -> Optional[str]:
         try:
-            result = self.model_manager.models['google'].analyze_command(
-                user_input, 
-                self.command_prompt_template
-            )
-            if result:
-                result = result.strip().upper()
-                if '_' in result and any(prefix in result for prefix in self.modules.keys()):
-                    logger.info(f"AI command analysis: {result}")
-                    return result
-                else:
-                    logger.warning(f"Invalid command format from AI: {result}")
-            
+            # TODO: Adapt this to work with ModelOrchestrator
+            # For now, skip AI analysis and use fallback
+            logger.info(f"AI analysis result: Skipped (using fallback)")
             return self._fallback_trigger_check(user_input)
         except Exception as e:
             logger.error(f"Error in AI analysis: {e}")

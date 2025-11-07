@@ -4,6 +4,7 @@ import sys
 import time
 import logging
 import threading
+import argparse
 from queue import Queue, Empty
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
@@ -434,11 +435,189 @@ class Jarvis:
         self.processor_thread.start()
         
         self.text_handler.run_interactive()
+    
+    def process_command(self, query: str) -> str:
+        """
+        Process a single command/query and return the response
+        Used for non-interactive mode
+        
+        Args:
+            query: User query/command
+            
+        Returns:
+            Response string
+        """
+        try:
+            print(f"\n🔵 Query: {query}")
+            
+            # Check if it's a system command
+            if self.actions:
+                message, is_command = self.actions.handle_command(query)
+                if is_command == True:
+                    if message:
+                        print(f"\n🟢 System: {message}")
+                        return message
+                    return ""
+            
+            # Check command manager
+            if self.command_manager:
+                response, response_type = self.command_manager.process_input(query)
+                if response and response_type in ["command", "error"]:
+                    print(f"\n🟢 System: {response}")
+                    return response
+            
+            # Process with LLM orchestrator
+            if self.orchestrator:
+                # Calcular dificultad
+                difficulty = self._estimate_difficulty(query)
+                
+                # Obtener contexto RAG si está disponible
+                rag_context = ""
+                if self.embeddings:
+                    rag_context = self.embeddings.get_context_for_query(query, max_context=3)
+                
+                # Enriquecer query con contexto
+                enriched_query = query
+                if rag_context:
+                    enriched_query = f"Contexto relevante:\n{rag_context}\n\nPregunta: {query}"
+                
+                print("\n⏳ Processing...")
+                
+                # Consultar
+                response, model_name = self.orchestrator.get_response(
+                    query=enriched_query,
+                    difficulty=difficulty
+                )
+                
+                # Guardar en RAG
+                if self.embeddings:
+                    self.embeddings.add_interaction(
+                        query=query,
+                        response=response,
+                        model=model_name,
+                        difficulty=difficulty
+                    )
+                
+                print(f"\n🟢 {model_name}: {response}")
+                return response
+            else:
+                error_msg = "No hay modelos disponibles. Configura claves API o descarga modelos locales."
+                print(f"\n🔴 {error_msg}")
+                return error_msg
+            
+        except Exception as e:
+            error_msg = f"Error processing command: {e}"
+            logging.error(error_msg)
+            print(f"\n🔴 {error_msg}")
+            return error_msg
+
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(
+        description="Jarvis AI Assistant - Multi-GPU LLM System",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Interactive mode (default)
+  python main.py
+  
+  # Command mode (single query)
+  python main.py --query "¿Cuál es la capital de Francia?"
+  
+  # Command mode with specific model
+  python main.py --query "Explica la teoría de la relatividad" --model llama-70b
+  
+  # Show available models
+  python main.py --list-models
+        """
+    )
+    
+    parser.add_argument(
+        '-q', '--query',
+        type=str,
+        help='Execute a single query and exit (non-interactive mode)'
+    )
+    
+    parser.add_argument(
+        '-m', '--model',
+        type=str,
+        help='Specify model to use (e.g., llama-70b, qwen-32b, gpt-4o-mini)'
+    )
+    
+    parser.add_argument(
+        '--list-models',
+        action='store_true',
+        help='List available models and exit'
+    )
+    
+    parser.add_argument(
+        '--stats',
+        action='store_true',
+        help='Show system statistics and exit'
+    )
+    
+    return parser.parse_args()
 
 if __name__ == "__main__":
+    args = parse_arguments()
+    
     jarvis = Jarvis()
+    
     try:
+        # List models mode
+        if args.list_models:
+            print("\n" + "="*70)
+            print("AVAILABLE MODELS")
+            print("="*70)
+            
+            if hasattr(jarvis, 'orchestrator'):
+                stats = jarvis.orchestrator.get_stats()
+                print(f"\n📊 GPU Count: {stats['gpu_count']}")
+                print(f"📦 Models Loaded: {len(stats['loaded_models'])}")
+                
+                for gpu_info in stats['gpus']:
+                    print(f"\n🎮 {gpu_info['name']} (GPU {gpu_info['id']})")
+                    print(f"   VRAM: {gpu_info['vram_used_mb']}MB / {gpu_info['vram_total_mb']}MB ({gpu_info['vram_percent']}%)")
+                
+                print("\n📋 Configured Models:")
+                # List all models from config
+                import json
+                with open('src/config/models.json', 'r') as f:
+                    config = json.load(f)
+                    for model_id, model_info in config.get('models', {}).items():
+                        status = "✅ LOADED" if model_id in stats['loaded_models'] else "⬜ NOT LOADED"
+                        print(f"  {status} {model_id}: {model_info['name']} (GPU {model_info['gpu_id']}, {model_info['vram_required']}MB)")
+            
+            sys.exit(0)
+        
+        # Stats mode
+        if args.stats:
+            print("\n" + "="*70)
+            print("SYSTEM STATISTICS")
+            print("="*70)
+            
+            if hasattr(jarvis, 'orchestrator'):
+                stats = jarvis.orchestrator.get_stats()
+                print(f"\n🎮 GPUs: {stats['gpu_count']}")
+                for gpu_info in stats['gpus']:
+                    print(f"  GPU {gpu_info['id']}: {gpu_info['name']}")
+                    print(f"    VRAM: {gpu_info['vram_used_mb']}MB / {gpu_info['vram_total_mb']}MB")
+            
+            if hasattr(jarvis, 'embeddings') and jarvis.embeddings:
+                emb_stats = jarvis.embeddings.get_statistics()
+                print(f"\n💾 Memories: {emb_stats.get('total_memories', 0)}")
+            
+            sys.exit(0)
+        
+        # Command mode
+        if args.query:
+            # TODO: Support model selection with args.model
+            response = jarvis.process_command(args.query)
+            sys.exit(0)
+        
+        # Interactive mode (default)
         jarvis.run()
+        
     except KeyboardInterrupt:
         pass
     except Exception as e:

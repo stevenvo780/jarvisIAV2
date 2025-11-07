@@ -375,8 +375,8 @@ class ModelOrchestrator:
             return False
     
     def _load_default_model(self):
-        """Load default fast model for quick responses"""
-        # Find the fastest model (lowest priority number on GPU1)
+        """Load default fast model for quick responses and try to preload available models"""
+        # 1. First, try to load a fast model on GPU1 for quick responses
         default_id = None
         for model_id, config in self.model_configs.items():
             if config.gpu_id == 1:  # GPU2 for fast responses
@@ -386,6 +386,43 @@ class ModelOrchestrator:
         if default_id:
             self.logger.info(f"Loading default model: {default_id}")
             self._load_model(default_id)
+        
+        # 2. Try to preload the best available model on GPU0 if path exists
+        self._preload_gpu0_models()
+    
+    def _preload_gpu0_models(self):
+        """Preload one or more models on GPU0 (RTX 5070 Ti) if available"""
+        gpu0_models = [
+            (model_id, config) 
+            for model_id, config in self.model_configs.items()
+            if config.gpu_id == 0
+        ]
+        
+        # Sort by priority (lower number = higher priority)
+        gpu0_models.sort(key=lambda x: x[1].priority)
+        
+        for model_id, config in gpu0_models:
+            # Check if model files exist
+            if not os.path.exists(config.path):
+                self.logger.info(f"⏭️  Skipping {model_id}: model files not found at {config.path}")
+                continue
+            
+            # Check VRAM availability
+            if not self._can_load_model(config):
+                self.logger.info(f"⏭️  Skipping {model_id}: insufficient VRAM")
+                continue
+            
+            # Try to load
+            self.logger.info(f"🚀 Preloading model on GPU0: {model_id}")
+            success = self._load_model(model_id)
+            
+            if success:
+                self.logger.info(f"✅ Successfully preloaded {model_id} on GPU0")
+                # Only load one model for now to be safe
+                break
+            else:
+                self.logger.warning(f"⚠️  Failed to preload {model_id}")
+
     
     def _select_model_by_difficulty(
         self, 
