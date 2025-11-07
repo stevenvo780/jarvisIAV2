@@ -63,6 +63,10 @@ class ModelOrchestrator:
         self.loaded_models: Dict[str, Dict[str, Any]] = {}
         self.gpu_stats: Dict[int, Dict[str, int]] = {}
         
+        # Model management limits
+        self.max_models_per_gpu = self.config.get("system", {}).get("max_models_per_gpu", 2)
+        self.model_access_times: Dict[str, float] = {}  # For LRU tracking
+        
         # Initialize GPU monitoring
         if PYNVML_AVAILABLE:
             try:

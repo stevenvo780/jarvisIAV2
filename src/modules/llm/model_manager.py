@@ -1,11 +1,13 @@
 import logging
 import os
 import json
-from typing import List, Dict, Tuple
+import re
+from typing import List, Dict, Tuple, Optional
 from src.modules.llm.google_model import GoogleModel
 from src.modules.llm.openai_model import OpenAIModel
 from src.modules.llm.local_model import LocalModel
 from src.modules.llm.deepinfra_model import DeepInfraModel
+from src.utils.query_validator import QueryValidator
 
 class ModelManager:
     def __init__(self,storage_manager, tts):
@@ -18,6 +20,14 @@ class ModelManager:
         self.difficulty_analyzer = self.models.get('google')
         self.tts = None
         self._setup_logging()
+        
+        # Initialize enhanced query validator
+        self.query_validator = QueryValidator(
+            max_length=self.config.get('security', {}).get('max_query_length', 5000),
+            blocked_terms=self.config.get('security', {}).get('blocked_terms', []),
+            strict_mode=self.config.get('security', {}).get('strict_input_validation', True)
+        )
+        
         logging.info("ModelManager inicializado")
 
     def _load_user_profile(self, path: str) -> Dict:
@@ -129,29 +139,53 @@ class ModelManager:
             handler.setFormatter(fmt)
             logger.addHandler(handler)
 
-    def _validate_query(self, query: str) -> bool:
-        lower_query = query.lower()
-        for term in self.config['security']['blocked_terms']:
-            if term.lower() in lower_query:
-                logging.warning(f"Término bloqueado detectado en consulta: {term}")
-                return False
-        return True
+    def _validate_query(self, query: str) -> Tuple[bool, Optional[str]]:
+        """
+        Enhanced query validation with security checks
+        
+        Returns:
+            (is_valid, error_message)
+        """
+        return self.query_validator.validate(query)
 
     def _analyze_query_difficulty(self, query: str) -> int:
+        """
+        Robust difficulty analysis with fallback
+        
+        Returns:
+            Difficulty score (1-100)
+        """
         try:
             context = self.storage.get_context()
             template = context['prompts']['difficulty_analysis']['template']
             prompt = template.format(query=query)
+            
             if self.difficulty_analyzer is None:
                 logging.warning("difficulty_analyzer no configurado, utilizando dificultad predeterminada")
-                return context['prompts']['difficulty_analysis']['default_difficulty']
+                return context['prompts']['difficulty_analysis'].get('default_difficulty', 50)
+            
             response = self.difficulty_analyzer.get_response(prompt)
-            difficulty = int(''.join(filter(str.isdigit, response)))
-            return min(max(difficulty, 1), 100)
+            
+            # Extract number with regex (more robust)
+            match = re.search(r'\b(\d{1,3})\b', response)
+            
+            if match:
+                difficulty = int(match.group(1))
+                # Clamp to valid range
+                return min(max(difficulty, 1), 100)
+            else:
+                logging.warning(f"No difficulty found in response: {response[:100]}")
+                return context['prompts']['difficulty_analysis'].get('default_difficulty', 50)
+        
+        except ValueError as e:
+            logging.error(f"Difficulty parsing error: {e}")
+            return 50  # Conservative default
+        except KeyError as e:
+            logging.error(f"Configuration key missing: {e}")
+            return 50
         except Exception as e:
-            logging.warning(f"Error analizando dificultad: {e}")
-            context = self.storage.get_context()
-            return context['prompts']['difficulty_analysis']['default_difficulty']
+            logging.error(f"Difficulty analysis failed: {e}")
+            return 50  # Fail-safe default
 
     def _select_appropriate_model(self, difficulty: int) -> str:
         available_models = self.models.keys()
@@ -170,8 +204,14 @@ class ModelManager:
 
     def get_response(self, query: str) -> Tuple[str, str]:
         try:
-            if not self._validate_query(query):
-                return self.config['system']['error_messages']['security'], "error"
+            # Enhanced validation
+            is_valid, error_msg = self._validate_query(query)
+            if not is_valid:
+                logging.warning(f"Query validation failed: {error_msg}")
+                return f"Query rejected: {error_msg}", "error"
+            
+            # Sanitize query
+            query = self.query_validator.sanitize(query)
 
             logging.info(f"Consulta recibida: {query}")
             difficulty = self._analyze_query_difficulty(query)

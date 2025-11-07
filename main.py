@@ -15,6 +15,7 @@ sys.path.insert(0, SRC_DIR)
 
 from src.utils.error_handler import setup_logging
 from src.utils.audio_utils import AudioEffects
+from src.utils.jarvis_state import JarvisState
 from modules.text.terminal_manager import TerminalManager
 
 # V2: Nuevo orchestrador multi-GPU
@@ -62,14 +63,15 @@ setup_logging()
 
 class Jarvis:
     def __init__(self):
-        self.state = {
-            'running': True,
-            'voice_active': False,
-            'listening_active': False,
-            'error_count': 0,
-            'max_errors': 5,
-            'v2_mode': USE_V2_ORCHESTRATOR  # Indicador de modo V2
-        }
+        # Thread-safe state management
+        self.state = JarvisState(
+            running=True,
+            voice_active=False,
+            listening_active=False,
+            error_count=0,
+            max_errors=5,
+            v2_mode=USE_V2_ORCHESTRATOR
+        )
         self.input_queue = Queue()
         self.executor = ThreadPoolExecutor(max_workers=2)
         load_dotenv()
@@ -168,10 +170,10 @@ class Jarvis:
     def _initialize_tts(self):
         try:
             self.tts = TTSManager()
-            self.state['voice_active'] = True
+            self.state.set_voice_active(True)
         except Exception as e:
             self.terminal.print_warning(f"TTS initialization error: {e}")
-            self.state['voice_active'] = False
+            self.state.set_voice_active(False)
             raise e
 
     def _initialize_llm(self):
@@ -228,11 +230,11 @@ class Jarvis:
                 input_queue=self.input_queue,
                 whisper_handler=self.whisper if USE_V2_WHISPER else None  # V2 passthrough
             )
-            self.state['listening_active'] = True
+            self.state.set_listening_active(True)
             pass
         except Exception as e:
             self.terminal.print_warning(f"⌨️ Text mode only: {e}")
-            self.state['listening_active'] = False
+            self.state.set_listening_active(False)
             self.terminal.print_error(f"Error inicializando audio: {e}")
             self.audio_effects.play('error')
             logging.error(f"Audio init error: {e}")
@@ -241,25 +243,24 @@ class Jarvis:
         logging.critical(message)
         self.terminal.print_error(message)
         self.audio_effects.play('error')
-        self.state['error_count'] += 1
-        if self.state['error_count'] >= self.state['max_errors']:
+        if self.state.increment_errors():
             self.terminal.print_error("Max error limit reached")
             self._shutdown_system()
 
     def _system_monitor(self):
-        while self.state['running']:
+        while self.state.is_running():
             try:
                 status = self.system_monitor.check_system_health()
                 if all(status.values()):
-                    self.state['error_count'] = 0
+                    self.state.reset_errors()
                 else:
-                    self.state['error_count'] += 1
+                    self.state.increment_errors()
                     f = [k.replace('_ok','') for k,v in status.items() if not v]
                     logging.warning(f"Compromised: {f}")
                     time.sleep(5)
             except Exception as e:
                 logging.error(f"Monitor error: {str(e)}")
-                if self.state['error_count'] >= self.state['max_errors']:
+                if self.state.get_error_count() >= self.state.max_errors:
                     sys.exit(1)
             time.sleep(1)
 
@@ -348,7 +349,7 @@ class Jarvis:
                         response, model_name = self.model_manager.get_response(content)
                     
                     self.terminal.print_response(response, model_name)
-                    if (t == 'voice' or self.state['voice_active']) and hasattr(self, 'tts'):
+                    if (t == 'voice' or self.state.voice_active) and hasattr(self, 'tts'):
                         self.tts.speak(response)
                 except Exception as e:
                     self.terminal.print_error(f"Error del modelo: {e}")
@@ -368,7 +369,7 @@ class Jarvis:
             self._handle_critical_error(f"Error processing input: {str(e)}")
 
     def _process_inputs_loop(self):
-        while self.state['running']:
+        while self.state.is_running():
             self._process_inputs()
             time.sleep(0.1)
         self._shutdown_system()
@@ -410,7 +411,7 @@ class Jarvis:
     def _shutdown_system(self, signum=None, frame=None):
         self.terminal.print_status("Shutting down...")
         try:
-            self.state['running'] = False
+            self.state.set_running(False)
             self.terminal.print_warning("Shutdown signal received...")
             
             # V2: Mostrar estadísticas finales
