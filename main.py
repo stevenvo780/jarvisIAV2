@@ -33,6 +33,7 @@ from src.modules.storage_manager import StorageManager
 from modules.actions import Actions
 from modules.system.command_manager import CommandManager
 from src.api.healthcheck import start_healthcheck_api  # Quick Win 6
+from src.metrics import start_metrics_collector_background  # Quick Win 7
 
 setup_logging()
 
@@ -181,6 +182,16 @@ class Jarvis:
                     background=True
                 )
                 self.terminal.print_success(f"Health API running on port {health_port}")
+                
+                # Quick Win 7: Iniciar Metrics Collector en background
+                enable_metrics = os.getenv('ENABLE_METRICS', 'true').lower() == 'true'
+                if enable_metrics:
+                    metrics_interval = int(os.getenv('METRICS_INTERVAL', '15'))
+                    start_metrics_collector_background(
+                        jarvis_instance=self,
+                        interval_seconds=metrics_interval
+                    )
+                    self.terminal.print_success(f"Metrics collector running (interval={metrics_interval}s)")
             else:
                 self.health_api = None
                 self.terminal.print_status("Health API disabled (ENABLE_HEALTH_API=false)")

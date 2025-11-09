@@ -59,6 +59,14 @@ class HealthcheckAPI:
         # Register routes
         self._register_routes()
         
+        # Quick Win 7: Agregar endpoint /metrics de Prometheus
+        try:
+            from src.metrics import add_metrics_endpoint_to_fastapi
+            add_metrics_endpoint_to_fastapi(self.app)
+            logger.info("Prometheus metrics endpoint /metrics added")
+        except Exception as e:
+            logger.warning(f"Could not add metrics endpoint: {e}")
+        
         logger.info(f"HealthcheckAPI initialized on port {port}")
     
     def _register_routes(self):

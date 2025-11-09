@@ -26,6 +26,7 @@ sentence-transformers>=3.3.0
 chromadb>=0.5.20
 faiss-cpu>=1.9.0
 cachetools>=5.5.0  # TTL cache for embeddings
+rank-bm25>=0.2.2  # BM25 for hybrid search (Quick Win 8)
 
 # Speech Recognition (optimizado)
 faster-whisper>=1.1.0
@@ -53,6 +54,9 @@ pynvml>=11.5.3
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
 pydantic>=2.10.0
+
+# Monitoring & Metrics (Quick Win 7)
+prometheus-client>=0.21.0
 
 # Terminal & UI
 colorama>=0.4.6
