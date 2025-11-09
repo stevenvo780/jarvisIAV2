@@ -32,6 +32,7 @@ from src.modules.voice.tts_manager import TTSManager
 from src.modules.storage_manager import StorageManager
 from modules.actions import Actions
 from modules.system.command_manager import CommandManager
+from src.api.healthcheck import start_healthcheck_api  # Quick Win 6
 
 setup_logging()
 
@@ -169,6 +170,20 @@ class Jarvis:
             self.terminal.update_prompt_state('NEUTRAL')
             if self.audio_effects:
                 self.audio_effects.play('startup')
+            
+            # Quick Win 6: Iniciar Health API en background
+            enable_health_api = os.getenv('ENABLE_HEALTH_API', 'true').lower() == 'true'
+            if enable_health_api:
+                health_port = int(os.getenv('HEALTH_API_PORT', '8080'))
+                self.health_api = start_healthcheck_api(
+                    jarvis_instance=self,
+                    port=health_port,
+                    background=True
+                )
+                self.terminal.print_success(f"Health API running on port {health_port}")
+            else:
+                self.health_api = None
+                self.terminal.print_status("Health API disabled (ENABLE_HEALTH_API=false)")
         except Exception as e:
             if hasattr(self, 'audio_effects') and self.audio_effects:
                 self.audio_effects.play('error')

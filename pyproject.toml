@@ -1,0 +1,105 @@
+# Black configuration for JarvisIA V2
+[tool.black]
+line-length = 120
+target-version = ['py310', 'py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | build
+  | dist
+  | \.egg-info
+  | __pycache__
+  | \.pytest_cache
+  | \.mypy_cache
+  | htmlcov
+  | models
+  | vectorstore
+  | logs
+)/
+'''
+
+# isort configuration
+[tool.isort]
+profile = "black"
+line_length = 120
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_glob = [
+    ".venv/*",
+    "venv/*",
+    "build/*",
+    "dist/*",
+    "*.egg-info/*",
+    "__pycache__/*",
+    "models/*",
+    "vectorstore/*",
+    "logs/*"
+]
+
+# pytest configuration (merge with existing pytest.ini)
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=src",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-report=html",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "gpu: marks tests that require GPU",
+    "integration: marks integration tests",
+    "unit: marks unit tests",
+]
+
+# mypy configuration
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+no_strict_optional = true
+check_untyped_defs = false
+disallow_untyped_defs = false
+exclude = [
+    "venv",
+    ".venv",
+    "build",
+    "dist",
+    "models",
+    "vectorstore",
+    "logs"
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+    "*/models/*",
+    "*/vectorstore/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+fail_under = 50
+
+[tool.coverage.html]
+directory = "htmlcov"

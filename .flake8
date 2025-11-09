@@ -1,0 +1,40 @@
+[flake8]
+# Configuración de Flake8 para JarvisIA V2
+max-line-length = 120
+max-complexity = 10
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    *.egg-info,
+    .pytest_cache,
+    .mypy_cache,
+    htmlcov,
+    models,
+    vectorstore,
+    logs
+
+# Error codes to ignore
+ignore = 
+    E203,  # Whitespace before ':'
+    E501,  # Line too long (handled by max-line-length)
+    W503,  # Line break before binary operator
+    W504,  # Line break after binary operator
+    E402,  # Module level import not at top of file (common in __init__.py)
+
+# Critical errors that must be fixed
+select = 
+    E9,    # Runtime errors
+    F63,   # Invalid syntax
+    F7,    # Syntax errors
+    F82,   # Undefined names
+
+per-file-ignores =
+    __init__.py:F401,F403  # Allow unused imports in __init__.py
+    tests/*:F401,F811      # Allow redefinitions in tests
+
+count = True
+statistics = True

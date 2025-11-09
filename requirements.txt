@@ -25,6 +25,7 @@ ctranslate2>=4.5.0
 sentence-transformers>=3.3.0
 chromadb>=0.5.20
 faiss-cpu>=1.9.0
+cachetools>=5.5.0  # TTL cache for embeddings
 
 # Speech Recognition (optimizado)
 faster-whisper>=1.1.0
@@ -47,6 +48,11 @@ google-auth-oauthlib>=1.2.1
 # System Monitoring
 psutil>=6.1.1
 pynvml>=11.5.3
+
+# API & Web Framework (Quick Win 6)
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+pydantic>=2.10.0
 
 # Terminal & UI
 colorama>=0.4.6

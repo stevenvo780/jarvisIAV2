@@ -3,8 +3,11 @@ import os
 import traceback
 from typing import Any, Type, Callable, Optional
 from functools import wraps
-from logging.handlers import RotatingFileHandler
+from logging.handlers import RotatingFileHandler, QueueHandler, QueueListener
+from queue import Queue
 from datetime import datetime
+import json
+import atexit
 
 class JarvisError(Exception):
     """Base exception for all Jarvis errors"""
@@ -57,19 +60,29 @@ class ValidationError(JarvisError):
     """Raised when input validation fails"""
     pass
 
+# Global queue listener for async logging
+_queue_listener: Optional[QueueListener] = None
+
 def setup_logging(
     log_dir: str = "logs", 
     level: int = logging.INFO,
-    structured: bool = False
+    structured: bool = False,
+    async_logging: bool = True  # NEW: Enable async logging by default
 ) -> None:
     """
-    Configura el sistema de logging para Jarvis con soporte para logging estructurado
+    Configura el sistema de logging para Jarvis con soporte para:
+    - Logging asíncrono (non-blocking I/O)
+    - Formato JSON estructurado
+    - Rotación de archivos
     
     Args:
         log_dir: Directorio donde se guardarán los logs
         level: Nivel de logging (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         structured: Si True, usa formato JSON estructurado
+        async_logging: Si True, usa QueueHandler para logging no-bloqueante
     """
+    global _queue_listener
+    
     try:
         os.makedirs(log_dir, exist_ok=True)
         
@@ -82,28 +95,6 @@ def setup_logging(
         if root_logger.handlers:
             root_logger.handlers.clear()
         
-        # Handler para archivo principal
-        file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=10*1024*1024,  # 10MB
-            backupCount=5,
-            encoding='utf-8'
-        )
-        file_handler.setLevel(level)
-        
-        # Handler separado para errores
-        error_handler = RotatingFileHandler(
-            error_log_file,
-            maxBytes=5*1024*1024,  # 5MB
-            backupCount=3,
-            encoding='utf-8'
-        )
-        error_handler.setLevel(logging.ERROR)
-        
-        # Handler para consola
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-        
         # Formato estructurado o tradicional
         if structured:
             formatter = StructuredFormatter()
@@ -113,27 +104,122 @@ def setup_logging(
                 datefmt='%Y-%m-%d %H:%M:%S'
             )
         
-        file_handler.setFormatter(formatter)
-        error_handler.setFormatter(formatter)
-        console_handler.setFormatter(formatter)
+        if async_logging:
+            # ASYNC LOGGING: QueueHandler + QueueListener
+            log_queue = Queue(-1)  # Unlimited size
+            
+            # Handler para archivo principal
+            file_handler = RotatingFileHandler(
+                log_file,
+                maxBytes=10*1024*1024,  # 10MB
+                backupCount=5,
+                encoding='utf-8'
+            )
+            file_handler.setLevel(level)
+            file_handler.setFormatter(formatter)
+            
+            # Handler separado para errores
+            error_handler = RotatingFileHandler(
+                error_log_file,
+                maxBytes=5*1024*1024,  # 5MB
+                backupCount=3,
+                encoding='utf-8'
+            )
+            error_handler.setLevel(logging.ERROR)
+            error_handler.setFormatter(formatter)
+            
+            # Handler para consola
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.INFO)
+            console_handler.setFormatter(formatter)
+            
+            # QueueListener procesará logs en thread separado
+            _queue_listener = QueueListener(
+                log_queue,
+                file_handler,
+                error_handler,
+                console_handler,
+                respect_handler_level=True
+            )
+            _queue_listener.start()
+            
+            # QueueHandler en main thread (non-blocking)
+            queue_handler = QueueHandler(log_queue)
+            root_logger.addHandler(queue_handler)
+            
+            # Cleanup on exit
+            atexit.register(_stop_queue_listener)
+            
+            logging.info("✅ Async logging initialized (QueueHandler)")
         
-        root_logger.addHandler(file_handler)
-        root_logger.addHandler(error_handler)
-        root_logger.addHandler(console_handler)
-        
-        logging.info("Sistema de logging inicializado correctamente")
+        else:
+            # SYNC LOGGING: Traditional handlers
+            file_handler = RotatingFileHandler(
+                log_file,
+                maxBytes=10*1024*1024,  # 10MB
+                backupCount=5,
+                encoding='utf-8'
+            )
+            file_handler.setLevel(level)
+            
+            # Handler separado para errores
+            error_handler = RotatingFileHandler(
+                error_log_file,
+                maxBytes=5*1024*1024,  # 5MB
+                backupCount=3,
+                encoding='utf-8'
+            )
+            error_handler.setLevel(logging.ERROR)
+            
+            # Handler para consola
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.INFO)
+            
+            file_handler.setFormatter(formatter)
+            error_handler.setFormatter(formatter)
+            console_handler.setFormatter(formatter)
+            
+            root_logger.addHandler(file_handler)
+            root_logger.addHandler(error_handler)
+            root_logger.addHandler(console_handler)
+            
+            logging.info("Sistema de logging inicializado correctamente")
         
     except Exception as e:
         print(f"Error configurando logging: {e}")
         raise
 
 
+def _stop_queue_listener():
+    """Stop queue listener on shutdown"""
+    global _queue_listener
+    if _queue_listener:
+        _queue_listener.stop()
+        _queue_listener = None
+
+
 class StructuredFormatter(logging.Formatter):
-    """Formatter para logging estructurado en JSON"""
+    """
+    Formatter para logging estructurado en JSON.
+    
+    Genera logs en formato JSON con campos estándar + campos extras.
+    Útil para análisis con herramientas como jq, Elasticsearch, etc.
+    
+    Example log entry:
+    {
+        "timestamp": "2025-01-09T14:30:45.123456",
+        "level": "INFO",
+        "logger": "JarvisIA",
+        "message": "Query processed",
+        "module": "main",
+        "function": "process_query",
+        "line": 42,
+        "query_time_ms": 150.5,
+        "model": "qwen-14b"
+    }
+    """
     
     def format(self, record: logging.LogRecord) -> str:
-        import json
-        
         log_data = {
             "timestamp": datetime.fromtimestamp(record.created).isoformat(),
             "level": record.levelname,
@@ -141,7 +227,9 @@ class StructuredFormatter(logging.Formatter):
             "message": record.getMessage(),
             "module": record.module,
             "function": record.funcName,
-            "line": record.lineno
+            "line": record.lineno,
+            "thread_id": record.thread,
+            "thread_name": record.threadName
         }
         
         # Añadir información de excepción si existe
@@ -152,11 +240,36 @@ class StructuredFormatter(logging.Formatter):
                 "traceback": traceback.format_exception(*record.exc_info)
             }
         
-        # Añadir campos extras
+        # Añadir campos extras (lazy evaluation)
         if hasattr(record, 'extra_fields'):
             log_data.update(record.extra_fields)
         
         return json.dumps(log_data, ensure_ascii=False)
+
+
+def log_with_context(logger: logging.Logger, level: int, message: str, **kwargs):
+    """
+    Helper para logging con contexto adicional (lazy evaluation).
+    
+    Args:
+        logger: Logger instance
+        level: Log level (logging.INFO, logging.ERROR, etc.)
+        message: Log message
+        **kwargs: Extra context fields (solo se evalúan si el log se emite)
+    
+    Example:
+        log_with_context(
+            logger, 
+            logging.INFO, 
+            "Query processed",
+            query_time_ms=150.5,
+            model="qwen-14b",
+            tokens=256
+        )
+    """
+    if logger.isEnabledFor(level):
+        extra = {'extra_fields': kwargs}
+        logger.log(level, message, extra=extra)
 
 def handle_errors(
     error_type: Type[Exception] = Exception,

@@ -253,10 +253,13 @@ class ModelOrchestrator:
         self.model_access_times[model_id] = time.time()
     
     def _load_vllm_model(self, model_id: str, config: ModelConfig) -> Dict[str, Any]:
-        """Load model using vLLM backend with timeout protection"""
+        """Load model using vLLM backend with timeout protection and optimized config"""
         self.logger.info(f"🚄 Loading {config.name} with vLLM on GPU {config.gpu_id}")
         
         timeout = self.config.get("system", {}).get("model_load_timeout", 300)  # 5 min default
+        
+        # Get GPU config for optimizations
+        gpu_config = getattr(self, 'gpu_config', None)
         
         def _load_inner():
             from vllm import LLM, SamplingParams
@@ -264,14 +267,22 @@ class ModelOrchestrator:
             # Set GPU
             os.environ['CUDA_VISIBLE_DEVICES'] = str(config.gpu_id)
             
+            # Optimized vLLM configuration
             llm = LLM(
                 model=config.path,
                 quantization=config.quantization,
-                gpu_memory_utilization=0.90,
+                gpu_memory_utilization=0.92 if not gpu_config else gpu_config.gpu_memory_utilization,  # Optimizado: 0.90 → 0.92
                 max_model_len=config.max_tokens,
+                max_num_seqs=64 if not gpu_config else getattr(gpu_config, 'max_num_seqs', 64),  # Optimizado: 16 → 64
+                max_num_batched_tokens=8192 if not gpu_config else getattr(gpu_config, 'max_num_batched_tokens', 8192),
+                enable_prefix_caching=True if not gpu_config else getattr(gpu_config, 'enable_prefix_caching', True),
+                enable_chunked_prefill=True if not gpu_config else getattr(gpu_config, 'enable_chunked_prefill', True),
+                swap_space=8 if not gpu_config else getattr(gpu_config, 'swap_space_gb', 8),
                 tensor_parallel_size=1,
                 trust_remote_code=True
             )
+            
+            self.logger.info(f"✅ vLLM optimizations applied: gpu_mem=0.92, max_seqs=64, prefix_cache=on, chunked_prefill=on")
             
             return {
                 'model': llm,
