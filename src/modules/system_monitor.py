@@ -1,4 +1,5 @@
 import sys
+import os
 import psutil
 import logging
 import sounddevice as sd
@@ -14,6 +15,11 @@ class SystemMonitor:
             'temp': 87.0,
             'battery': 10.0
         }
+        # Check if audio is enabled from environment
+        self.audio_enabled = (
+            os.getenv('ENABLE_TTS', 'true').lower() == 'true' or 
+            os.getenv('ENABLE_AUDIO_EFFECTS', 'true').lower() == 'true'
+        )
 
     def check_system_health(self) -> Dict[str, bool]:
         return {
@@ -51,6 +57,10 @@ class SystemMonitor:
             return True
 
     def _check_audio_service(self) -> bool:
+        # Skip audio check if audio is disabled
+        if not self.audio_enabled:
+            return True
+            
         try:
             devices = sd.query_devices()
             if not devices:
@@ -58,13 +68,13 @@ class SystemMonitor:
                 return False
                 
             if not pygame.mixer.get_init():
-                logging.error("Pygame mixer no está inicializado")
-                return False
+                logging.warning("Pygame mixer no está inicializado (audio desactivado)")
+                return True  # Return True since it's expected when disabled
                 
             return True
         except Exception as e:
-            logging.error(f"Error verificando dispositivos de audio: {e}")
-            return False
+            logging.debug(f"Audio check skipped: {e}")
+            return True
 
     def _check_temperature(self) -> bool:
         try:

@@ -62,7 +62,7 @@ class Jarvis:
                 self.terminal.print_success("TTS initialized")
             else:
                 self.tts = None
-                self.terminal.print_info("TTS disabled (ENABLE_TTS=false)")
+                self.terminal.print_status("TTS disabled (ENABLE_TTS=false)")
             
             self.storage = StorageManager()
             self.terminal.print_success("Storage initialized")
@@ -74,7 +74,7 @@ class Jarvis:
                 self.terminal.print_success("Audio effects initialized")
             else:
                 self.audio_effects = None
-                self.terminal.print_info("Audio effects disabled (ENABLE_AUDIO_EFFECTS=false)")
+                self.terminal.print_status("Audio effects disabled (ENABLE_AUDIO_EFFECTS=false)")
             
             # Inicializar métricas y monitoreo
             self.metrics = MetricsTracker(
@@ -89,7 +89,7 @@ class Jarvis:
                 try:
                     self.embeddings = EmbeddingManager(
                         model_name="models/embeddings/bge-m3",
-                        device="cuda:1",
+                        device="cpu",  # CPU mode to avoid CUDA OOM
                         chroma_path="vectorstore/chromadb"
                     )
                     self.terminal.print_success("Embedding system (RAG) initialized")
@@ -170,7 +170,7 @@ class Jarvis:
             if self.audio_effects:
                 self.audio_effects.play('startup')
         except Exception as e:
-            if self.audio_effects:
+            if hasattr(self, 'audio_effects') and self.audio_effects:
                 self.audio_effects.play('error')
             self.terminal.print_error(f"Initialization error: {e}")
             sys.exit(1)

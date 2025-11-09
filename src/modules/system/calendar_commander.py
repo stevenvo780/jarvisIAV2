@@ -1,4 +1,4 @@
-from llama_cpp import Optional
+from typing import Optional
 from .base_commander import BaseCommander
 import os
 import pickle
