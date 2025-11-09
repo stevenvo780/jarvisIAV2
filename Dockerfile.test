@@ -1,0 +1,32 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar archivos de requerimientos
+COPY requirements.txt .
+COPY pyproject.toml .
+
+# Instalar dependencias de Python (solo las básicas para testing)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    python-dotenv colorama prompt-toolkit psutil \
+    pydantic fastapi uvicorn \
+    pytest pytest-asyncio pytest-cov
+
+# Copiar código fuente
+COPY . .
+
+# Variables de entorno para modo de prueba
+ENV ENABLE_TTS=false \
+    ENABLE_AUDIO_EFFECTS=false \
+    ENABLE_RAG=false \
+    PYTHONUNBUFFERED=1
+
+CMD ["/bin/bash"]
