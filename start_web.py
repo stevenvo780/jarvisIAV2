@@ -152,6 +152,16 @@ def run_web_server(jarvis_instance, host='0.0.0.0', port=8090):
 def main():
     """Main entry point"""
     try:
+        # Verificar y crear models_v2.json si no existe
+        models_v2_path = PROJECT_ROOT / 'src' / 'config' / 'models_v2.json'
+        models_path = PROJECT_ROOT / 'src' / 'config' / 'models.json'
+        
+        if not models_v2_path.exists() and models_path.exists():
+            logger.info("📋 Creando models_v2.json desde models.json...")
+            import shutil
+            shutil.copy(models_path, models_v2_path)
+            logger.info("✅ models_v2.json creado")
+        
         # Banner
         print("\n" + "="*60)
         print("🤖 JARVIS AI ASSISTANT - WEB INTERFACE")

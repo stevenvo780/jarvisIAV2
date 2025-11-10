@@ -20,6 +20,8 @@ O con Python directamente:
 python3 start_web.py
 ```
 
+**Nota:** Los scripts detectan y corrigen automáticamente problemas de configuración (como `models_v2.json` faltante).
+
 ### 3. Abrir Navegador
 
 ```

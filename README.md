@@ -2,7 +2,27 @@
 
 Un asistente virtual de IA sofisticado con procesamiento avanzado de voz y texto, integración de calendario, inteligencia multi-modelo y arquitectura multi-GPU optimizada para hardware de alto rendimiento.
 
-## 🏆 Calidad de Código: 10/10
+## � **NUEVO: Interfaz Web Moderna**
+
+¿Cansado de logs técnicos en la terminal? **¡Usa la interfaz web!**
+
+```bash
+./start_web.sh
+# Abre: http://localhost:8090
+```
+
+✨ **Características:**
+- 🎨 Interfaz tipo ChatGPT (dark mode)
+- 🚫 Sin logs técnicos visibles
+- 📱 Responsive (móvil, tablet, desktop)
+- 💾 Historial persistente
+- ⚡ Status de modelos en tiempo real
+
+📖 Ver **[WEB_QUICKSTART.md](WEB_QUICKSTART.md)** para inicio rápido
+
+---
+
+## �🏆 Calidad de Código: 10/10
 
 > **Auditoría completa completada** - Todos los problemas críticos corregidos y optimizaciones de excelencia implementadas.
 

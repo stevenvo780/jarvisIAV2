@@ -62,6 +62,20 @@ else
     echo -e "${YELLOW}⚠️  nvidia-smi no encontrado (modo CPU)${NC}"
 fi
 
+# Check models_v2.json
+echo -e "${BLUE}🔍 Verificando configuración...${NC}"
+if [ ! -f "src/config/models_v2.json" ] && [ -f "src/config/models.json" ]; then
+    echo -e "${YELLOW}⚠️  models_v2.json no encontrado${NC}"
+    echo -e "${BLUE}📋 Creando desde models.json...${NC}"
+    cp src/config/models.json src/config/models_v2.json
+    echo -e "${GREEN}✅ models_v2.json creado${NC}"
+elif [ -f "src/config/models_v2.json" ]; then
+    echo -e "${GREEN}✅ Configuración encontrada${NC}"
+else
+    echo -e "${RED}❌ No se encontró models.json${NC}"
+    exit 1
+fi
+
 echo ""
 echo -e "${BLUE}🚀 Iniciando Jarvis Web Interface...${NC}"
 echo ""

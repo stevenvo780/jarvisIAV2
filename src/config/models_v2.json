@@ -1,0 +1,243 @@
+{
+  "version": "2.0",
+  "description": "Multi-GPU Model Configuration for Jarvis IA",
+  
+  "gpu_config": {
+    "gpu_0": {
+      "name": "RTX 5070 Ti",
+      "vram_total": 16384,
+      "vram_reserved": 500,
+      "primary_use": "All LLMs - ONLY GPU TO USE",
+      "enabled": true
+    },
+    "gpu_1": {
+      "name": "RTX 2060",
+      "vram_total": 6144,
+      "vram_reserved": 300,
+      "primary_use": "DISABLED - Not enough VRAM",
+      "enabled": false
+    }
+  },
+
+  "models": {
+    "qwen-14b": {
+      "name": "Qwen2.5-14B-Instruct-AWQ",
+      "path": "models/llm/qwen2.5-14b-awq",
+      "backend": "vllm",
+      "gpu_id": 0,
+      "vram_required": 6144,
+      "vram_peak_mb": 2048,
+      "difficulty_range": [1, 100],
+      "quantization": "awq",
+      "priority": 1,
+      "deprecated": false,
+      "max_tokens": 4096,
+      "temperature": 0.7,
+      "top_p": 0.9,
+      "stop": ["\n\n\n", "🟢", "###"]
+    },
+    
+    "qwen-32b": {
+      "name": "Qwen2.5-32B-Instruct",
+      "path": "models/llm/qwen2.5-32b-awq",
+      "backend": "vllm",
+      "gpu_id": 0,
+      "vram_required": 13800,
+      "difficulty_range": [1, 100],
+      "quantization": "awq",
+      "priority": 100,
+      "max_tokens": 4096,
+      "temperature": 0.7,
+      "specialties": ["math", "code", "technical", "analysis"],
+      "description": "DESHABILITADO - Requiere 15.4GB VRAM (OOM en RTX 5070 Ti)",
+      "deprecated": true
+    },
+    
+    "llama-70b": {
+      "name": "Llama-3.3-70B-Instruct",
+      "path": "models/llm/llama-3.3-70b-awq",
+      "backend": "vllm",
+      "gpu_id": 0,
+      "vram_required": 19320,
+      "difficulty_range": [1, 100],
+      "quantization": "awq",
+      "priority": 100,
+      "max_tokens": 4096,
+      "temperature": 0.7,
+      "description": "DESHABILITADO - Requiere 19.3GB VRAM (no cabe en RTX 5070 Ti)",
+      "deprecated": true
+    },
+    
+    "deepseek-14b": {
+      "name": "DeepSeek-R1-Distill-Qwen-14B",
+      "path": "models/llm/deepseek-r1-14b-gptq",
+      "backend": "vllm",
+      "gpu_id": 0,
+      "vram_required": 9000,
+      "difficulty_range": [65, 95],
+      "quantization": "gptq",
+      "priority": 100,
+      "max_tokens": 4096,
+      "temperature": 0.7,
+      "specialties": ["reasoning", "math", "step-by-step", "analysis"],
+      "description": "DESHABILITADO - Usar solo qwen-14b",
+      "deprecated": true
+    },
+    
+    "mistral-7b": {
+      "name": "Mistral-7B-Instruct-v0.3-AWQ",
+      "path": "models/llm/mistral-7b-awq",
+      "backend": "vllm",
+      "gpu_id": 0,
+      "vram_required": 3500,
+      "difficulty_range": [20, 65],
+      "quantization": "awq",
+      "priority": 100,
+      "max_tokens": 8192,
+      "temperature": 0.7,
+      "specialties": ["chat", "general", "fast"],
+      "description": "DESHABILITADO - Usar solo qwen-14b",
+      "deprecated": true
+    },
+    
+    "llama-8b": {
+      "name": "Llama-3.2-8B-Instruct",
+      "path": "models/llm/llama-3.2-8b-instruct",
+      "backend": "transformers",
+      "gpu_id": 0,
+      "vram_required": 4500,
+      "difficulty_range": [1, 60],
+      "quantization": "4bit",
+      "priority": 100,
+      "max_tokens": 2048,
+      "temperature": 0.7,
+      "description": "DESHABILITADO - Usar qwen-14b en su lugar",
+      "use_flash_attention": true,
+      "load_in_4bit": true,
+      "bnb_4bit_compute_dtype": "float16",
+      "bnb_4bit_use_double_quant": true,
+      "deprecated": true
+    },
+    
+    "llama-3b-legacy": {
+      "name": "Llama-3.2-3B (Legacy)",
+      "path": "meta-llama/Llama-3.2-3B",
+      "backend": "transformers",
+      "gpu_id": 0,
+      "vram_required": 3000,
+      "difficulty_range": [1, 40],
+      "quantization": "4bit",
+      "priority": 100,
+      "max_tokens": 1024,
+      "temperature": 0.7,
+      "description": "DESHABILITADO - Modelo legacy deprecado",
+      "deprecated": true,
+      "fallback_for": []
+    }
+  },
+
+  "api_models": {
+    "gpt-4o-mini": {
+      "provider": "openai",
+      "model_name": "gpt-4o-mini",
+      "difficulty_range": [1, 100],
+      "cost_per_1k_input": 0.00015,
+      "cost_per_1k_output": 0.0006,
+      "max_tokens": 16384,
+      "temperature": 0.7,
+      "use_case": "Fallback universal cuando modelos locales no disponibles",
+      "fallback": true,
+      "priority": 90
+    },
+    
+    "gemini-2.0-flash": {
+      "provider": "google",
+      "model_name": "gemini-2.0-flash-exp",
+      "difficulty_range": [1, 100],
+      "cost_per_1k_input": 0.0,
+      "cost_per_1k_output": 0.0,
+      "max_tokens": 8192,
+      "temperature": 0.7,
+      "use_case": "Fallback gratuito cuando modelos locales no disponibles",
+      "free_tier": true,
+      "fallback": true,
+      "priority": 95
+    }
+  },
+
+  "embeddings": {
+    "bge-m3": {
+      "name": "BGE-M3",
+      "path": "models/embeddings/bge-m3",
+      "gpu_id": 0,
+      "vram_required": 1500,
+      "dimensions": 1024,
+      "max_seq_length": 8192,
+      "description": "Embeddings multilingües para RAG",
+      "use_case": "General purpose embeddings"
+    },
+    
+    "e5-mistral-7b": {
+      "name": "E5-Mistral-7B-Instruct",
+      "path": "models/embeddings/e5-mistral-7b",
+      "gpu_id": 0,
+      "vram_required": 4000,
+      "dimensions": 4096,
+      "max_seq_length": 4096,
+      "description": "Embeddings de alta calidad (opcional)",
+      "use_case": "High quality semantic search",
+      "optional": true
+    }
+  },
+
+  "whisper": {
+    "model_name": "Whisper-Large-V3-Turbo",
+    "path": "models/whisper/large-v3-turbo-ct2",
+    "backend": "faster-whisper",
+    "gpu_id": 0,
+    "vram_required": 2000,
+    "compute_type": "int8",
+    "beam_size": 5,
+    "language": "es",
+    "description": "ASR optimizado con CTranslate2"
+  },
+
+  "routing": {
+    "prefer_local": true,
+    "max_local_latency": 30.0,
+    "fallback_on_oom": true,
+    "fallback_on_error": true,
+    "cache_responses": true,
+    "cache_ttl": 3600,
+    "route_by_specialty": false,
+    "cost_optimization": true,
+    "max_api_cost_per_day": 2.0,
+    "local_first_priority": true,
+    "api_only_if_no_local": true,
+    "default_model": "qwen-14b"
+  },
+
+  "system": {
+    "max_history": 10,
+    "default_history_size": 5,
+    "vram_buffer_mb": 500,
+    "auto_unload_models": true,
+    "model_swap_strategy": "lru",
+    "max_models_per_gpu": 2,
+    "model_load_timeout": 300,
+    "enable_metrics": true,
+    "metrics_log_path": "logs/metrics.jsonl",
+    "enable_rag": true,
+    "rag_max_context": 3,
+    "rag_collection_name": "jarvis_memory",
+    "enable_dynamic_tokens": true
+  },
+
+  "security": {
+    "blocked_terms": [";", "&&", "|", "`", "$("],
+    "max_query_length": 4096,
+    "sanitize_responses": true
+  },
+
+  "log_level": "INFO"
+}
