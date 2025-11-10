@@ -215,7 +215,7 @@ class WebInterface:
             return "Error: Jarvis no está inicializado"
         
         try:
-            # Usar ModelOrchestrator directamente para obtener respuesta
+            # Usar ModelOrchestrator para obtener respuesta
             llm_system = getattr(self.jarvis, 'llm_system', None)
             if llm_system:
                 # Buscar contexto RAG si está disponible
@@ -235,16 +235,19 @@ class WebInterface:
                         logger.debug(f"No se pudo obtener contexto RAG: {e}")
                 
                 # Construir prompt con contexto
-                full_prompt = f"{context}\nUsuario: {message}\nAsistente:"
+                full_prompt = f"{context}\nUsuario: {message}\nAsistente:" if context else message
                 
-                # Obtener respuesta del modelo
-                response = await asyncio.to_thread(
-                    llm_system.query,
+                # Estimar dificultad (simple: longitud del mensaje)
+                difficulty = min(50 + len(message) // 10, 90)
+                
+                # Obtener respuesta del modelo usando get_response
+                response, model_used = await asyncio.to_thread(
+                    llm_system.get_response,
                     full_prompt,
-                    query_type="chat"
+                    difficulty=difficulty
                 )
                 
-                if response:
+                if response and not response.startswith("Error:"):
                     # Guardar en memoria RAG
                     if embedding_manager:
                         try:
@@ -256,6 +259,8 @@ class WebInterface:
                             logger.debug(f"No se pudo guardar en RAG: {e}")
                     
                     return response
+                elif response:
+                    return response  # Devolver mensaje de error del orchestrator
                 
                 return "Lo siento, no pude generar una respuesta."
             
