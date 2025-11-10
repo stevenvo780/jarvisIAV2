@@ -15,6 +15,7 @@ import torch
 
 # Import DynamicTokenManager for adaptive token allocation
 from src.utils.dynamic_token_manager import DynamicTokenManager, QueryType
+from src.utils.log_suppressor import model_loading_context
 
 try:
     import pynvml
@@ -309,8 +310,7 @@ class ModelOrchestrator:
         gpu_config = getattr(self, 'gpu_config', None)
         
         def _load_inner():
-            # Importar context manager para suprimir logs
-            from src.utils.log_suppressor import model_loading_context
+            # Importar vLLM dentro de la función
             from vllm import LLM, SamplingParams
             
             # Set GPU
