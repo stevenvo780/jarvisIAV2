@@ -698,14 +698,14 @@ class ModelOrchestrator:
         if model_id not in self.loaded_models:
             loaded = self._load_model(model_id)
             if not loaded:
-                # Fallback to API: trivial queries (<20) or complex (>75)
-                if difficulty < 20 or difficulty > 75:
-                    reason = "trivial" if difficulty < 20 else f"complex ({difficulty})"
+                # Fallback to API: trivial queries (<30) or complex (>70)
+                if difficulty < 30 or difficulty > 70:
+                    reason = "trivial" if difficulty < 30 else f"complex ({difficulty})"
                     self.logger.info(f"🌐 Using API fallback for {reason} query (local model unavailable)")
                     return self._fallback_to_api(query, difficulty)
                 else:
                     self.logger.error(f"❌ Local model {model_id} unavailable and difficulty={difficulty} not eligible for API fallback")
-                    return (f"Error: Modelo local {model_id} no disponible. Dificultad {difficulty} requiere modelo local (API solo para <20 o >75).", model_id)
+                    return (f"Error: Modelo local {model_id} no disponible. Dificultad {difficulty} requiere modelo local (API solo para <30 o >70).", model_id)
         
         # Generate response
         try:

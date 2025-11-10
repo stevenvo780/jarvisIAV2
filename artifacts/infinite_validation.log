@@ -3779,3 +3779,35 @@ iled to load model qwen-14b: Engine core initialization failed. See root cause a
 2025-11-10 02:27:50 - EmbeddingManager - INFO - [embedding_manager.py:379] - ✅ Added 1 items to memory
 
 [2025-11-10 02:27:52] ✅ LOCAL MODEL (qwen-14b) | 19.26s
+[2025-11-10 02:27:54] 
+================================================================================
+[2025-11-10 02:27:54] ITERATION #5 | Category: MEDIUM
+[2025-11-10 02:27:54] Query: ¿Cuántos planetas hay en el sistema solar?
+[2025-11-10 02:27:54] ================================================================================
+[2025-11-10 02:27:54] ▶ Ejecutando: ¿Cuántos planetas hay en el sistema solar?...
+[2025-11-10 02:28:13] ❌ ERROR DETECTED:
+iled to load model qwen-14b: Engine core initialization failed. See root cause above. Failed core proc(s): {}
+2025-11-10 02:28:11 - ModelOrchestrator - ERROR - [model_orchestrator.py:707] - ❌ Local model qwen-14b unavailable and difficulty=30 not eligible for API fallback
+2025-11-10 02:28:11 - EmbeddingManager - INFO - [embedding_manager.py:288] - Embedded 1 texts, 0 from cache (0.0% hit rate)
+2025-11-10 02:28:11 - EmbeddingManager - INFO - [embedding_manager.py:379] - ✅ Added 1 items to memory
+
+[2025-11-10 02:28:13] ✅ LOCAL MODEL (qwen-14b) | 18.75s
+[2025-11-10 02:28:15] 
+================================================================================
+[2025-11-10 02:28:15] ITERATION #6 | Category: SIMPLE
+[2025-11-10 02:28:15] Query: Di un número del 1 al 10
+[2025-11-10 02:28:15] ================================================================================
+[2025-11-10 02:28:15] ▶ Ejecutando: Di un número del 1 al 10...
+[2025-11-10 02:28:34] ❌ ERROR DETECTED:
+iled to load model qwen-14b: Engine core initialization failed. See root cause above. Failed core proc(s): {}
+2025-11-10 02:28:32 - ModelOrchestrator - ERROR - [model_orchestrator.py:707] - ❌ Local model qwen-14b unavailable and difficulty=30 not eligible for API fallback
+2025-11-10 02:28:32 - EmbeddingManager - INFO - [embedding_manager.py:288] - Embedded 1 texts, 0 from cache (0.0% hit rate)
+2025-11-10 02:28:32 - EmbeddingManager - INFO - [embedding_manager.py:379] - ✅ Added 1 items to memory
+
+[2025-11-10 02:28:34] ✅ LOCAL MODEL (qwen-14b) | 18.80s
+[2025-11-10 02:28:36] 
+================================================================================
+[2025-11-10 02:28:36] ITERATION #7 | Category: SIMPLE
+[2025-11-10 02:28:36] Query: ¿Qué hora es?
+[2025-11-10 02:28:36] ================================================================================
+[2025-11-10 02:28:36] ▶ Ejecutando: ¿Qué hora es?...
