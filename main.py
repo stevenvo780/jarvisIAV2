@@ -12,34 +12,22 @@ args, _ = parser.parse_known_args()
 if args.debug:
     os.environ['JARVIS_DEBUG'] = '1'
 
-# Suprimir logs si NO está --debug
-if not args.debug:
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
-    os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-    os.environ['VLLM_LOGGING_LEVEL'] = 'ERROR'
-    os.environ['VLLM_CONFIGURE_LOGGING'] = '0'  # Desactiva logging de vLLM
-    os.environ['VLLM_LOGGING_CONFIG_PATH'] = ''
-    import warnings
-    warnings.filterwarnings('ignore')
-    
-    # Suprimir logs de librerías verbosas
-    import logging
-    for logger_name in ['vllm', 'torch', 'transformers', 'sentence_transformers', 
-                        'chromadb', 'httpx', 'asyncio', 'tqdm']:
-        logging.getLogger(logger_name).setLevel(logging.CRITICAL)
-        logging.getLogger(logger_name).propagate = False
-
-import time
-import threading
-from queue import Queue, Empty
-from dotenv import load_dotenv
-from concurrent.futures import ThreadPoolExecutor
-
+# Configurar supresión de logs ANTES de cualquier import
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(PROJECT_ROOT, 'src')
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, SRC_DIR)
+
+# Importar y configurar supresión temprano
+from src.utils.log_suppressor import setup_clean_terminal
+setup_clean_terminal()
+
+import time
+import logging
+import threading
+from queue import Queue, Empty
+from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor
 
 from src.utils.error_handler import setup_logging
 from src.utils.audio_utils import AudioEffects

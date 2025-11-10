@@ -309,27 +309,16 @@ class ModelOrchestrator:
         gpu_config = getattr(self, 'gpu_config', None)
         
         def _load_inner():
+            # Importar context manager para suprimir logs
+            from src.utils.log_suppressor import model_loading_context
             from vllm import LLM, SamplingParams
-            
-            # Suprimir logs de vLLM si no es debug
-            if not os.environ.get('JARVIS_DEBUG'):
-                import logging
-                import sys
-                from io import StringIO
-                
-                # Redirigir stdout/stderr temporalmente para suprimir logs de vLLM
-                old_stdout = sys.stdout
-                old_stderr = sys.stderr
-                sys.stdout = StringIO()
-                sys.stderr = StringIO()
-                
-                logging.getLogger('vllm').setLevel(logging.ERROR)
-                logging.getLogger('torch').setLevel(logging.ERROR)
             
             # Set GPU
             os.environ['CUDA_VISIBLE_DEVICES'] = str(config.gpu_id)
             
-            try:
+            # Cargar modelo con supresión de logs
+            debug_mode = os.environ.get('JARVIS_DEBUG') == '1'
+            with model_loading_context(debug_mode=debug_mode):
                 # Optimized vLLM configuration
                 llm = LLM(
                     model=config.path,
@@ -345,11 +334,6 @@ class ModelOrchestrator:
                     trust_remote_code=True,
                     disable_log_stats=True  # Desactiva stats de vLLM
                 )
-            finally:
-                # Restaurar stdout/stderr
-                if not os.environ.get('JARVIS_DEBUG'):
-                    sys.stdout = old_stdout
-                    sys.stderr = old_stderr
             
             self.logger.info(f"✅ vLLM optimizations applied: gpu_mem=0.85, max_seqs=32, prefix_cache=on, chunked_prefill=on")
             
