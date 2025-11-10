@@ -102,18 +102,6 @@ class JarvisWeb:
         self.actions = Actions()
         logger.info("✓ Actions initialized")
         
-        # Text Handler
-        self.text_handler = TextHandler(
-            llm_system=self.llm_system,
-            embedding_manager=self.embedding_manager,
-            actions=self.actions,
-            storage=self.storage,
-            learning_manager=self.learning_manager,
-            prompt_builder=self.prompt_builder,
-            quality_evaluator=self.quality_evaluator
-        )
-        logger.info("✓ Text handler initialized")
-        
         logger.info("✅ Jarvis core initialized successfully")
     
     def get_status(self):

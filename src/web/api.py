@@ -215,25 +215,49 @@ class WebInterface:
             return "Error: Jarvis no está inicializado"
         
         try:
-            # Intentar usar el sistema de procesamiento de texto de Jarvis
-            text_handler = getattr(self.jarvis, 'text_handler', None)
-            if text_handler:
-                # Procesar con el handler de texto existente
-                response = await asyncio.to_thread(
-                    text_handler.process_input,
-                    message
-                )
-                return response if response else "Lo siento, no pude procesar tu mensaje."
-            
-            # Fallback: usar LLM directamente
+            # Usar ModelOrchestrator directamente para obtener respuesta
             llm_system = getattr(self.jarvis, 'llm_system', None)
             if llm_system:
+                # Buscar contexto RAG si está disponible
+                context = ""
+                embedding_manager = getattr(self.jarvis, 'embedding_manager', None)
+                if embedding_manager:
+                    try:
+                        results = await asyncio.to_thread(
+                            embedding_manager.search_memories,
+                            message,
+                            k=3
+                        )
+                        if results:
+                            context = "\n".join([f"- {r['content']}" for r in results[:3]])
+                            context = f"\nContexto relevante:\n{context}\n"
+                    except Exception as e:
+                        logger.debug(f"No se pudo obtener contexto RAG: {e}")
+                
+                # Construir prompt con contexto
+                full_prompt = f"{context}\nUsuario: {message}\nAsistente:"
+                
+                # Obtener respuesta del modelo
                 response = await asyncio.to_thread(
                     llm_system.query,
-                    message,
-                    query_type="general"
+                    full_prompt,
+                    query_type="chat"
                 )
-                return response if response else "Lo siento, no pude generar una respuesta."
+                
+                if response:
+                    # Guardar en memoria RAG
+                    if embedding_manager:
+                        try:
+                            await asyncio.to_thread(
+                                embedding_manager.add_memory,
+                                f"Usuario preguntó: {message}. Respondí: {response}"
+                            )
+                        except Exception as e:
+                            logger.debug(f"No se pudo guardar en RAG: {e}")
+                    
+                    return response
+                
+                return "Lo siento, no pude generar una respuesta."
             
             return "Error: Sistema de procesamiento no disponible"
         
