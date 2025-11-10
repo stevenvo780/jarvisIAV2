@@ -1,23 +1,23 @@
 {
-  "timestamp": "2025-11-09T21:55:54.779896",
+  "timestamp": "2025-11-09T21:56:24.815654",
   "loop": {
-    "iterations": 32,
-    "errors": 20,
+    "iterations": 33,
+    "errors": 21,
     "api_calls": 0,
-    "local_calls": 26
+    "local_calls": 28
   },
   "gpus": [
     {
       "index": 0,
-      "memory_used_mb": 29,
-      "memory_free_mb": 15812,
-      "utilization_percent": 100
+      "memory_used_mb": 31,
+      "memory_free_mb": 15810,
+      "utilization_percent": 0
     },
     {
       "index": 1,
-      "memory_used_mb": 3047,
+      "memory_used_mb": 3048,
       "memory_free_mb": 2689,
-      "utilization_percent": 15
+      "utilization_percent": 18
     }
   ]
 }
