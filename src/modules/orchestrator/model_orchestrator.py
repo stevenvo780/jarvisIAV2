@@ -318,10 +318,10 @@ class ModelOrchestrator:
             llm = LLM(
                 model=config.path,
                 quantization=config.quantization,
-                gpu_memory_utilization=0.92 if not gpu_config else gpu_config.gpu_memory_utilization,  # Optimizado: 0.90 → 0.92
+                gpu_memory_utilization=0.85 if not gpu_config else gpu_config.gpu_memory_utilization,  # Reducido: 0.92 → 0.85 para evitar OOM
                 max_model_len=config.max_tokens,
-                max_num_seqs=64 if not gpu_config else getattr(gpu_config, 'max_num_seqs', 64),  # Optimizado: 16 → 64
-                max_num_batched_tokens=8192 if not gpu_config else getattr(gpu_config, 'max_num_batched_tokens', 8192),
+                max_num_seqs=32 if not gpu_config else getattr(gpu_config, 'max_num_seqs', 32),  # Reducido: 64 → 32
+                max_num_batched_tokens=4096 if not gpu_config else getattr(gpu_config, 'max_num_batched_tokens', 4096),  # Reducido: 8192 → 4096
                 enable_prefix_caching=True if not gpu_config else getattr(gpu_config, 'enable_prefix_caching', True),
                 enable_chunked_prefill=True if not gpu_config else getattr(gpu_config, 'enable_chunked_prefill', True),
                 swap_space=8 if not gpu_config else getattr(gpu_config, 'swap_space_gb', 8),
@@ -329,7 +329,7 @@ class ModelOrchestrator:
                 trust_remote_code=True
             )
             
-            self.logger.info(f"✅ vLLM optimizations applied: gpu_mem=0.92, max_seqs=64, prefix_cache=on, chunked_prefill=on")
+            self.logger.info(f"✅ vLLM optimizations applied: gpu_mem=0.85, max_seqs=32, prefix_cache=on, chunked_prefill=on")
             
             return {
                 'model': llm,

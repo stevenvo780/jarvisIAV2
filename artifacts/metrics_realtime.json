@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-11-09T21:38:23.813691",
+  "loop": {
+    "iterations": 21,
+    "errors": 12,
+    "api_calls": 0,
+    "local_calls": 6
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "memory_used_mb": 31,
+      "memory_free_mb": 15810,
+      "utilization_percent": 100
+    },
+    {
+      "index": 1,
+      "memory_used_mb": 2880,
+      "memory_free_mb": 2857,
+      "utilization_percent": 13
+    }
+  ]
+}
