@@ -567,10 +567,12 @@ class EmbeddingManager:
                     words_unique = set(unique_mem['text'].lower().split())
                     
                     if words_mem and words_unique:
-                        overlap = len(words_mem & words_unique) / len(words_mem | words_unique)
-                        if overlap > similarity_threshold_dedup:
-                            is_duplicate = True
-                            break
+                        union_size = len(words_mem | words_unique)
+                        if union_size > 0:  # Protección división por cero
+                            overlap = len(words_mem & words_unique) / union_size
+                            if overlap > similarity_threshold_dedup:
+                                is_duplicate = True
+                                break
                 
                 if not is_duplicate:
                     unique_memories.append(mem)

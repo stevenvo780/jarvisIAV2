@@ -651,9 +651,13 @@ class ModelOrchestrator:
         if model_id not in self.loaded_models:
             loaded = self._load_model(model_id)
             if not loaded:
-                # Fallback to API
-                self.logger.warning(f"Failed to load {model_id}, falling back to API")
-                return self._fallback_to_api(query, difficulty)
+                # Fallback to API ONLY for high difficulty queries
+                if difficulty > 75:
+                    self.logger.warning(f"Failed to load {model_id}, falling back to API (difficulty={difficulty})")
+                    return self._fallback_to_api(query, difficulty)
+                else:
+                    self.logger.error(f"❌ Local model {model_id} unavailable and difficulty={difficulty} too low for API fallback")
+                    return (f"Error: Modelo local {model_id} no disponible. Dificultad {difficulty} insuficiente para usar API (requiere >75).", model_id)
         
         # Generate response
         try:
@@ -676,7 +680,13 @@ class ModelOrchestrator:
         
         except Exception as e:
             self.logger.error(f"Error generating with {model_id}: {e}")
-            return self._fallback_to_api(query, difficulty)
+            # Retry local or fallback based on difficulty
+            if difficulty > 75:
+                self.logger.warning(f"Falling back to API due to error (difficulty={difficulty})")
+                return self._fallback_to_api(query, difficulty)
+            else:
+                self.logger.error(f"❌ Error with local model and difficulty={difficulty} too low for API")
+                return (f"Error ejecutando modelo local: {str(e)}. Dificultad {difficulty} insuficiente para API (requiere >75).", model_id)
     
     def _fallback_to_api(self, query: str, difficulty: int) -> Tuple[str, str]:
         """Fallback to API when local models fail"""

@@ -21,7 +21,8 @@ class CommandManager:
         self.register_module('SYSTEM', UbuntuCommander())
         #self.register_module('CALENDAR', CalendarCommander(self.model_manager))
         self.register_module('MEDIA', MultimediaCommander(self.model_manager))
-        self.register_module('MATH', MathCommander())
+        # MATH deshabilitado temporalmente por bug en extract_command_info
+        # self.register_module('MATH', MathCommander())
 
     def register_module(self, name: str, module: BaseCommander):
         self.modules[name] = module
