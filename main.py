@@ -1,10 +1,37 @@
 #!/usr/bin/env python3
 import os
 import sys
-import time
-import logging
-import threading
 import argparse
+
+# Parse args PRIMERO para detectar --debug ANTES de imports
+parser = argparse.ArgumentParser(description='Jarvis AI Assistant')
+parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+args, _ = parser.parse_known_args()
+
+# Setear variable de entorno para otros módulos
+if args.debug:
+    os.environ['JARVIS_DEBUG'] = '1'
+
+# Suprimir logs si NO está --debug
+if not args.debug:
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
+    os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+    os.environ['VLLM_LOGGING_LEVEL'] = 'ERROR'
+    os.environ['VLLM_CONFIGURE_LOGGING'] = '0'  # Desactiva logging de vLLM
+    os.environ['VLLM_LOGGING_CONFIG_PATH'] = ''
+    import warnings
+    warnings.filterwarnings('ignore')
+    
+    # Suprimir logs de librerías verbosas
+    import logging
+    for logger_name in ['vllm', 'torch', 'transformers', 'sentence_transformers', 
+                        'chromadb', 'httpx', 'asyncio', 'tqdm']:
+        logging.getLogger(logger_name).setLevel(logging.CRITICAL)
+        logging.getLogger(logger_name).propagate = False
+
+import time
+import threading
 from queue import Queue, Empty
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
@@ -731,6 +758,9 @@ Examples:
   
   # Show available models
   python main.py --list-models
+  
+  # Debug mode (verbose logging)
+  python main.py --debug
         """
     )
     
@@ -758,12 +788,53 @@ Examples:
         help='Show system statistics and exit'
     )
     
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Enable debug/verbose logging'
+    )
+    
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_arguments()
     
+    # Configurar nivel de logging según --debug
+    if not args.debug:
+        # Suprimir pygame prompt ANTES de cualquier import
+        os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "1"
+        
+        # Suprimir logs verbosos de bibliotecas externas
+        logging.getLogger("vllm").setLevel(logging.CRITICAL)
+        logging.getLogger("torch").setLevel(logging.CRITICAL)
+        logging.getLogger("transformers").setLevel(logging.CRITICAL)
+        logging.getLogger("sentence_transformers").setLevel(logging.CRITICAL)
+        logging.getLogger("chromadb").setLevel(logging.CRITICAL)
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("pygame").setLevel(logging.CRITICAL)
+        logging.getLogger("openai").setLevel(logging.WARNING)
+        logging.getLogger("anthropic").setLevel(logging.WARNING)
+        logging.getLogger("root").setLevel(logging.WARNING)
+        
+        # Suprimir nuestros propios INFO logs en modo normal
+        logging.getLogger("MetricsTracker").setLevel(logging.WARNING)
+        logging.getLogger("EmbeddingManager").setLevel(logging.WARNING)
+        logging.getLogger("ModelOrchestrator").setLevel(logging.WARNING)
+        logging.getLogger("LearningManager").setLevel(logging.WARNING)
+        logging.getLogger("QualityEvaluator").setLevel(logging.WARNING)
+        logging.getLogger("SmartPromptBuilder").setLevel(logging.WARNING)
+        logging.getLogger("DynamicTokenManager").setLevel(logging.WARNING)
+        
+        # Suprimir warnings de deprecation
+        import warnings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        warnings.filterwarnings("ignore", category=UserWarning)
+        warnings.filterwarnings("ignore", category=FutureWarning)
+        warnings.filterwarnings("ignore", message=".*pkg_resources.*")
+        warnings.filterwarnings("ignore", message=".*CUDA_DEVICE_ORDER.*")
+    
     jarvis = Jarvis()
+
     
     try:
         # List models mode

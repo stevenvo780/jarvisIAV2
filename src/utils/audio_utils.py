@@ -2,9 +2,12 @@ import os
 import logging
 import json
 from typing import Dict, Optional
-import pygame
 import warnings
 warnings.filterwarnings("ignore")
+
+# Suprimir pygame prompt
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "1"
+import pygame
 
 class AudioEffects:
     def __init__(self):

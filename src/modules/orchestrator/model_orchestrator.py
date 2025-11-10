@@ -311,23 +311,45 @@ class ModelOrchestrator:
         def _load_inner():
             from vllm import LLM, SamplingParams
             
+            # Suprimir logs de vLLM si no es debug
+            if not os.environ.get('JARVIS_DEBUG'):
+                import logging
+                import sys
+                from io import StringIO
+                
+                # Redirigir stdout/stderr temporalmente para suprimir logs de vLLM
+                old_stdout = sys.stdout
+                old_stderr = sys.stderr
+                sys.stdout = StringIO()
+                sys.stderr = StringIO()
+                
+                logging.getLogger('vllm').setLevel(logging.ERROR)
+                logging.getLogger('torch').setLevel(logging.ERROR)
+            
             # Set GPU
             os.environ['CUDA_VISIBLE_DEVICES'] = str(config.gpu_id)
             
-            # Optimized vLLM configuration
-            llm = LLM(
-                model=config.path,
-                quantization=config.quantization,
-                gpu_memory_utilization=0.85 if not gpu_config else gpu_config.gpu_memory_utilization,  # Reducido: 0.92 → 0.85 para evitar OOM
-                max_model_len=config.max_tokens,
-                max_num_seqs=32 if not gpu_config else getattr(gpu_config, 'max_num_seqs', 32),  # Reducido: 64 → 32
-                max_num_batched_tokens=4096 if not gpu_config else getattr(gpu_config, 'max_num_batched_tokens', 4096),  # Reducido: 8192 → 4096
-                enable_prefix_caching=True if not gpu_config else getattr(gpu_config, 'enable_prefix_caching', True),
-                enable_chunked_prefill=True if not gpu_config else getattr(gpu_config, 'enable_chunked_prefill', True),
-                swap_space=8 if not gpu_config else getattr(gpu_config, 'swap_space_gb', 8),
-                tensor_parallel_size=1,
-                trust_remote_code=True
-            )
+            try:
+                # Optimized vLLM configuration
+                llm = LLM(
+                    model=config.path,
+                    quantization=config.quantization,
+                    gpu_memory_utilization=0.85 if not gpu_config else gpu_config.gpu_memory_utilization,  # Reducido: 0.92 → 0.85 para evitar OOM
+                    max_model_len=config.max_tokens,
+                    max_num_seqs=32 if not gpu_config else getattr(gpu_config, 'max_num_seqs', 32),  # Reducido: 64 → 32
+                    max_num_batched_tokens=4096 if not gpu_config else getattr(gpu_config, 'max_num_batched_tokens', 4096),  # Reducido: 8192 → 4096
+                    enable_prefix_caching=True if not gpu_config else getattr(gpu_config, 'enable_prefix_caching', True),
+                    enable_chunked_prefill=True if not gpu_config else getattr(gpu_config, 'enable_chunked_prefill', True),
+                    swap_space=8 if not gpu_config else getattr(gpu_config, 'swap_space_gb', 8),
+                    tensor_parallel_size=1,
+                    trust_remote_code=True,
+                    disable_log_stats=True  # Desactiva stats de vLLM
+                )
+            finally:
+                # Restaurar stdout/stderr
+                if not os.environ.get('JARVIS_DEBUG'):
+                    sys.stdout = old_stdout
+                    sys.stderr = old_stderr
             
             self.logger.info(f"✅ vLLM optimizations applied: gpu_mem=0.85, max_seqs=32, prefix_cache=on, chunked_prefill=on")
             
@@ -346,11 +368,24 @@ class ModelOrchestrator:
                     self.logger.info(f"✅ {config.name} loaded successfully with vLLM")
                     return result
                 except FutureTimeoutError:
-                    self.logger.error(f"❌ Model load timeout after {timeout}s: {model_id}")
+                    self.logger.error(f"❌ [{config.name}] Model load timeout after {timeout}s: {model_id}")
                     raise TimeoutError(f"Model load timeout: {model_id}")
         
         except Exception as e:
-            self.logger.error(f"❌ Failed to load {config.name} with vLLM: {e}")
+            error_details = str(e)
+            # Extraer detalles relevantes del error
+            if "Free memory on device" in error_details:
+                import re
+                match = re.search(r'Free memory.*?(\d+\.?\d*)\s*/\s*(\d+\.?\d*)\s*GiB.*?utilization.*?(\d+\.?\d*)', error_details)
+                if match:
+                    free_gb, total_gb, util = match.groups()
+                    error_summary = f"VRAM insuficiente: {free_gb}GB libres de {total_gb}GB (necesita {float(total_gb)*float(util):.1f}GB)"
+                else:
+                    error_summary = "VRAM insuficiente"
+            else:
+                error_summary = error_details[:150] if len(error_details) > 150 else error_details
+            
+            self.logger.error(f"❌ [{config.name}] Failed to load with vLLM: {error_summary}")
             raise
     
     def _load_transformers_model(self, model_id: str, config: ModelConfig) -> Dict[str, Any]:
@@ -450,7 +485,14 @@ class ModelOrchestrator:
             return True
         
         except Exception as e:
-            self.logger.error(f"Failed to load model {model_id}: {e}")
+            error_msg = str(e)
+            # Simplificar mensaje de error
+            if "VRAM insuficiente" in error_msg or "Free memory" in error_msg:
+                error_summary = error_msg.split('\n')[0]  # Solo primera línea
+            else:
+                error_summary = error_msg[:200] if len(error_msg) > 200 else error_msg
+            
+            self.logger.error(f"[{config.name}] Failed to load: {error_summary}")
             return False
     
     def _load_default_model(self):
