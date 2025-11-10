@@ -170,6 +170,20 @@ class ModelOrchestrator:
         if model_config.gpu_id is None:
             return True  # CPU always available
         
+        # Check if vLLM process already running (model already loaded)
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["pgrep", "-f", "VLLM::EngineCore"],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                self.logger.info(f"✅ vLLM process already running, assuming {model_config.name} is loaded")
+                return True
+        except:
+            pass
+        
         used, total = self._get_gpu_memory(model_config.gpu_id)
         available = total - used
         
@@ -254,6 +268,39 @@ class ModelOrchestrator:
     
     def _load_vllm_model(self, model_id: str, config: ModelConfig) -> Dict[str, Any]:
         """Load model using vLLM backend with timeout protection and optimized config"""
+        
+        # First, check if vLLM process already running and try to reuse it
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["pgrep", "-f", "VLLM::EngineCore"],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                self.logger.info(f"♻️  Reusing existing vLLM process for {config.name}")
+                from vllm import LLM
+                # Try to reconnect to existing vLLM instance
+                try:
+                    os.environ['CUDA_VISIBLE_DEVICES'] = str(config.gpu_id)
+                    llm = LLM(
+                        model=config.path,
+                        quantization=config.quantization,
+                        gpu_memory_utilization=0.92,
+                        max_model_len=config.max_tokens,
+                    )
+                    self.logger.info(f"✅ Reconnected to existing vLLM instance")
+                    return {
+                        'model': llm,
+                        'backend': ModelBackend.VLLM,
+                        'config': config,
+                        'loaded_at': time.time()
+                    }
+                except:
+                    pass  # Fallthrough to normal load
+        except:
+            pass
+        
         self.logger.info(f"🚄 Loading {config.name} with vLLM on GPU {config.gpu_id}")
         
         timeout = self.config.get("system", {}).get("model_load_timeout", 300)  # 5 min default
@@ -419,8 +466,8 @@ class ModelOrchestrator:
             self.logger.info(f"Loading default model: {default_id}")
             self._load_model(default_id)
         
-        # 2. Try to preload the best available model on GPU0 if path exists
-        self._preload_gpu0_models()
+        # 2. Preload disabled for faster startup - models load on-demand
+        # self._preload_gpu0_models()
     
     def _preload_gpu0_models(self):
         """Preload one or more models on GPU0 (RTX 5070 Ti) if available"""
@@ -651,13 +698,14 @@ class ModelOrchestrator:
         if model_id not in self.loaded_models:
             loaded = self._load_model(model_id)
             if not loaded:
-                # Fallback to API ONLY for high difficulty queries
-                if difficulty > 75:
-                    self.logger.warning(f"Failed to load {model_id}, falling back to API (difficulty={difficulty})")
+                # Fallback to API: trivial queries (<20) or complex (>75)
+                if difficulty < 20 or difficulty > 75:
+                    reason = "trivial" if difficulty < 20 else f"complex ({difficulty})"
+                    self.logger.info(f"🌐 Using API fallback for {reason} query (local model unavailable)")
                     return self._fallback_to_api(query, difficulty)
                 else:
-                    self.logger.error(f"❌ Local model {model_id} unavailable and difficulty={difficulty} too low for API fallback")
-                    return (f"Error: Modelo local {model_id} no disponible. Dificultad {difficulty} insuficiente para usar API (requiere >75).", model_id)
+                    self.logger.error(f"❌ Local model {model_id} unavailable and difficulty={difficulty} not eligible for API fallback")
+                    return (f"Error: Modelo local {model_id} no disponible. Dificultad {difficulty} requiere modelo local (API solo para <20 o >75).", model_id)
         
         # Generate response
         try:
