@@ -1,42 +1,0 @@
-nohup: no se tendrá en cuenta la entrada
-/mnt/DATA/repos/Personal/jarvisIAV2/.venv/lib/python3.10/site-packages/huggingface_hub/file_download.py:942: FutureWarning: `resume_download` is deprecated and will be removed in version 1.0.0. Downloads always resume when possible. If you want to force a new download, use `force_download=True`.
-  warnings.warn(
-/mnt/DATA/repos/Personal/jarvisIAV2/.venv/lib/python3.10/site-packages/huggingface_hub/file_download.py:979: UserWarning: `local_dir_use_symlinks` parameter is deprecated and will be ignored. The process to download files to a local folder has been updated and do not rely on symlinks anymore. You only need to pass a destination folder as`local_dir`.
-For more details, check out https://huggingface.co/docs/huggingface_hub/main/en/guides/download#download-files-to-local-folder.
-  warnings.warn(
-[95m[1m======================================================================[0m
-[95m[1m🚀 Jarvis IA V2 - Descarga de Modelos[0m
-[95m[1m======================================================================[0m
-[94mℹ️  Espacio libre en disco: 181 GB[0m
-[92m✅ Espacio en disco suficiente: 181GB[0m
-[95m[1m======================================================================[0m
-[95m[1m📦 Categoría: LLM_FLAGSHIP[0m
-[95m[1m======================================================================[0m
-
-[1/1] Qwen2.5-32B-Instruct-AWQ
-  GPU: GPU0 (RTX 5070 Ti) | VRAM: 10GB
-  🏆 FLAGSHIP - Mejor modelo que CABE en RTX 5070 Ti (15.8GB disponibles)
-[94mℹ️  Descargando Qwen2.5-32B-Instruct-AWQ...[0m
-[94mℹ️    Repositorio: Qwen/Qwen2.5-32B-Instruct-AWQ[0m
-[94mℹ️    Tamaño estimado: ~18GB[0m
-[94mℹ️    Destino: models/llm/qwen2.5-32b-awq[0m
-Fetching 15 files:   0%|          | 0/15 [00:00<?, ?it/s]Fetching 15 files:   7%|▋         | 1/15 [00:00<00:11,  1.21it/s]Fetching 15 files:  40%|████      | 6/15 [00:01<00:01,  4.56it/s]Fetching 15 files:  47%|████▋     | 7/15 [04:55<07:52, 59.12s/it]Fetching 15 files:  60%|██████    | 9/15 [04:56<03:46, 37.72s/it]Fetching 15 files:  67%|██████▋   | 10/15 [05:07<02:40, 32.14s/it]Fetching 15 files: 100%|██████████| 15/15 [05:07<00:00, 20.47s/it]
-[92m✅ Qwen2.5-32B-Instruct-AWQ descargado correctamente[0m
-[95m[1m======================================================================[0m
-[95m[1m📊 Resumen de Descarga[0m
-[95m[1m======================================================================[0m
-Total: 1
-[92m✅ Exitosos: 1[0m
-
-
-[92m✅ ✨ ¡Todos los modelos descargados correctamente![0m
-[94mℹ️  Próximo paso: Ejecutar benchmarks y configurar el orquestador[0m
-[95m[1m======================================================================[0m
-[95m[1m📝 Notas Importantes[0m
-[95m[1m======================================================================[0m
-1. Modelos de Llama requieren aceptar licencia en HuggingFace
-2. Convierte Whisper a CTranslate2 para mejor rendimiento:
-   ct2-transformers-converter --model models/whisper/large-v3-turbo \
-     --output_dir models/whisper/large-v3-turbo-ct2 --quantization int8
-3. Los modelos AWQ/GPTQ ya están cuantizados (4-bit)
-4. Espacio total usado: ~100-120GB
