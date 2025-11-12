@@ -10,12 +10,13 @@ import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pathlib import Path
+from collections import deque
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 
 # Setup paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -26,8 +27,14 @@ logger = logging.getLogger(__name__)
 
 class ChatMessage(BaseModel):
     """Modelo para mensajes de chat"""
-    message: str
+    message: str = Field(..., min_length=1, max_length=5000)
     timestamp: Optional[str] = None
+
+    @validator('message')
+    def validate_message(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Message cannot be empty')
+        return v.strip()
 
 
 class ChatResponse(BaseModel):
@@ -50,7 +57,7 @@ class SystemStatus(BaseModel):
 
 class WebInterface:
     """Interfaz web para Jarvis"""
-    
+
     def __init__(self, jarvis_instance=None):
         self.app = FastAPI(
             title="Jarvis AI Assistant",
@@ -58,21 +65,35 @@ class WebInterface:
             version="1.0.0"
         )
         self.jarvis = jarvis_instance
-        self.chat_history: List[Dict[str, Any]] = []
+        self.chat_history = deque(maxlen=100)  # Límite de 100 mensajes en memoria
         self.active_connections: List[WebSocket] = []
-        
+        self.start_time = datetime.now()  # Para tracking de uptime
+
         self._setup_middleware()
         self._setup_routes()
         self._mount_static()
     
     def _setup_middleware(self):
         """Configurar middleware CORS"""
+        # Permitir solo localhost y dominios específicos
+        allowed_origins = [
+            "http://localhost:8090",
+            "http://127.0.0.1:8090",
+            "http://localhost:*",
+            "http://127.0.0.1:*"
+        ]
+
+        # Agregar dominio custom desde variable de entorno si existe
+        custom_origin = os.getenv("JARVIS_ALLOWED_ORIGIN")
+        if custom_origin:
+            allowed_origins.append(custom_origin)
+
         self.app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
+            allow_origins=allowed_origins,
             allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
+            allow_methods=["GET", "POST", "DELETE"],
+            allow_headers=["Content-Type"],
         )
     
     def _mount_static(self):
@@ -120,11 +141,12 @@ class WebInterface:
                     models_loaded = 0
                     gpu_count = 0
                 
+                uptime_seconds = (datetime.now() - self.start_time).total_seconds()
                 return SystemStatus(
                     status="ready",
                     models_loaded=models_loaded,
                     gpu_count=gpu_count,
-                    uptime=getattr(self.jarvis, 'uptime', 0.0)
+                    uptime=uptime_seconds
                 )
             except Exception as e:
                 logger.error(f"Error getting status: {e}")
@@ -169,9 +191,10 @@ class WebInterface:
                 raise HTTPException(status_code=500, detail=str(e))
         
         @self.app.get("/api/history")
-        async def get_history() -> List[Dict[str, Any]]:
-            """Obtener historial de chat"""
-            return self.chat_history[-50:]  # Últimos 50 mensajes
+        async def get_history(offset: int = 0, limit: int = 50) -> List[Dict[str, Any]]:
+            """Obtener historial de chat con paginación"""
+            history_list = list(self.chat_history)
+            return history_list[offset:offset+limit]
         
         @self.app.delete("/api/history")
         async def clear_history():
@@ -213,7 +236,7 @@ class WebInterface:
         """
         if not self.jarvis:
             return "Error: Jarvis no está inicializado"
-        
+
         try:
             # Usar ModelOrchestrator para obtener respuesta
             llm_system = getattr(self.jarvis, 'llm_system', None)
@@ -233,9 +256,21 @@ class WebInterface:
                             context = f"\nContexto relevante:\n{context}\n"
                     except Exception as e:
                         logger.debug(f"No se pudo obtener contexto RAG: {e}")
-                
-                # Construir prompt con contexto
-                full_prompt = f"{context}\nUsuario: {message}\nAsistente:" if context else message
+
+                # System prompt para respuestas concisas y directas
+                system_prompt = """Eres Jarvis, un asistente de IA útil y conciso.
+Instrucciones importantes:
+- Responde de forma breve y directa
+- Si la pregunta es simple, da una respuesta corta (1-3 oraciones)
+- Solo proporciona detalles adicionales si el usuario los solicita explícitamente
+- No inventes información ni hables de temas no relacionados
+- Mantén tus respuestas en el tema de la pregunta"""
+
+                # Construir prompt completo
+                if context:
+                    full_prompt = f"{system_prompt}\n\n{context}\n\nUsuario: {message}\nAsistente:"
+                else:
+                    full_prompt = f"{system_prompt}\n\nUsuario: {message}\nAsistente:"
                 
                 # Estimar dificultad (simple: longitud del mensaje)
                 difficulty = min(50 + len(message) // 10, 90)

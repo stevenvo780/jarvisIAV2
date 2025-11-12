@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jarvis AI Assistant</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
     <style>
         * {
             margin: 0;
@@ -151,6 +152,27 @@
         .message.assistant .message-content {
             background: var(--assistant-msg-bg);
             border-bottom-left-radius: 0.3rem;
+        }
+
+        .message-content code {
+            background: var(--accent-bg);
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.3rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .message-content pre {
+            background: var(--accent-bg);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+
+        .message-content pre code {
+            background: none;
+            padding: 0;
         }
 
         .message-timestamp {
@@ -389,11 +411,12 @@
         <!-- Input Area -->
         <div class="input-area">
             <div class="input-container">
-                <input 
-                    type="text" 
-                    id="messageInput" 
+                <input
+                    type="text"
+                    id="messageInput"
                     placeholder="Escribe tu mensaje aquí..."
                     onkeypress="handleKeyPress(event)"
+                    maxlength="5000"
                 />
                 <button id="sendButton" onclick="sendMessage()">Enviar 🚀</button>
             </div>
@@ -403,6 +426,8 @@
     <script>
         let chatHistory = [];
         let isProcessing = false;
+        let statusCheckRetries = 0;
+        const MAX_RETRIES = 3;
 
         // Inicializar
         document.addEventListener('DOMContentLoaded', () => {
@@ -411,20 +436,42 @@
             document.getElementById('messageInput').focus();
         });
 
-        // Verificar estado del sistema
+        // Función para escapar HTML y prevenir XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Verificar estado del sistema con retry
         async function checkStatus() {
             try {
                 const response = await fetch('/api/status');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
                 const data = await response.json();
-                
+
                 const statusText = document.getElementById('statusText');
                 if (data.status === 'ready') {
-                    statusText.textContent = `🟢 Listo (${data.models_loaded} modelos, ${data.gpu_count} GPUs)`;
+                    const uptime = data.uptime ? ` (${Math.floor(data.uptime / 60)}m)` : '';
+                    statusText.textContent = `🟢 Listo (${data.models_loaded} modelos, ${data.gpu_count} GPUs)${uptime}`;
+                    statusCheckRetries = 0; // Reset retry counter on success
+                } else if (data.status === 'initializing') {
+                    statusText.textContent = '🟡 Inicializando modelos...';
                 } else {
                     statusText.textContent = `🟡 ${data.status}`;
                 }
             } catch (error) {
-                document.getElementById('statusText').textContent = '🔴 Error de conexión';
+                statusCheckRetries++;
+                const statusText = document.getElementById('statusText');
+
+                if (statusCheckRetries < MAX_RETRIES) {
+                    statusText.textContent = `🟡 Reconectando (${statusCheckRetries}/${MAX_RETRIES})...`;
+                    // Retry after exponential backoff
+                    setTimeout(checkStatus, Math.min(1000 * Math.pow(2, statusCheckRetries), 10000));
+                } else {
+                    statusText.textContent = '🔴 Error de conexión';
+                }
                 console.error('Error checking status:', error);
             }
         }
@@ -464,8 +511,14 @@
         async function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
-            
+
             if (!message || isProcessing) return;
+
+            // Validar longitud
+            if (message.length > 5000) {
+                showError('El mensaje es demasiado largo (máximo 5000 caracteres)');
+                return;
+            }
             
             // Ocultar welcome screen
             document.getElementById('welcomeScreen').style.display = 'none';
@@ -526,9 +579,19 @@
             const chatArea = document.getElementById('chatArea');
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${type}`;
-            
+
             const avatar = type === 'user' ? '👤' : '🤖';
-            const time = timestamp ? new Date(timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+            const time = timestamp
+                ? new Date(timestamp).toLocaleString('es-ES', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                })
+                : new Date().toLocaleString('es-ES', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
             
             messageDiv.innerHTML = `
                 <div class="message-avatar">${avatar}</div>
@@ -546,13 +609,20 @@
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
-        // Formatear mensaje (markdown básico)
+        // Formatear mensaje (markdown básico) con sanitización
         function formatMessage(text) {
-            return text
+            // Primero escapar todo el HTML para prevenir XSS
+            let safe = escapeHtml(text);
+
+            // Luego aplicar formato markdown de forma segura
+            safe = safe
                 .replace(/\n/g, '<br>')
                 .replace(/`([^`]+)`/g, '<code>$1</code>')
-                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+                .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+                .replace(/```([^`]+)```/g, '<pre><code>$1</code></pre>');
+
+            return safe;
         }
 
         // Mostrar/ocultar indicador de escritura

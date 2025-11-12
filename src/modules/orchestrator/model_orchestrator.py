@@ -480,20 +480,34 @@ class ModelOrchestrator:
             return False
     
     def _load_default_model(self):
-        """Load default fast model for quick responses and try to preload available models"""
-        # 1. First, try to load a fast model on GPU1 for quick responses
-        default_id = None
-        for model_id, config in self.model_configs.items():
-            if config.gpu_id == 1:  # GPU2 for fast responses
-                if default_id is None or config.priority < self.model_configs[default_id].priority:
-                    default_id = model_id
-        
-        if default_id:
-            self.logger.info(f"Loading default model: {default_id}")
-            self._load_model(default_id)
-        
-        # 2. Preload disabled for faster startup - models load on-demand
-        # self._preload_gpu0_models()
+        """Load default fast model for quick responses and preload available models"""
+        # Find highest priority model that can be loaded on any available GPU
+        available_models = [
+            (model_id, config)
+            for model_id, config in self.model_configs.items()
+            if os.path.exists(config.path)
+        ]
+
+        if not available_models:
+            self.logger.warning("⚠️  No models found with existing paths")
+            return
+
+        # Sort by priority (lower number = higher priority)
+        available_models.sort(key=lambda x: x[1].priority)
+
+        # Try to load the highest priority model
+        for model_id, config in available_models:
+            if self._can_load_model(config):
+                self.logger.info(f"🚀 Pre-loading default model: {model_id} on GPU {config.gpu_id}")
+                success = self._load_model(model_id)
+                if success:
+                    self.logger.info(f"✅ Default model {model_id} loaded and ready")
+                    break
+                else:
+                    self.logger.warning(f"⚠️  Failed to load {model_id}, trying next...")
+
+        if not self.loaded_models:
+            self.logger.warning("⚠️  No models could be pre-loaded. Models will load on-demand.")
     
     def _preload_gpu0_models(self):
         """Preload one or more models on GPU0 (RTX 5070 Ti) if available"""

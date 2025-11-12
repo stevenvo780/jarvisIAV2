@@ -26,6 +26,10 @@ args = parser.parse_args()
 if args.debug:
     os.environ['JARVIS_DEBUG'] = '1'
 
+# Suprimir logs innecesarios de PyTorch/Gloo
+os.environ['GLOO_LOG_LEVEL'] = 'ERROR'
+os.environ['NCCL_LOG_LEVEL'] = 'ERROR'
+
 # Configurar supresión de logs
 from src.utils.log_suppressor import setup_clean_terminal
 setup_clean_terminal()
