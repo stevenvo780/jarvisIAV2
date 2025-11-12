@@ -14,9 +14,21 @@ from collections import deque
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field, validator
+import json
+
+# Rate limiting (opcional - solo si slowapi está instalado)
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+    RATE_LIMIT_AVAILABLE = True
+except ImportError:
+    RATE_LIMIT_AVAILABLE = False
+    logger.warning("⚠️  slowapi not installed - rate limiting disabled. Install with: pip install slowapi")
 
 # Setup paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -69,12 +81,25 @@ class WebInterface:
         self.active_connections: List[WebSocket] = []
         self.start_time = datetime.now()  # Para tracking de uptime
 
+        # Rate limiting (si está disponible)
+        if RATE_LIMIT_AVAILABLE:
+            self.limiter = Limiter(key_func=get_remote_address)
+            self.app.state.limiter = self.limiter
+            self.app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+            logger.info("✅ Rate limiting enabled (10 req/min)")
+        else:
+            self.limiter = None
+            logger.warning("⚠️  Rate limiting disabled")
+
         self._setup_middleware()
         self._setup_routes()
         self._mount_static()
     
     def _setup_middleware(self):
-        """Configurar middleware CORS"""
+        """Configurar middleware CORS y compresión"""
+        # Compresión gzip para respuestas > 500 bytes
+        self.app.add_middleware(GZipMiddleware, minimum_size=500)
+
         # Permitir solo localhost y dominios específicos
         allowed_origins = [
             "http://localhost:8090",
@@ -104,7 +129,16 @@ class WebInterface:
     
     def _setup_routes(self):
         """Configurar rutas de la API"""
-        
+
+        @self.app.get("/health")
+        async def health_check():
+            """Health check público sin información sensible"""
+            return {
+                "status": "ok",
+                "timestamp": datetime.now().isoformat(),
+                "service": "jarvis-web"
+            }
+
         @self.app.get("/", response_class=HTMLResponse)
         async def root():
             """Página principal"""
@@ -156,9 +190,14 @@ class WebInterface:
                     gpu_count=0
                 )
         
-        @self.app.post("/api/chat")
-        async def chat(message: ChatMessage) -> ChatResponse:
-            """Enviar mensaje a Jarvis"""
+        # Aplicar rate limiting si está disponible
+        chat_route = self.app.post("/api/chat")
+        if RATE_LIMIT_AVAILABLE and self.limiter:
+            chat_route = self.limiter.limit("10/minute")(chat_route)
+
+        @chat_route
+        async def chat(request: Request, message: ChatMessage) -> ChatResponse:
+            """Enviar mensaje a Jarvis (máx 10 req/min si rate limiting está habilitado)"""
             if not self.jarvis:
                 raise HTTPException(status_code=503, detail="Jarvis not initialized")
             
@@ -201,6 +240,41 @@ class WebInterface:
             """Limpiar historial de chat"""
             self.chat_history.clear()
             return {"status": "ok", "message": "History cleared"}
+
+        @self.app.post("/api/chat/stream")
+        async def chat_stream(request: Request, message: ChatMessage):
+            """Streaming de respuesta con Server-Sent Events (mejor UX)"""
+            if not self.jarvis:
+                raise HTTPException(status_code=503, detail="Jarvis not initialized")
+
+            async def generate():
+                try:
+                    # Enviar evento de inicio
+                    yield f"data: {json.dumps({'type': 'start', 'timestamp': datetime.now().isoformat()})}\n\n"
+
+                    # Procesar mensaje (por ahora sin streaming real del modelo)
+                    # TODO: Implementar streaming a nivel de modelo vLLM
+                    response_text = await self._process_message(message.message)
+
+                    # Simular streaming enviando la respuesta en chunks
+                    words = response_text.split()
+                    for i, word in enumerate(words):
+                        chunk_data = {
+                            'type': 'token',
+                            'content': word + (' ' if i < len(words) - 1 else ''),
+                            'index': i
+                        }
+                        yield f"data: {json.dumps(chunk_data)}\n\n"
+                        await asyncio.sleep(0.01)  # Pequeño delay para simular streaming
+
+                    # Enviar evento de finalización
+                    yield f"data: {json.dumps({'type': 'done', 'timestamp': datetime.now().isoformat()})}\n\n"
+
+                except Exception as e:
+                    logger.error(f"Error in streaming: {e}")
+                    yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+            return StreamingResponse(generate(), media_type="text/event-stream")
         
         @self.app.websocket("/ws/chat")
         async def websocket_chat(websocket: WebSocket):

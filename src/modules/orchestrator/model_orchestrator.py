@@ -433,6 +433,36 @@ class ModelOrchestrator:
             self.logger.error(f"❌ Failed to load {config.name} with Transformers: {e}")
             raise
     
+    def _cleanup_vllm_processes(self):
+        """Limpiar procesos vLLM huérfanos si es necesario"""
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["pgrep", "-f", "vllm"],
+                capture_output=True,
+                text=True
+            )
+
+            if result.stdout.strip():
+                pids = result.stdout.strip().split('\n')
+                self.logger.warning(f"⚠️  Found {len(pids)} vLLM processes: {pids}")
+
+                # Solo limpiar si está habilitado
+                if os.getenv("JARVIS_AUTO_CLEANUP_GPU") == "1":
+                    self.logger.info("🧹 Auto-cleanup enabled, killing vLLM processes...")
+                    for pid in pids:
+                        try:
+                            subprocess.run(["kill", "-9", pid], check=False)
+                        except Exception as e:
+                            self.logger.error(f"Failed to kill PID {pid}: {e}")
+                    return True
+                else:
+                    self.logger.info("💡 Set JARVIS_AUTO_CLEANUP_GPU=1 to auto-cleanup")
+                    return False
+        except Exception as e:
+            self.logger.error(f"Error checking vLLM processes: {e}")
+        return False
+
     def _load_model(self, model_id: str) -> bool:
         """Load a model into memory"""
         if model_id in self.loaded_models:
