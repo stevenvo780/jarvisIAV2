@@ -52,7 +52,7 @@ def test_simple_chat():
     r = requests.post(
         f"{BASE_URL}/api/chat",
         json={"message": message},
-        timeout=60
+        timeout=180  # 3 minutos para modelo local
     )
     print(f"Status: {r.status_code}")
     data = r.json()
