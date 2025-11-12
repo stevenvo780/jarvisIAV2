@@ -181,6 +181,16 @@
             margin-top: 0.5rem;
         }
 
+        .typing-cursor {
+            animation: blink 1s infinite;
+            color: var(--accent-color);
+        }
+
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+
         /* Loading indicator */
         .typing-indicator {
             display: none;
@@ -507,8 +517,8 @@
             sendMessage();
         }
 
-        // Enviar mensaje
-        async function sendMessage() {
+        // Enviar mensaje con opción de streaming
+        async function sendMessage(useStreaming = false) {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
 
@@ -519,21 +529,42 @@
                 showError('El mensaje es demasiado largo (máximo 5000 caracteres)');
                 return;
             }
-            
+
             // Ocultar welcome screen
             document.getElementById('welcomeScreen').style.display = 'none';
-            
+
             // Limpiar input
             input.value = '';
-            
+
             // Agregar mensaje del usuario
             addMessage('user', message);
-            
+
             // Mostrar indicador de escritura
             showTyping(true);
             isProcessing = true;
             document.getElementById('sendButton').disabled = true;
-            
+
+            // Streaming SSE (si está habilitado)
+            if (useStreaming) {
+                try {
+                    await sendMessageStreaming(message);
+                } catch (error) {
+                    showTyping(false);
+                    showError('Error en streaming. Intentando modo normal...');
+                    // Fallback a modo normal
+                    await sendMessageNormal(message);
+                }
+            } else {
+                await sendMessageNormal(message);
+            }
+
+            isProcessing = false;
+            document.getElementById('sendButton').disabled = false;
+            input.focus();
+        }
+
+        // Enviar mensaje modo normal
+        async function sendMessageNormal(message) {
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
@@ -545,33 +576,98 @@
                         timestamp: new Date().toISOString()
                     })
                 });
-                
+
                 if (!response.ok) {
                     throw new Error('Error en la respuesta del servidor');
                 }
-                
+
                 const data = await response.json();
-                
+
                 // Ocultar indicador y mostrar respuesta
                 showTyping(false);
                 addMessage('assistant', data.response, data.timestamp);
-                
+
                 // Guardar en historial local
                 chatHistory.push({
                     user: message,
                     assistant: data.response,
                     timestamp: data.timestamp
                 });
-                
+
             } catch (error) {
                 showTyping(false);
                 showError('Error al comunicar con Jarvis. Por favor intenta de nuevo.');
                 console.error('Error:', error);
-            } finally {
-                isProcessing = false;
-                document.getElementById('sendButton').disabled = false;
-                input.focus();
             }
+        }
+
+        // Enviar mensaje con streaming SSE
+        async function sendMessageStreaming(message) {
+            return new Promise((resolve, reject) => {
+                showTyping(false);
+
+                // Crear elemento para la respuesta progresiva
+                const chatArea = document.getElementById('chatArea');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message assistant';
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                contentDiv.innerHTML = `<div class="message-avatar">🤖</div><div id="streaming-content"></div>`;
+
+                messageDiv.appendChild(contentDiv);
+                const typingIndicator = document.getElementById('typingIndicator');
+                chatArea.insertBefore(messageDiv, typingIndicator);
+
+                const streamingContent = document.getElementById('streaming-content');
+                let fullResponse = '';
+
+                // Crear EventSource para SSE
+                const eventSource = new EventSource(
+                    '/api/chat/stream?' + new URLSearchParams({
+                        message: message,
+                        timestamp: new Date().toISOString()
+                    })
+                );
+
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+
+                        if (data.type === 'start') {
+                            streamingContent.innerHTML = '<span class="typing-cursor">▋</span>';
+                        } else if (data.type === 'token') {
+                            fullResponse += data.content;
+                            streamingContent.innerHTML = formatMessage(fullResponse) + '<span class="typing-cursor">▋</span>';
+                            chatArea.scrollTop = chatArea.scrollHeight;
+                        } else if (data.type === 'done') {
+                            streamingContent.innerHTML = formatMessage(fullResponse);
+                            const timestamp = document.createElement('div');
+                            timestamp.className = 'message-timestamp';
+                            timestamp.textContent = new Date().toLocaleString('es-ES', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit'
+                            });
+                            streamingContent.appendChild(timestamp);
+                            eventSource.close();
+                            resolve();
+                        } else if (data.type === 'error') {
+                            streamingContent.innerHTML = `<span style="color: #ff4444;">Error: ${data.message}</span>`;
+                            eventSource.close();
+                            reject(new Error(data.message));
+                        }
+                    } catch (error) {
+                        console.error('Error parsing SSE:', error);
+                    }
+                };
+
+                eventSource.onerror = (error) => {
+                    console.error('SSE error:', error);
+                    eventSource.close();
+                    reject(error);
+                };
+            });
         }
 
         // Agregar mensaje al chat

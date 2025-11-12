@@ -1,0 +1,67 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation (no needed in container)
+*.md
+docs/
+
+# Tests
+tests/
+*.test
+.pytest_cache/
+.coverage
+
+# Temporal files
+tmp/
+temp/
+*.tmp
+
+# Large model files (should be mounted as volumes)
+models/
+vectorstore/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Node modules (if any)
+node_modules/
+
+# Cache
+.cache/
+*.cache

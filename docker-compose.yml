@@ -1,0 +1,86 @@
+# Docker Compose para Jarvis IA V2
+version: '3.8'
+
+services:
+  jarvis-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jarvis-web
+    image: jarvis-ia:2.1.0
+
+    ports:
+      - "8090:8090"
+
+    environment:
+      # GPU
+      - CUDA_VISIBLE_DEVICES=0
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+      # Jarvis Config
+      - JARVIS_DEBUG=0
+      - JARVIS_AUTO_CLEANUP_GPU=1
+
+      # API Keys (opcional - descomenta y configura)
+      # - JARVIS_API_KEYS=your-secret-key-1,your-secret-key-2
+
+      # CORS (opcional - descomenta y configura)
+      # - JARVIS_ALLOWED_ORIGIN=https://tu-dominio.com
+
+    volumes:
+      # Modelos (persistentes)
+      - ./models:/app/models:ro
+
+      # Vectorstore (persistente)
+      - ./vectorstore:/app/vectorstore
+
+      # Logs (persistentes)
+      - ./logs:/app/logs
+
+      # Configuración (opcional)
+      - ./.env:/app/.env:ro
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+        limits:
+          memory: 32G
+
+    restart: unless-stopped
+
+    networks:
+      - jarvis-network
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+networks:
+  jarvis-network:
+    driver: bridge
+
+# Configuración opcional de Redis para rate limiting avanzado
+# Descomenta si quieres usar Redis para rate limiting distribuido
+#
+# services:
+#   redis:
+#     image: redis:7-alpine
+#     container_name: jarvis-redis
+#     ports:
+#       - "6379:6379"
+#     volumes:
+#       - redis-data:/data
+#     restart: unless-stopped
+#     networks:
+#       - jarvis-network
+#
+# volumes:
+#   redis-data:

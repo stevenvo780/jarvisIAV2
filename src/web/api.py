@@ -30,6 +30,9 @@ except ImportError:
     RATE_LIMIT_AVAILABLE = False
     logger.warning("⚠️  slowapi not installed - rate limiting disabled. Install with: pip install slowapi")
 
+# Authentication helpers
+from fastapi import Depends, Header
+
 # Setup paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -81,6 +84,15 @@ class WebInterface:
         self.active_connections: List[WebSocket] = []
         self.start_time = datetime.now()  # Para tracking de uptime
 
+        # API Keys (opcional - si está configurado)
+        self.api_keys = set()
+        api_keys_env = os.getenv("JARVIS_API_KEYS", "")
+        if api_keys_env:
+            self.api_keys = set(api_keys_env.split(","))
+            logger.info(f"✅ API key authentication enabled ({len(self.api_keys)} keys)")
+        else:
+            logger.info("ℹ️  API key authentication disabled (set JARVIS_API_KEYS to enable)")
+
         # Rate limiting (si está disponible)
         if RATE_LIMIT_AVAILABLE:
             self.limiter = Limiter(key_func=get_remote_address)
@@ -127,6 +139,20 @@ class WebInterface:
         if static_dir.exists():
             self.app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
     
+    async def _verify_api_key(self, x_api_key: Optional[str] = Header(None)):
+        """Verificar API key si la autenticación está habilitada"""
+        # Si no hay keys configuradas, permitir acceso
+        if not self.api_keys:
+            return True
+
+        # Si hay keys configuradas, verificar
+        if not x_api_key or x_api_key not in self.api_keys:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or missing API key. Add X-Api-Key header."
+            )
+        return True
+
     def _setup_routes(self):
         """Configurar rutas de la API"""
 
@@ -157,8 +183,8 @@ class WebInterface:
             """
         
         @self.app.get("/api/status")
-        async def get_status() -> SystemStatus:
-            """Obtener estado del sistema"""
+        async def get_status(authenticated: bool = Depends(self._verify_api_key)) -> SystemStatus:
+            """Obtener estado del sistema (requiere API key si está configurado)"""
             if not self.jarvis:
                 return SystemStatus(
                     status="initializing",
@@ -196,7 +222,11 @@ class WebInterface:
             chat_route = self.limiter.limit("10/minute")(chat_route)
 
         @chat_route
-        async def chat(request: Request, message: ChatMessage) -> ChatResponse:
+        async def chat(
+            request: Request,
+            message: ChatMessage,
+            authenticated: bool = Depends(self._verify_api_key)
+        ) -> ChatResponse:
             """Enviar mensaje a Jarvis (máx 10 req/min si rate limiting está habilitado)"""
             if not self.jarvis:
                 raise HTTPException(status_code=503, detail="Jarvis not initialized")

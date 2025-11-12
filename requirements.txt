@@ -54,9 +54,13 @@ pynvml>=11.5.3
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
 pydantic>=2.10.0
+slowapi>=0.1.9  # Rate limiting (opcional)
 
 # Monitoring & Metrics (Quick Win 7)
 prometheus-client>=0.21.0
+
+# Web Optimization
+slowapi>=0.1.9  # Rate limiting
 
 # Terminal & UI
 colorama>=0.4.6
