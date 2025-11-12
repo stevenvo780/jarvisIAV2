@@ -28,7 +28,7 @@ try:
     RATE_LIMIT_AVAILABLE = True
 except ImportError:
     RATE_LIMIT_AVAILABLE = False
-    logger.warning("⚠️  slowapi not installed - rate limiting disabled. Install with: pip install slowapi")
+    # Logger se inicializa más adelante, así que no podemos usarlo aquí
 
 # Authentication helpers
 from fastapi import Depends, Header
