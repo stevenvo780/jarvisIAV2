@@ -3,10 +3,8 @@ import os
 import json
 import re
 from typing import List, Dict, Tuple, Optional
-from src.modules.llm.google_model import GoogleModel
-from src.modules.llm.openai_model import OpenAIModel
-from src.modules.llm.local_model import LocalModel
-from src.modules.llm.deepinfra_model import DeepInfraModel
+from src.modules.llm.model_registry import ModelRegistry
+from src.modules.llm import models  # Trigger model registration
 from src.utils.query_validator import QueryValidator
 
 class ModelManager:
@@ -92,27 +90,33 @@ class ModelManager:
         return config
 
     def _initialize_models(self) -> Dict[str, object]:
+        """
+        Initialize models using the ModelRegistry (Factory Pattern).
+
+        This eliminates coupling - adding new models requires no changes here.
+        """
         instantiated = {}
         errors = []
-        
+
+        # Handle legacy model name compatibility
+        model_name_mapping = {
+            'deepinfra': 'deepseek',  # Map old name to new registry name
+        }
+
         for model_name in self.config['models']:
+            # Apply name mapping for backward compatibility
+            registry_name = model_name_mapping.get(model_name, model_name)
+
             try:
-                if model_name == "google":
-                    instantiated[model_name] = GoogleModel()
-                elif model_name == "openai":
-                    instantiated[model_name] = OpenAIModel()
-                elif model_name == "local":
-                    instantiated[model_name] = LocalModel()
-                elif model_name == "deepinfra":
-                    instantiated[model_name] = DeepInfraModel()
-                else:
-                    errors.append(f"Modelo no reconocido: {model_name}")
+                # Check if model is registered
+                if not ModelRegistry.is_registered(registry_name):
+                    errors.append(f"Modelo no registrado: {model_name}")
                     continue
+
+                # Create model instance via registry
+                instantiated[model_name] = ModelRegistry.create(registry_name)
                 logging.info(f"Modelo {model_name} inicializado correctamente")
-            except ImportError as ie:
-                error_msg = f"Error importando módulo {model_name}: {str(ie)}"
-                logging.error(error_msg)
-                errors.append(error_msg)
+
             except Exception as e:
                 error_msg = f"Error inicializando modelo {model_name}: {e.__class__.__name__} - {str(e)}"
                 logging.error(error_msg)
@@ -123,11 +127,11 @@ class ModelManager:
             error_msg = f"Fallo crítico: No se pudo inicializar ningún modelo.\nDetalles:\n{error_summary}"
             logging.critical(error_msg)
             raise RuntimeError(error_msg)
-            
+
         if len(instantiated) < len(self.config['models']):
             error_summary = "\n".join(errors)
             logging.warning(f"Algunos modelos fallaron en inicializar:\n{error_summary}")
-            
+
         return instantiated
 
     def _setup_logging(self):
