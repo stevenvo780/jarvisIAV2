@@ -1,0 +1,402 @@
+[
+  {
+    "id": 1,
+    "category": "coherencia",
+    "query": "Si llueve, el suelo se moja. Está lloviendo. ¿Qué pasa con el suelo?",
+    "weight": 0.2,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.92,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.92249345779419,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T13:58:03.953587",
+    "success": true
+  },
+  {
+    "id": 2,
+    "category": "coherencia",
+    "query": "Tengo 3 manzanas y como 2. ¿Cuántas me quedan?",
+    "weight": 0.2,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.91,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.909648656845093,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T13:58:27.363649",
+    "success": true
+  },
+  {
+    "id": 3,
+    "category": "coherencia",
+    "query": "El gato es un animal. ¿Es correcto decir que un animal puede ser un gato?",
+    "weight": 0.2,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.9,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.897289991378784,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T13:58:50.761618",
+    "success": true
+  },
+  {
+    "id": 4,
+    "category": "coherencia",
+    "query": "Si A=B y B=C, ¿qué relación hay entre A y C?",
+    "weight": 0.2,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.9,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.90134620666504,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T13:59:14.163637",
+    "success": true
+  },
+  {
+    "id": 5,
+    "category": "coherencia",
+    "query": "Juan es más alto que María. María es más alta que Pedro. ¿Quién es el más alto?",
+    "weight": 0.2,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.9,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.90085792541504,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T13:59:37.564901",
+    "success": true
+  },
+  {
+    "id": 6,
+    "category": "coherencia",
+    "query": "Define 'coherencia' en tus propias palabras",
+    "weight": 0.2,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.89,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.893027782440186,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:00:00.958624",
+    "success": true
+  },
+  {
+    "id": 7,
+    "category": "coherencia",
+    "query": "¿Puede algo ser verdadero y falso al mismo tiempo? Explica",
+    "weight": 0.2,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.9,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.904313564300537,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:00:24.363626",
+    "success": true
+  },
+  {
+    "id": 8,
+    "category": "razonamiento",
+    "query": "Un tren sale de Madrid a 100 km/h. Otro sale de Barcelona a 120 km/h. La distancia es 600 km. ¿Cuándo se encuentran?",
+    "weight": 0.15,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.9,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.90230894088745,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:00:47.766633",
+    "success": true
+  },
+  {
+    "id": 9,
+    "category": "razonamiento",
+    "query": "Si todos los humanos son mortales y Sócrates es humano, ¿qué podemos concluir?",
+    "weight": 0.15,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.92,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.915308713912964,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:01:11.182646",
+    "success": true
+  },
+  {
+    "id": 10,
+    "category": "razonamiento",
+    "query": "Tres hermanos: el mayor miente siempre, el mediano dice verdad siempre, el menor alterna. El mayor dice 'el mediano miente'. ¿Es posible?",
+    "weight": 0.15,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.91,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.913311004638672,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:01:34.596639",
+    "success": true
+  },
+  {
+    "id": 11,
+    "category": "razonamiento",
+    "query": "¿Por qué el cielo es azul?",
+    "weight": 0.15,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.91,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.906328439712524,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:01:58.003665",
+    "success": true
+  },
+  {
+    "id": 12,
+    "category": "razonamiento",
+    "query": "¿Qué es más pesado: un kilo de plumas o un kilo de hierro?",
+    "weight": 0.15,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.9,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.896860361099243,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:02:21.401289",
+    "success": true
+  },
+  {
+    "id": 13,
+    "category": "razonamiento",
+    "query": "Si invierto 1000€ al 5% anual, ¿cuánto tendré en 2 años?",
+    "weight": 0.15,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.9,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.901642322540283,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:02:44.803640",
+    "success": true
+  },
+  {
+    "id": 14,
+    "category": "razonamiento",
+    "query": "Explica la paradoja del mentiroso: 'Esta frase es falsa'",
+    "weight": 0.15,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.89,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 3,
+      "completitud": 3,
+      "response_time": 22.893321752548218,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:03:08.197618",
+    "success": true
+  },
+  {
+    "id": 15,
+    "category": "codigo",
+    "query": "Escribe una función Python que calcule el factorial de un número",
+    "weight": 0.15,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.9,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.90434503555298,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:03:31.602631",
+    "success": true
+  },
+  {
+    "id": 16,
+    "category": "codigo",
+    "query": "Dame un ejemplo de recursión en JavaScript",
+    "weight": 0.15,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.89,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.890325784683228,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:03:54.993628",
+    "success": true
+  },
+  {
+    "id": 17,
+    "category": "codigo",
+    "query": "¿Qué hace este código: [x**2 for x in range(10) if x % 2 == 0]?",
+    "weight": 0.15,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.9,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.89775824546814,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:04:18.392036",
+    "success": true
+  },
+  {
+    "id": 18,
+    "category": "codigo",
+    "query": "Crea una API REST simple con FastAPI que retorne 'Hello World'",
+    "weight": 0.15,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.89,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.885218620300293,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:04:41.777923",
+    "success": true
+  },
+  {
+    "id": 19,
+    "category": "codigo",
+    "query": "Explica qué es un closure con un ejemplo",
+    "weight": 0.15,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.89,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.893645524978638,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:05:05.172270",
+    "success": true
+  },
+  {
+    "id": 20,
+    "category": "codigo",
+    "query": "Encuentra el error: def suma(a, b): return a + b + c",
+    "weight": 0.15,
+    "expected_type": "text",
+    "response": "[No se pudo extraer respuesta del DOM]",
+    "response_full_length": 38,
+    "response_time_seconds": 22.91,
+    "scores": {
+      "coherencia": 2,
+      "relevancia": 2,
+      "completitud": 3,
+      "response_time": 22.9054536819458,
+      "response_length": 38,
+      "word_count": 7
+    },
+    "timestamp": "2025-11-17T14:05:28.578381",
+    "success": true
+  }
+]
