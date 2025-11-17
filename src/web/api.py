@@ -270,6 +270,25 @@ class WebInterface:
             """Limpiar historial de chat"""
             self.chat_history.clear()
             return {"status": "ok", "message": "History cleared"}
+        
+        @self.app.get("/api/voice/config")
+        async def get_voice_config():
+            """Obtener configuración de voz (cliente-side Web Speech API)"""
+            return {
+                "tts_enabled": True,
+                "stt_enabled": True,
+                "wake_word": "jarvis",
+                "language": "es-ES",
+                "voice_rate": 1.0,
+                "voice_pitch": 1.0
+            }
+        
+        @self.app.post("/api/voice/settings")
+        async def update_voice_settings(settings: Dict[str, Any]):
+            """Actualizar configuración de voz (almacenada en cliente)"""
+            # La configuración se maneja en el cliente (localStorage)
+            # Aquí solo validamos y retornamos confirmación
+            return {"status": "ok", "settings": settings}
 
         @self.app.post("/api/chat/stream")
         async def chat_stream(request: Request, message: ChatMessage):

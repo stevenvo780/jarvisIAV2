@@ -352,6 +352,96 @@
             border-color: var(--accent-color);
         }
 
+        /* Voice Controls */
+        .voice-controls {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .voice-button {
+            background: transparent;
+            color: var(--secondary-text);
+            border: 1px solid var(--border-color);
+            padding: 0.5rem 1rem;
+            border-radius: 1rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .voice-button:hover {
+            color: var(--primary-text);
+            border-color: var(--accent-color);
+        }
+
+        .voice-button.active {
+            background: var(--accent-color);
+            color: var(--primary-bg);
+            border-color: var(--accent-color);
+        }
+
+        .voice-button.listening {
+            background: #ff4444;
+            color: white;
+            border-color: #ff4444;
+            animation: pulse 1.5s infinite;
+        }
+
+        .listening-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            display: inline-block;
+            animation: pulse 1s infinite;
+        }
+
+        /* Voice Status Badge */
+        .voice-status {
+            position: fixed;
+            bottom: 120px;
+            right: 30px;
+            background: var(--secondary-bg);
+            padding: 1rem 1.5rem;
+            border-radius: 1rem;
+            border: 2px solid var(--accent-color);
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+        }
+
+        .voice-status.active {
+            display: block;
+            animation: slideInUp 0.3s ease-out;
+        }
+
+        @keyframes slideInUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .voice-status .status-text {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--accent-color);
+        }
+
+        .voice-status .status-subtext {
+            font-size: 0.85rem;
+            color: var(--secondary-text);
+            margin-top: 0.3rem;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .message-content {
@@ -382,6 +472,14 @@
         <div class="header">
             <h1>🤖 <span class="logo">Jarvis</span> AI Assistant</h1>
             <div style="display: flex; gap: 1rem; align-items: center;">
+                <div class="voice-controls">
+                    <button class="voice-button" id="voiceToggle" onclick="toggleVoiceMode()" title="Activar/Desactivar escucha pasiva">
+                        🎤 Voz
+                    </button>
+                    <button class="voice-button" id="ttsToggle" onclick="toggleTTS()" title="Activar/Desactivar lectura automática">
+                        🔊 TTS
+                    </button>
+                </div>
                 <button class="clear-button" onclick="clearChat()">🗑️ Limpiar</button>
                 <div class="status-indicator">
                     <div class="status-dot"></div>
@@ -418,6 +516,15 @@
         <!-- Error Message -->
         <div class="error-message" id="errorMessage"></div>
 
+        <!-- Voice Status Badge -->
+        <div class="voice-status" id="voiceStatus">
+            <div class="status-text">🎤 Escuchando...</div>
+            <div class="status-subtext" id="voiceStatusText">Di "Jarvis" para activar</div>
+            <button onclick="testMicrophone()" style="margin-top: 0.5rem; padding: 0.3rem 0.8rem; background: var(--accent-color); color: var(--primary-bg); border: none; border-radius: 0.5rem; cursor: pointer; font-size: 0.8rem;">
+                🔍 Probar Micrófono
+            </button>
+        </div>
+
         <!-- Input Area -->
         <div class="input-area">
             <div class="input-container">
@@ -439,12 +546,380 @@
         let statusCheckRetries = 0;
         const MAX_RETRIES = 3;
 
+        // ===== VOICE SYSTEM =====
+        let recognition = null;
+        let synthesis = window.speechSynthesis;
+        let isVoiceModeActive = false;
+        let isTTSEnabled = false;
+        let isAwaitingCommand = false;
+        let selectedVoice = null;
+        const WAKE_WORD = 'jarvis';
+        const COMMAND_TIMEOUT = 10000; // 10 segundos para dar comando
+
         // Inicializar
         document.addEventListener('DOMContentLoaded', () => {
             checkStatus();
             loadHistory();
+            initVoiceRecognition();
+            initTextToSpeech();
             document.getElementById('messageInput').focus();
+            
+            // Cargar preferencias de voz desde localStorage
+            const savedVoiceMode = localStorage.getItem('voiceModeActive');
+            const savedTTSEnabled = localStorage.getItem('ttsEnabled');
+            
+            if (savedVoiceMode === 'true') {
+                toggleVoiceMode();
+            }
+            if (savedTTSEnabled === 'true') {
+                toggleTTS();
+            }
         });
+
+        // ===== WEB SPEECH API - RECONOCIMIENTO DE VOZ =====
+        function initVoiceRecognition() {
+            // Verificar soporte del navegador
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                console.warn('⚠️ El navegador no soporta reconocimiento de voz');
+                document.getElementById('voiceToggle').disabled = true;
+                document.getElementById('voiceToggle').title = 'No soportado en este navegador';
+                return;
+            }
+
+            // Crear reconocedor
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            
+            // Configuración
+            recognition.continuous = true;  // Escucha continua
+            recognition.interimResults = true;  // Resultados parciales
+            recognition.lang = 'es-ES';  // Idioma español
+            recognition.maxAlternatives = 1;
+
+            // Eventos
+            recognition.onstart = () => {
+                console.log('🎤 Reconocimiento de voz iniciado');
+            };
+
+            recognition.onresult = (event) => {
+                const last = event.results.length - 1;
+                const result = event.results[last];
+                const transcript = result[0].transcript.toLowerCase().trim();
+                const isFinal = result.isFinal;
+                const confidence = result[0].confidence;
+
+                // Log detallado para debugging
+                console.log('🗣️ Escuchado:', transcript, 
+                    isFinal ? '(final)' : '(parcial)',
+                    `Confianza: ${(confidence * 100).toFixed(1)}%`,
+                    `Estado: ${isAwaitingCommand ? 'COMANDO' : 'PASIVO'}`
+                );
+
+                if (!isAwaitingCommand) {
+                    // Modo pasivo: buscar palabra clave con múltiples variaciones
+                    const wakeWords = ['jarvis', 'yarbis', 'jarbis', 'harbis', 'yarvis'];
+                    const detected = wakeWords.some(word => transcript.includes(word));
+                    
+                    if (detected) {
+                        console.log('✅ ¡Palabra clave detectada!');
+                        activateCommandMode();
+                    }
+                } else if (isFinal) {
+                    // Modo activo: procesar comando
+                    if (transcript.length > 0) {
+                        console.log('📝 Procesando comando:', transcript);
+                        processVoiceCommand(transcript);
+                    }
+                }
+
+                // Actualizar UI con transcripción parcial
+                if (isAwaitingCommand && !isFinal) {
+                    updateVoiceStatus(`Escuchando: "${transcript}"`);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('❌ Error en reconocimiento:', event.error);
+                
+                if (event.error === 'no-speech') {
+                    console.log('⏸️ No se detectó voz (esperando...)');
+                    // No detener, solo esperar
+                } else if (event.error === 'audio-capture') {
+                    showError('No se puede acceder al micrófono. Verifica los permisos.');
+                    stopVoiceMode();
+                } else if (event.error === 'not-allowed') {
+                    showError('Permisos de micrófono denegados. Permite el acceso en la configuración del navegador.');
+                    stopVoiceMode();
+                } else if (event.error === 'network') {
+                    console.warn('⚠️ Error de red, reintentando...');
+                } else {
+                    console.error('Error desconocido:', event.error);
+                }
+            };
+
+            recognition.onend = () => {
+                console.log('🔴 Reconocimiento terminado. Estado activo:', isVoiceModeActive);
+                
+                // Reiniciar automáticamente si el modo voz está activo
+                if (isVoiceModeActive) {
+                    try {
+                        setTimeout(() => {
+                            recognition.start();
+                            console.log('🔄 Reconocimiento reiniciado automáticamente');
+                        }, 100); // Pequeño delay para evitar errores
+                    } catch (error) {
+                        console.error('Error al reiniciar:', error);
+                        // Si falla, intentar de nuevo después de 1 segundo
+                        setTimeout(() => {
+                            if (isVoiceModeActive) {
+                                try {
+                                    recognition.start();
+                                    console.log('🔄 Reconocimiento reiniciado (segundo intento)');
+                                } catch (e) {
+                                    console.error('No se pudo reiniciar:', e);
+                                    showError('Error al reiniciar reconocimiento de voz');
+                                    stopVoiceMode();
+                                }
+                            }
+                        }, 1000);
+                    }
+                }
+            };
+
+            console.log('✅ Reconocimiento de voz inicializado');
+        }
+
+        // ===== TEXT-TO-SPEECH =====
+        function initTextToSpeech() {
+            if (!synthesis) {
+                console.warn('⚠️ El navegador no soporta síntesis de voz');
+                document.getElementById('ttsToggle').disabled = true;
+                document.getElementById('ttsToggle').title = 'No soportado en este navegador';
+                return;
+            }
+
+            // Cargar voces disponibles
+            function loadVoices() {
+                const voices = synthesis.getVoices();
+                // Preferir voz en español
+                selectedVoice = voices.find(voice => voice.lang.startsWith('es')) || voices[0];
+                console.log('🔊 Voz seleccionada:', selectedVoice?.name, selectedVoice?.lang);
+            }
+
+            loadVoices();
+            // Las voces se cargan asíncronamente en algunos navegadores
+            if (synthesis.onvoiceschanged !== undefined) {
+                synthesis.onvoiceschanged = loadVoices;
+            }
+
+            console.log('✅ Text-to-Speech inicializado');
+        }
+
+        function speak(text) {
+            if (!isTTSEnabled || !synthesis) return;
+
+            // Cancelar cualquier síntesis en curso
+            synthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            
+            // Configuración
+            if (selectedVoice) {
+                utterance.voice = selectedVoice;
+            }
+            utterance.lang = 'es-ES';
+            utterance.rate = 1.0;  // Velocidad normal
+            utterance.pitch = 1.0;  // Tono normal
+            utterance.volume = 1.0;  // Volumen máximo
+
+            utterance.onstart = () => {
+                console.log('🔊 Hablando...');
+            };
+
+            utterance.onend = () => {
+                console.log('✅ Síntesis completada');
+            };
+
+            utterance.onerror = (event) => {
+                console.error('❌ Error en TTS:', event.error);
+            };
+
+            synthesis.speak(utterance);
+        }
+
+        // ===== CONTROL DE MODO VOZ =====
+        function toggleVoiceMode() {
+            if (!recognition) {
+                showError('Reconocimiento de voz no disponible en este navegador');
+                return;
+            }
+
+            isVoiceModeActive = !isVoiceModeActive;
+            const button = document.getElementById('voiceToggle');
+
+            if (isVoiceModeActive) {
+                startVoiceMode();
+                button.classList.add('active');
+                button.innerHTML = '🎤 <span class="listening-indicator"></span> Escuchando';
+                localStorage.setItem('voiceModeActive', 'true');
+                speak('Modo de voz activado. Di Jarvis para hablar conmigo.');
+            } else {
+                stopVoiceMode();
+                button.classList.remove('active', 'listening');
+                button.innerHTML = '🎤 Voz';
+                localStorage.setItem('voiceModeActive', 'false');
+            }
+        }
+
+        function startVoiceMode() {
+            try {
+                console.log('🚀 Intentando iniciar reconocimiento de voz...');
+                recognition.start();
+                updateVoiceStatus('Di "Jarvis" para activar');
+                document.getElementById('voiceStatus').classList.add('active');
+                console.log('✅ Modo voz iniciado (escucha pasiva)');
+                console.log('📢 IMPORTANTE: Asegúrate de hablar en voz alta y clara');
+                console.log('📢 Variaciones aceptadas: "jarvis", "yarbis", "jarbis"');
+            } catch (error) {
+                console.error('❌ Error al iniciar reconocimiento:', error);
+                
+                // Mensajes de error específicos
+                if (error.name === 'NotAllowedError' || error.message.includes('not-allowed')) {
+                    showError('❌ PERMISOS DENEGADOS: Debes permitir el acceso al micrófono. Haz clic en el ícono de candado en la barra de direcciones.');
+                } else if (error.name === 'NotFoundError') {
+                    showError('❌ MICRÓFONO NO ENCONTRADO: No se detectó ningún micrófono en el sistema.');
+                } else {
+                    showError(`❌ Error al activar el micrófono: ${error.message}`);
+                }
+                
+                isVoiceModeActive = false;
+                document.getElementById('voiceToggle').classList.remove('active');
+            }
+        }
+            }
+        }
+
+        function stopVoiceMode() {
+            if (recognition) {
+                recognition.stop();
+            }
+            isAwaitingCommand = false;
+            document.getElementById('voiceStatus').classList.remove('active');
+            document.getElementById('voiceToggle').classList.remove('listening');
+            console.log('🔴 Modo voz detenido');
+        }
+
+        function activateCommandMode() {
+            console.log('🎯 Palabra clave detectada - Activando modo comando');
+            isAwaitingCommand = true;
+            
+            // UI feedback
+            document.getElementById('voiceToggle').classList.add('listening');
+            updateVoiceStatus('¿En qué puedo ayudarte?');
+            
+            // Reproducir sonido de confirmación con TTS
+            speak('Sí, dime');
+
+            // Timeout para volver a modo pasivo
+            setTimeout(() => {
+                if (isAwaitingCommand) {
+                    console.log('⏱️ Timeout - Volviendo a modo pasivo');
+                    deactivateCommandMode();
+                    speak('Comando no recibido. Volviendo a modo pasivo.');
+                }
+            }, COMMAND_TIMEOUT);
+        }
+
+        function deactivateCommandMode() {
+            isAwaitingCommand = false;
+            document.getElementById('voiceToggle').classList.remove('listening');
+            updateVoiceStatus('Di "Jarvis" para activar');
+        }
+
+        function processVoiceCommand(command) {
+            console.log('🎯 Procesando comando:', command);
+            
+            deactivateCommandMode();
+            
+            // Enviar el comando al chat
+            document.getElementById('messageInput').value = command;
+            sendMessage();
+        }
+
+        function updateVoiceStatus(text) {
+            document.getElementById('voiceStatusText').textContent = text;
+        }
+
+        // ===== FUNCIÓN DE PRUEBA DEL MICRÓFONO =====
+        function testMicrophone() {
+            console.log('🔍 Probando micrófono...');
+            
+            if (!recognition) {
+                showError('Reconocimiento de voz no inicializado');
+                return;
+            }
+
+            // Crear un reconocedor temporal para prueba
+            const testRecognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            testRecognition.continuous = false;
+            testRecognition.interimResults = true;
+            testRecognition.lang = 'es-ES';
+
+            testRecognition.onstart = () => {
+                console.log('✅ Micrófono funcionando - Di algo para probar');
+                updateVoiceStatus('🎤 PRUEBA: Di algo en voz alta...');
+            };
+
+            testRecognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                console.log('✅ MICRÓFONO OK - Escuchado:', transcript);
+                updateVoiceStatus(`✅ Micrófono funciona! Escuché: "${transcript}"`);
+                speak('Micrófono funcionando correctamente');
+            };
+
+            testRecognition.onerror = (event) => {
+                console.error('❌ Error en prueba:', event.error);
+                if (event.error === 'not-allowed') {
+                    showError('❌ PERMISOS DENEGADOS - Permite el acceso al micrófono');
+                } else {
+                    showError(`❌ Error: ${event.error}`);
+                }
+            };
+
+            testRecognition.onend = () => {
+                console.log('🔴 Prueba terminada');
+                setTimeout(() => {
+                    updateVoiceStatus('Di "Jarvis" para activar');
+                }, 3000);
+            };
+
+            try {
+                testRecognition.start();
+            } catch (error) {
+                console.error('❌ No se pudo iniciar prueba:', error);
+                showError('Error al probar micrófono: ' + error.message);
+            }
+        }
+
+        // ===== CONTROL TTS =====
+        function toggleTTS() {
+            isTTSEnabled = !isTTSEnabled;
+            const button = document.getElementById('ttsToggle');
+
+            if (isTTSEnabled) {
+                button.classList.add('active');
+                button.innerHTML = '🔊 TTS On';
+                localStorage.setItem('ttsEnabled', 'true');
+                speak('Lectura automática activada');
+            } else {
+                synthesis.cancel(); // Detener cualquier síntesis en curso
+                button.classList.remove('active');
+                button.innerHTML = '🔊 TTS';
+                localStorage.setItem('ttsEnabled', 'false');
+            }
+        }
+
+        // ===== FUNCIONES ORIGINALES (modificadas para TTS) =====
 
         // Función para escapar HTML y prevenir XSS
         function escapeHtml(text) {
@@ -586,6 +1061,11 @@
                 // Ocultar indicador y mostrar respuesta
                 showTyping(false);
                 addMessage('assistant', data.response, data.timestamp);
+
+                // Leer respuesta con TTS
+                if (isTTSEnabled) {
+                    speak(data.response);
+                }
 
                 // Guardar en historial local
                 chatHistory.push({
