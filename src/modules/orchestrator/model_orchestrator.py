@@ -829,19 +829,19 @@ class ModelOrchestrator:
             provider = api_config.get("provider")
             
             if provider == "openai":
-                from src.modules.llm.openai_model import OpenAIModel
+                from src.modules.llm.models.openai_model import OpenAIModel
                 model = OpenAIModel(api_config)
                 response = model.get_response(query)
                 return response, best_api
                 
             elif provider == "google":
-                from src.modules.llm.google_model import GoogleModel
+                from src.modules.llm.models.google_model import GoogleModel
                 model = GoogleModel(api_config)
                 response = model.get_response(query)
                 return response, best_api
                 
             elif provider == "anthropic":
-                from src.modules.llm.anthropic_model import AnthropicModel
+                from src.modules.llm.models.anthropic_model import AnthropicModel
                 model = AnthropicModel(api_config)
                 response = model.get_response(query)
                 return response, best_api

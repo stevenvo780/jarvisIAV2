@@ -395,8 +395,19 @@ Instrucciones importantes:
                 else:
                     full_prompt = f"{system_prompt}\n\nUsuario: {message}\nAsistente:"
                 
-                # Estimar dificultad (simple: longitud del mensaje)
-                difficulty = min(50 + len(message) // 10, 90)
+                # Verificar si hay modelos locales disponibles
+                has_local_models = len(llm_system.loaded_models) > 0
+                
+                # Estimar dificultad
+                # Si NO hay modelos locales, usar dificultad alta para forzar API
+                if not has_local_models:
+                    logger.info("⚠️ No hay modelos locales disponibles, usando API")
+                    difficulty = 95  # Forzar uso de API
+                else:
+                    # Dificultad basada en longitud del mensaje
+                    difficulty = min(50 + len(message) // 10, 90)
+                
+                logger.debug(f"Procesando mensaje (difficulty={difficulty}, local_models={has_local_models})")
                 
                 # Obtener respuesta del modelo usando get_response
                 response, model_used = await asyncio.to_thread(
