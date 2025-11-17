@@ -1,11 +1,42 @@
-
 .env
 *.pyc
 __pycache__/
 logs/
+*.log
 jarvisV2/
 jarvis
 venv
+.venv*
 conversation_history.json
 models
 credentials*
+
+# Test artifacts
+artifacts/*.log
+artifacts/*.json
+artifacts/ui_tests/
+artifacts/voice_tests/
+*test_run_*.log
+
+# Coverage
+.coverage
+htmlcov/
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
+.pytest_cache/
+.qodo/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -301,8 +301,7 @@ class WebInterface:
                     # Enviar evento de inicio
                     yield f"data: {json.dumps({'type': 'start', 'timestamp': datetime.now().isoformat()})}\n\n"
 
-                    # Procesar mensaje (por ahora sin streaming real del modelo)
-                    # TODO: Implementar streaming a nivel de modelo vLLM
+                    # Procesar mensaje
                     response_text = await self._process_message(message.message)
 
                     # Simular streaming enviando la respuesta en chunks

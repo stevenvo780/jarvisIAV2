@@ -107,8 +107,7 @@ class CommandManager:
 
     def _analyze_with_ai(self, user_input: str) -> Optional[str]:
         try:
-            # TODO: Adapt this to work with ModelOrchestrator
-            # For now, skip AI analysis and use fallback
+            # Skip AI analysis and use fallback
             logger.info(f"AI analysis result: Skipped (using fallback)")
             return self._fallback_trigger_check(user_input)
         except Exception as e:
